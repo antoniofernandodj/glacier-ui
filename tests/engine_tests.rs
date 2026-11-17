@@ -7645,3 +7645,163 @@ fn link_rel_style_sem_paleta_e_erro() {
     std::fs::remove_file(gss).ok();
     std::fs::remove_file(tpl).ok();
 }
+
+// ---------------------------------------------------------------------------
+// Fase gpui-kit (0.161): `alert`, `kbd`, `descriptionlist`, `command` e a
+// condição `matches=`. Todos olham a ÁRVORE AVALIADA — o ramo existe, o texto
+// é o que devia, a ação é a string que o motor despacha.
+// ---------------------------------------------------------------------------
+
+/// Registra `gv` (o corpo de um `component { … }`) como a tela `nome` e devolve
+/// a árvore avaliada.
+fn tela_gpui(motor: &mut GlacierUI, nome: &str, gv: &str) -> UiNode {
+    std::fs::create_dir_all("templates").ok();
+    let caminho = format!("templates/test_gpui_{nome}.gv");
+    std::fs::write(&caminho, format!("component {{\n{gv}\n}}\n")).unwrap();
+    motor.register_component(nome, &caminho).unwrap();
+    let ev = motor.evaluated(nome).unwrap().clone();
+    std::fs::remove_file(&caminho).ok();
+    ev
+}
+
+fn texto_de(n: &UiNode) -> &str {
+    match &n.kind {
+        NodeType::Text { content, .. } => content,
+        outro => panic!("esperava Text, veio {outro:?}"),
+    }
+}
+
+fn clique_de(n: &UiNode) -> String {
+    match &n.kind {
+        NodeType::Button { on_click, .. } => on_click.clone().expect("botão sem ação"),
+        outro => panic!("esperava Button, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn test_gpui_kbd_texto_posicional() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(&mut motor, "t_kbd", r#"row { kbd("Ctrl+K") }"#);
+    // row > container (a tampinha) > text
+    let tampa = &ev.children[0];
+    assert_eq!(tampa.kind, NodeType::Container);
+    assert_eq!(texto_de(&tampa.children[0]), "Ctrl+K");
+}
+
+#[test]
+fn test_gpui_alert_variante_titulo_e_fechar() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(
+        &mut motor,
+        "t_alert",
+        r#"alert("Backup atrasado", variant = warning, description = "Há 3 dias.", on_close = fechar)"#,
+    );
+    assert_eq!(ev.kind, NodeType::Row);
+    assert_eq!(texto_de(&ev.children[0]), "⚠", "o glifo vem da variante");
+    let corpo = &ev.children[1];
+    assert_eq!(texto_de(&corpo.children[0]), "Backup atrasado", "o texto sem nome é o título");
+    assert_eq!(texto_de(&corpo.children[1]), "Há 3 dias.");
+    // O "×" é da TELA: `app:` tira o prefixo de dono.
+    assert_eq!(clique_de(&ev.children[2]), "fechar");
+}
+
+#[test]
+fn test_gpui_alert_sem_on_close_sem_x_e_icon_none() {
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(&mut motor, "t_alert2", r#"alert(title = "Só título", icon = none)"#);
+    assert_eq!(ev.children.len(), 1, "sem ícone e sem ×, só a coluna de texto");
+    assert_eq!(texto_de(&ev.children[0].children[0]), "Só título");
+
+    let ev = tela_gpui(&mut motor, "t_alert3", r#"alert(title = "Info")"#);
+    assert_eq!(texto_de(&ev.children[0]), "ℹ", "info é a variante default");
+}
+
+#[test]
+fn test_gpui_descriptionlist_pares_e_valor_vazio() {
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "det",
+        r#"[{"label":"Imagem","value":"nginx"},{"label":"Porta"},{"label":"Vazio","value":""}]"#,
+    );
+    let ev = tela_gpui(&mut motor, "t_dl", r#"descriptionlist(:items = det)"#);
+    assert_eq!(ev.children.len(), 3, "uma linha por par");
+    let linha = &ev.children[0];
+    assert_eq!(linha.kind, NodeType::Row);
+    assert_eq!(texto_de(&linha.children[0]), "Imagem");
+    assert_eq!(linha.children[0].width.as_deref(), Some("140"), "rótulo com largura fixa");
+    assert_eq!(texto_de(&linha.children[1]), "nginx");
+    assert_eq!(texto_de(&ev.children[1].children[1]), "—", "valor ausente");
+    assert_eq!(texto_de(&ev.children[2].children[1]), "—", "valor vazio");
+
+    let ev = tela_gpui(&mut motor, "t_dlv", r#"descriptionlist(:items = det, layout = vertical)"#);
+    assert_eq!(ev.children[0].kind, NodeType::Column, "vertical: rótulo em cima");
+}
+
+#[test]
+fn test_gpui_command_filtra_escreve_a_chave_e_delega() {
+    use glacier_ui::EngineMessage;
+
+    let mut motor = GlacierUI::new();
+    motor.define_data(
+        "cmds",
+        r#"[{"id":"novo","label":"Nova janela","shortcut":"Ctrl+N"},
+            {"id":"abrir","label":"Abrir pasta","hint":"do disco"},
+            {"id":"tema","label":"Alternar tema","keywords":"escuro claro"}]"#,
+    );
+    motor.define_data("busca", "");
+    let ev = tela_gpui(
+        &mut motor,
+        "t_cmd",
+        r#"command(:items = cmds, :value = busca, filter = @busca, on_select = executar)"#,
+    );
+    let campo = &ev.children[0];
+    let on_change = match &campo.kind {
+        NodeType::TextInput { value_var, on_change, .. } => {
+            assert_eq!(value_var, "busca", "value é o NOME da chave");
+            on_change.clone()
+        }
+        outro => panic!("esperava o campo, veio {outro:?}"),
+    };
+    let lista = |ev: &UiNode| ev.children[1].children[0].children.clone();
+    assert_eq!(lista(&ev).len(), 3, "busca vazia mostra tudo");
+    assert_eq!(clique_de(&lista(&ev)[0]), "executar:novo", "a escolha vai para a tela com o id");
+    // O atalho sai num `kbd` (container > text) à direita.
+    let linha = &lista(&ev)[0].children[0];
+    assert_eq!(texto_de(&linha.children.last().unwrap().children[0]), "Ctrl+N");
+
+    // Digitar grava a chave sozinho (o `update` do widget) e refiltra:
+    // palavras em qualquer ordem, sem caixa.
+    let _ = motor.dispatch(&EngineMessage::UiInputChanged {
+        action: on_change,
+        value: "JAN nova".into(),
+    });
+    assert_eq!(motor.context().get("busca").map(String::as_str), Some("JAN nova"));
+    let ev = motor.evaluated("t_cmd").unwrap().clone();
+    assert_eq!(lista(&ev).len(), 1);
+    assert_eq!(clique_de(&lista(&ev)[0]), "executar:novo");
+
+    // `keywords` entra na busca sem aparecer.
+    motor.define_data("busca", "escuro");
+    let _ = motor.reevaluate_all();
+    let ev = motor.evaluated("t_cmd").unwrap().clone();
+    assert_eq!(lista(&ev).len(), 1);
+    assert_eq!(clique_de(&lista(&ev)[0]), "executar:tema");
+}
+
+#[test]
+fn test_condicao_matches_busca_por_palavras() {
+    let mut motor = GlacierUI::new();
+    motor.define_data("nomes", r#"[{"n":"Servidor de borda"},{"n":"Fila"},{"n":"Borda fria"}]"#);
+    motor.define_data("q", "BORDA");
+    let ev = tela_gpui(
+        &mut motor,
+        "t_matches",
+        r#"column {
+  template(:for_each = nomes, var = x) {
+    text("{x.n}", if = @x.n, matches = @q)
+  }
+}"#,
+    );
+    let achados: Vec<&str> = ev.children.iter().map(texto_de).collect();
+    assert_eq!(achados, ["Servidor de borda", "Borda fria"]);
+}

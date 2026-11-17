@@ -203,6 +203,8 @@ const NATIVE_TAGS = {
   // e sob a grafia minúscula colada — ver `builtins::builtin_aliases`.
   Accordion: ["accordion"],
   AccordionItem: ["accordionitem"],
+  // Fase gpui-kit (0.161): o aviso que fica na tela.
+  Alert: ["alert"],
   Avatar: ["avatar"],
   Badge: ["badge"],
   ButtonBox: ["buttonbox"],
@@ -212,9 +214,14 @@ const NATIVE_TAGS = {
   Chip: ["chip"],
   // Onda 11: título + descrição + seta, sobre o `button` com filhos.
   CommandLink: ["commandlink"],
+  // Fase gpui-kit (0.161): a paleta de comandos e a ficha rótulo → valor.
+  Command: ["command"],
+  DescriptionList: ["descriptionlist"],
   Drawer: ["drawer"],
   Frame: ["frame"],
   GroupBox: ["groupbox"],
+  // Fase gpui-kit (0.161): a tecla desenhada (fora do `prose`).
+  Kbd: ["kbd"],
   ListView: ["listview"],
   // Onda 11: `stack` (a primeira camada é o `slot`) + `anchor` (a
   // segunda, o pontinho) — o primeiro consumidor do habilitador A.
@@ -325,6 +332,7 @@ const DIRECTIVE_ATTRS = new Set(
     "equals", "eq", "not_equals", "ne",
     "one_of", "equals_any",
     "contains", "has",
+    "matches",
     "empty", "not_empty",
     "platform",
     // repetição

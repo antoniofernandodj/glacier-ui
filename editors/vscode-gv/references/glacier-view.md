@@ -803,10 +803,11 @@ entre ele e o `popover`, que é ancorado de propósito (ver a seção do
 Repete o corpo por item. Atributos: `items`, `var`.
 
 ### `if` / `else`
-Condicional. `if` aceita `cond`, `equals`, `not_equals`, `one_of`, `contains`, `empty`/`not_empty`.
+Condicional. `if` aceita `cond`, `equals`, `not_equals`, `one_of`, `contains`, `matches`, `empty`/`not_empty`.
 
 - `one_of="a b c"` (`equals_any`) — o valor da chave é **um dos** tokens do markup.
 - `contains="rede"` (`has`) — o **simétrico**: a lista está na chave (`"geral,rede"`) e o item está no markup. É o **conjunto nomeado** — várias seções de um accordion abertas, uma seleção múltipla, um filtro por tags — sem estado por instância. Separadores: vírgula, ponto-e-vírgula ou espaço, os três ao mesmo tempo; o item também interpola (`contains="{s.id}"`).
+- `matches="{busca}"` — **busca de texto**: casa quando cada palavra do valor aparece, sem diferenciar maiúsculas, em algum lugar da condição. Agulha vazia casa sempre (a lista inteira antes de alguém digitar). `text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista sem uma linha de script; é o que o `command` usa por dentro.
 - `empty` / `not_empty` (pelados) — a chave é (ou não é) um array JSON de zero elementos.
 
 ### `elseif`
@@ -2044,6 +2045,113 @@ do `tooltip=`.
 button(text = "?", on_click = "whatsthis:toggle")
 slider(:value = v, whats_this = "Arrasta para ajustar o volume.")
 ```
+
+## A fase gpui-kit (0.161)
+
+Widgets que a comparação com o [gpui-kit](https://gpui-kit.com) mostrou que
+faltavam. Todos builtins, sem estado.
+
+### `alert`
+O aviso que **fica** na tela (o `toast()` passa sozinho; o `dialog`
+interrompe). Ícone, título, descrição, e o que se escreve dentro entra sob a
+descrição (`slot`).
+
+```gv
+alert("Backup atrasado", variant = warning, description = "O último rodou há 3 dias.")
+alert("{aviso}", variant = @aviso_tipo, on_close = fechar_aviso, if = @aviso, not_equals = "") {
+  button("Ver logs", on_click = ver_logs)
+}
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `title` | vazio | o título; é o texto sem nome (`alert("…")`) |
+| `description` | vazio | a linha de baixo |
+| `variant` | `info` | `info`, `success`, `warning`, `error` (as do `toast()`) |
+| `icon` | da variante | troca o glifo (`ℹ`/`✓`/`⚠`/`✕`); `none` tira |
+| `on_close` | — | ação **da tela** no "×". Ausente = sem "×" |
+| `width` | `fill` | largura |
+| `title_class` / `description_class` | — | classes dos dois textos |
+
+Classes da lib: `.alert`, `.alert-<variante>`, `.alert-icon-<variante>`.
+
+### `kbd`
+A tecla desenhada — o atalho como uma tampinha. Fora de um `prose` é este
+builtin; dentro, `kbd` segue sendo código inline.
+
+```gv
+row {
+  text("Abrir a paleta:")
+  kbd("Ctrl+K")
+}
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `keys` | vazio | o texto da tecla; é o texto sem nome (`kbd("Esc")`) |
+| `size` | `12` | corpo do texto |
+| `text_class` | — | classe do texto de dentro |
+
+Uma tampinha por combinação; para uma por tecla, escreva uma por tecla.
+
+### `descriptionlist`
+Pares rótulo → valor (a "ficha" de um item), com a coluna de rótulos de
+largura fixa.
+
+```gv
+descriptionlist(:items = ficha)
+descriptionlist(:items = ficha, layout = vertical)
+```
+
+```lua
+ctx.ficha = json.encode(json.array({
+    { label = "Imagem", value = "nginx:1.27" },
+    { label = "Porta",  value = "8080" },
+}))
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | **nome da chave** com o array de `{label, value}` |
+| `layout` | `horizontal` | `vertical` põe o rótulo em cima do valor |
+| `label_width` | `140` | largura da coluna de rótulos |
+| `spacing` | `8` | espaço entre as linhas |
+| `size` | `13` | corpo do texto |
+| `row_class` / `label_class` / `value_class` | — | classes de dentro |
+
+Valor ausente ou vazio aparece como `—`.
+
+### `command`
+A paleta de comandos: um campo que filtra uma lista de ações enquanto se
+digita. O clique num item chama `on_select` **na tela** com o `id`.
+
+```gv
+shortcut(key = ctrl+k, on_press = abrir_paleta)
+command(:items = comandos, :value = busca, filter = @busca, on_select = executar, if = @paleta)
+```
+
+```lua
+ctx.comandos = json.encode(json.array({
+    { id = "novo",  label = "Novo projeto", hint = "do zero", shortcut = "Ctrl+N" },
+    { id = "tema",  label = "Alternar tema", keywords = "escuro claro" },
+}))
+function executar(id: string): () ctx.busca = "" end
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `items` | — | **nome da chave** com `{id, label, hint?, shortcut?, keywords?}` |
+| `value` | — | **nome da chave** do texto digitado (o widget grava sozinho) |
+| `filter` | — | o **valor** dessa chave (`filter = @busca`); sem ele, não filtra |
+| `on_select` | — | ação da tela; recebe o `id` |
+| `placeholder` | `Digite um comando…` | dica do campo |
+| `max_height` | `320` | altura da lista, que rola além dela |
+| `input_class` / `item_class` / `label_class` / `hint_class` | — | classes de dentro |
+
+O filtro casa cada palavra digitada, sem caixa, em `label`, `hint` ou
+`keywords` (a condição `matches=`). `shortcut` sai num `kbd` à direita. Sem
+setas nem Enter: a escolha é por clique ou Tab + Espaço; o campo nasce com
+`autofocus`.
 
 ---
 

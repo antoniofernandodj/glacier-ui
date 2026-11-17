@@ -497,7 +497,20 @@ nele leria como "senão". Os detalhes estão em "Estrutura de template".
 
 Comparadores disponíveis nos dois: `equals`, `not_equals`, `one_of` (lista
 separada por espaço, no atributo), `contains` (o inverso — a lista está na
-chave), `empty` e `not_empty` (que testam um **array JSON**, não uma string).
+chave), `matches` (busca de texto: cada palavra do valor aparece na condição,
+sem caixa; vazio casa sempre), `empty` e `not_empty` (que testam um **array
+JSON**, não uma string).
+
+`matches` filtra uma lista enquanto se digita sem uma linha de script — o
+campo grava a busca, o `matches` esconde o que não casa:
+
+```gv
+textinput(:value = busca, on_change = busca, placeholder = "filtrar…")
+template(:for_each = servicos, var = s) {
+  // o nome OU a imagem: a condição é o texto onde se procura
+  text("{s.nome}", if = "{s.nome} {s.imagem}", matches = @busca)
+}
+```
 Sem comparador nenhum, o teste é **truthy**: vazio, `"false"` e `"0"` são
 falsos — e é essa a forma de testar um texto.
 
@@ -951,7 +964,7 @@ largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
 
 ## O catálogo de widgets
 
-São **111 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
+São **115 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
@@ -1589,6 +1602,59 @@ Props: `label`, `on_remove` (sem ele o "×" não é desenhado), `bg`, `fg`, `siz
 **`Skeleton(width = 220, height = 14)`** — placeholder de carregamento. Props:
 `width` (`fill`), `height` (16), `radius` (4), `background`.
 
+**`alert("Backup atrasado", variant = warning)`** — o aviso que **fica** na
+tela. O `toast()` passa sozinho e o `dialog` interrompe; o `alert` descreve uma
+*condição* da tela e fica até ela mudar. O texto sem nome é o título; o que se
+escreve dentro entra sob a descrição (`slot`).
+
+```gv
+alert("{aviso}", variant = @aviso_tipo, description = @aviso_detalhe, on_close = fechar_aviso, if = @aviso, not_equals = "") {
+  button("Ver logs", on_click = ver_logs)
+}
+```
+
+| prop | default |
+|---|---|
+| `title` | vazio — é o texto sem nome |
+| `description` | vazio |
+| `variant` | `info`; também `success`, `warning`, `error` (os mesmos do `toast()`) |
+| `icon` | o glifo da variante (`ℹ`/`✓`/`⚠`/`✕`); `none` tira |
+| `on_close` | ação **da tela** no "×"; sem ela, o "×" não é desenhado |
+| `width` | `fill` |
+| `title_class`, `description_class` | classes dos textos de dentro |
+
+O `alert` não se esconde sozinho: o `on_close` apaga a chave do `if`. Repare no
+`not_equals = ""` — `if = @aviso` sozinho é teste **truthy**, e `"Backup
+atrasado"` não é `true`. Classes da lib para repintar: `.alert`,
+`.alert-<variante>`, `.alert-icon-<variante>`.
+
+**`kbd("Ctrl+K")`** — a tecla desenhada, como uma tampinha. Uma por
+combinação; para uma por tecla, uma tag por tecla (`kbd("Ctrl") text("+")
+kbd("K")`). Props: `keys` (o texto sem nome), `size` (12), `text_class`. Dentro
+de um `prose`, `kbd` continua sendo código inline.
+
+**`descriptionlist(:items = ficha)`** — pares rótulo → valor, a "ficha" de um
+item, com a coluna de rótulos de largura fixa (sem ela cada linha alinha o
+valor num lugar diferente).
+
+```lua
+ctx.ficha = json.encode(json.array({
+    { label = "Imagem", value = "nginx:1.27" },
+    { label = "Porta",  value = "8080" },
+}))
+```
+
+| prop | default |
+|---|---|
+| `items` | **nome da chave** com `[{label, value}]` |
+| `layout` | `horizontal`; `vertical` põe o rótulo em cima do valor |
+| `label_width` | `140` |
+| `spacing` | `8` |
+| `size` | `13` |
+| `row_class`, `label_class`, `value_class` | classes de dentro |
+
+Valor ausente ou vazio aparece como `—`.
+
 ### Entrada de dados
 
 Todos gravam numa chave. O `on_change` é **opcional**: sem uma função global com
@@ -1918,6 +1984,48 @@ bolinhas em vez de números. Não é um `dots="true"`.
 
 **`rating(:value = nota, max = 5)`** — descrito em "Entrada de dados"; `max`
 interpola e fica preso entre 1 e 20.
+
+**`command(:items = comandos, :value = busca, filter = @busca, on_select = executar)`**
+— a **paleta de comandos** (o Ctrl+Shift+P do VS Code): um campo que filtra uma
+lista de ações enquanto se digita. É o par `value` + `active` do `tabbar`:
+`value` é o nome da chave que a digitação grava (o widget grava sozinho),
+`filter` é o valor dela, que o markup lê para filtrar.
+
+```gv
+shortcut(key = ctrl+k, on_press = alternar_paleta)
+shortcut(key = escape, on_press = fechar_paleta)
+column(class = paleta, if = @paleta) {
+  command(:items = comandos, :value = busca, filter = @busca, on_select = executar)
+}
+```
+
+```lua
+ctx.comandos = json.encode(json.array({
+    { id = "novo",  label = "Novo projeto",  hint = "do zero", shortcut = "Ctrl+N" },
+    { id = "tema",  label = "Alternar tema", keywords = "escuro claro" },
+}))
+
+function executar(id: string): ()   -- on_select: o id chega como argumento
+    ctx.paleta = false
+    ctx.busca = ""
+end
+```
+
+| prop | default |
+|---|---|
+| `items` | **nome da chave** com `[{id, label, hint?, shortcut?, keywords?}]` |
+| `value` | **nome da chave** do texto digitado |
+| `filter` | o **valor** dessa chave (`@busca`); sem ele, a lista não filtra |
+| `on_select` | ação da tela; recebe o `id` |
+| `placeholder` | `Digite um comando…` |
+| `max_height` | `320` — a lista rola além disso |
+| `input_class`, `item_class`, `label_class`, `hint_class` | classes de dentro |
+
+O filtro casa cada palavra digitada, sem caixa, no `label`, no `hint` ou nas
+`keywords` (que só entram na busca, não aparecem); `shortcut` sai num `kbd` à
+direita. **Sem setas nem Enter**: a escolha é por clique (ou Tab + Espaço) — o
+campo nasce com `autofocus`. O widget não fecha nada nem limpa a busca: quem
+abriu a paleta fecha, no `on_select`.
 
 ### Data e hora
 

@@ -409,7 +409,7 @@ pub(crate) fn mascara_preset(bruta: &str) -> String {
 #[rustfmt::skip] // agrupado por natureza da diretiva; uma por linha esconde isso
 pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     // condicionais
-    "if", "else", "else_if", "equals", "eq", "not_equals", "ne", "one_of", "equals_any", "contains", "has", "empty", "not_empty", "platform", // repetição
+    "if", "else", "else_if", "equals", "eq", "not_equals", "ne", "one_of", "equals_any", "contains", "has", "matches", "empty", "not_empty", "platform", // repetição
     "for_each", "foreach", "each", "repeat", "var", // destino num slot nomeado do componente
     "slot",
     // arrastar-e-soltar da lista repetida
@@ -2114,6 +2114,8 @@ pub enum NodeType {
         /// `contains="rede"` — o simétrico de `one_of`: a lista está na chave,
         /// o item está no markup. Ver [`Cond::if_contains`].
         contains: Option<String>,
+        /// `matches="{busca}"` — busca de texto. Ver [`Cond::if_matches`].
+        matches: Option<String>,
         empty: bool,
         not_empty: bool,
     },
@@ -2131,6 +2133,8 @@ pub enum NodeType {
         one_of: Option<String>,
         /// Ver [`NodeType::If::contains`].
         contains: Option<String>,
+        /// Ver [`Cond::if_matches`].
+        matches: Option<String>,
         empty: bool,
         not_empty: bool,
     },
@@ -3771,6 +3775,17 @@ pub struct Cond {
     /// b"` de um `table.concat` com espaço) e exigir um deles só seria uma
     /// pegadinha sem contrapartida.
     pub if_contains: Option<String>,
+    /// `matches="{busca}"` — **busca de texto**: casa quando cada palavra do
+    /// valor do atributo aparece, sem diferenciar maiúsculas, em algum lugar
+    /// da condição. Agulha vazia casa sempre, que é o que uma lista filtrada
+    /// quer antes de alguém digitar.
+    ///
+    /// Não é o [`Self::if_contains`]: lá a chave guarda um *conjunto* de
+    /// tokens e o teste é de pertença exata; aqui a chave guarda *texto* e o
+    /// teste é de substring. Nasceu para o `command` (a paleta filtra os
+    /// comandos pelo que se digita), mas vale em qualquer lista:
+    /// `row(for_each = itens, var = i) { template(if = @i.nome, matches = @busca) { … } }`.
+    pub if_matches: Option<String>,
     /// `platform="desktop"`/`"web"` — filtro independente de `if`/`else-if`/
     /// `else` (não participa da cadeia, não mexe em `last_if`): um valor que
     /// não bate com [`crate::eval::current_platform`] some o nó inteiro da
@@ -4173,6 +4188,17 @@ impl UiNode {
             return;
         }
         self.cond.get_or_insert_with(Default::default).if_contains = v;
+    }
+    /// Ver [`Cond::if_matches`].
+    pub fn if_matches(&self) -> Option<&str> {
+        self.cond.as_ref()?.if_matches.as_deref()
+    }
+    /// Escreve [`Cond::if_matches`], alocando o grupo se preciso.
+    pub fn set_if_matches(&mut self, v: Option<String>) {
+        if v.is_none() && self.cond.is_none() {
+            return;
+        }
+        self.cond.get_or_insert_with(Default::default).if_matches = v;
     }
     /// Ver [`Cond::if_platform`].
     pub fn if_platform(&self) -> Option<&str> {
@@ -5092,6 +5118,7 @@ impl UiNode {
                 ],
         );
         let if_contains = Self::get_attr(&node, &["contains", "has"]);
+        let if_matches = Self::get_attr(&node, &["matches"]);
         let if_empty = node.has_attribute("empty");
         let if_not_empty = node.has_attribute("not_empty");
         let if_platform = Self::get_attr(&node, &["platform"]);
@@ -6599,6 +6626,7 @@ impl UiNode {
                 );
                 let contains =
                     Self::get_attr(&node, &["contains", "has"]);
+                let matches = Self::get_attr(&node, &["matches"]);
                 let empty = node.has_attribute("empty");
                 let not_empty = node.has_attribute("not_empty");
                 let is_else = node.has_attribute("else");
@@ -6626,6 +6654,7 @@ impl UiNode {
                         not_equals,
                         one_of,
                         contains,
+                        matches,
                         empty,
                         not_empty,
                     }
@@ -6636,6 +6665,7 @@ impl UiNode {
                         not_equals,
                         one_of,
                         contains,
+                        matches,
                         empty,
                         not_empty,
                     }
@@ -6646,6 +6676,7 @@ impl UiNode {
                         not_equals: None,
                         one_of: None,
                         contains: None,
+                        matches: None,
                         empty: false,
                         not_empty: false,
                     }
@@ -6941,6 +6972,7 @@ impl UiNode {
                 if_not_equals,
                 if_one_of,
                 if_contains,
+                if_matches,
                 if_platform,
                 else_if_cond,
                 for_each,

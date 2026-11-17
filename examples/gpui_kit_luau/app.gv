@@ -1,0 +1,43 @@
+screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = "760 520") {
+  resources {
+    link(rel = stylesheet, href = "examples/gpui_kit_luau/app.gss")
+    script(src = "scripts/app.luau")
+  }
+
+  // Atalhos globais: moram no layout e não desenham nada.
+  shortcut(key = ctrl+k, on_press = alternar_paleta)
+  shortcut(key = escape, on_press = fechar_paleta)
+
+  column(class = tela) {
+    row(class = topo) {
+      text("Serviços", class = titulo)
+      space
+      text("paleta de comandos:", class = dica)
+      kbd("Ctrl+K")
+    }
+
+    // O aviso só existe enquanto `aviso` tiver texto; o × apaga a chave.
+    alert("{aviso}", variant = @aviso_tipo, description = @aviso_detalhe, on_close = fechar_aviso, if = @aviso, not_equals = "")
+
+    // A paleta: aparece por cima do conteúdo, no fluxo da coluna.
+    column(class = paleta, if = @paleta) {
+      command(:items = comandos, :value = busca, filter = @busca, on_select = executar, placeholder = "Buscar um comando…")
+      row(class = rodape_paleta) {
+        kbd("Esc")
+        text("fecha", class = dica)
+      }
+    }
+
+    row(class = corpo) {
+      column(class = coluna) {
+        text("Serviço selecionado", class = secao)
+        descriptionlist(:items = ficha)
+      }
+      column(class = coluna) {
+        text("Atalhos", class = secao)
+        descriptionlist(:items = atalhos, layout = vertical)
+        text("último comando: {ultimo}", class = nota)
+      }
+    }
+  }
+}

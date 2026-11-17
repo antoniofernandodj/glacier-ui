@@ -1,6 +1,6 @@
 [package]
 name = "glacier-ui"
-version = "0.160.0"
+version = "0.161.0"
 edition = "2024"
 description = "Declarative UI engine for Rust: render UI from XML to iced, with hot-reload, data binding, components and .gss stylesheets."
 license = "MIT OR Apache-2.0"
@@ -693,3 +693,7 @@ required-features = ["suite-completa"]
 # name = "audio"
 # path = "examples/audio/main.rs"
 # required-features = ["audio"]
+
+# [[example]]
+# name = "gpui_kit_luau"
+# path = "examples/gpui_kit_luau/main.rs"

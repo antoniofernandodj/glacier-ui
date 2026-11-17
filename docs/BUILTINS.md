@@ -811,6 +811,7 @@ Veja `tests/engine_tests.rs`:
 - `test_builtin_tabbar_escreve_a_chave_do_app` — a barra de abas pelo padrão do `spinbox`.
 - `test_atributo_numerico_templado` — prop num atributo numérico.
 - `test_template_default_inline` — a sintaxe `{prop|default}`.
+- `test_gpui_command_filtra_escreve_a_chave_e_delega` — um builtin que **age** (grava a busca) e **delega** (`app:` no `on_select`) no mesmo template; os outros `test_gpui_*` cobrem `alert`, `kbd` e `descriptionlist`.
 
 ## Checklist
 

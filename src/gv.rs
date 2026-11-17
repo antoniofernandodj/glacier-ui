@@ -1113,11 +1113,20 @@ fn tag_inline(tag: &str) -> bool {
 /// contêineres (`prose`, `p`, `ul`, `ol`, `blockquote`, `figure`) ficam de fora: o texto
 /// vive nos filhos deles. Outras (`button` quer `text`, `textinput` quer
 /// `placeholder`…) ficam de fora de propósito: lá "o texto" é ambíguo, e
-/// `nome = valor` diz qual. O `button` (e o `choice` do `actions` de um `dialog`) entra com `text` (o rótulo).
+/// `nome = valor` diz qual. O `button` (e o `choice` do `actions` de um `dialog`) entra com `text` (o rótulo);
+/// os builtins `kbd` e `alert` entram com `keys` e `title`.
 fn posicional(tag: &str) -> Option<&'static str> {
     let t = tag.to_ascii_lowercase();
     if matches!(t.as_str(), "button" | "choice") {
         return Some("text");
+    }
+    // Builtins de texto curto: `kbd("Ctrl+K")` é a tecla, `alert("Salvo")` é o
+    // título do aviso. A forma com nome (`keys =`, `title =`) segue valendo.
+    if t == "kbd" {
+        return Some("keys");
+    }
+    if t == "alert" {
+        return Some("title");
     }
     let carrega = matches!(t.as_str(), "text" | "texto" | "markdown" | "md")
         || (tag_inline(tag)

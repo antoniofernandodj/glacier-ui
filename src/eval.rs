@@ -1222,6 +1222,7 @@ fn eval_condition(
     not_equals: Option<&str>,
     one_of: Option<&str>,
     contains: Option<&str>,
+    matches: Option<&str>,
     empty: bool,
     not_empty: bool,
     context: &EvalCtx,
@@ -1261,6 +1262,9 @@ fn eval_condition(
             .map(str::trim)
             .any(|tok| !tok.is_empty() && tok == alvo);
     }
+    if let Some(agulha) = matches {
+        return casa_busca(&value, &process_tpl(agulha, context));
+    }
     if empty {
         return json_array_is_empty(&value);
     }
@@ -1268,6 +1272,17 @@ fn eval_condition(
         return !json_array_is_empty(&value);
     }
     is_truthy(&value)
+}
+
+/// O teste do `matches=`: cada palavra da `agulha` aparece em `palheiro`, sem
+/// diferenciar maiúsculas. Agulha vazia (ou só espaço) casa sempre — a lista
+/// inteira aparece antes de alguém digitar. Por palavra, e não pela frase
+/// inteira, para que "nova jan" ache "Nova janela" e "janela nova".
+pub(crate) fn casa_busca(palheiro: &str, agulha: &str) -> bool {
+    let palheiro = palheiro.to_lowercase();
+    agulha
+        .split_whitespace()
+        .all(|palavra| palheiro.contains(&palavra.to_lowercase()))
 }
 
 /// `cond` já é o JSON cru de uma lista no contexto (`ctx.proj_secrets =
@@ -1572,6 +1587,7 @@ fn expand_children(
                     child.if_not_equals(),
                     child.if_one_of(),
                     child.if_contains(),
+                    child.if_matches(),
                     child.if_empty,
                     child.if_not_empty,
                     context,
@@ -1583,6 +1599,7 @@ fn expand_children(
                     clone.set_if_not_equals(None);
                     clone.set_if_one_of(None);
                     clone.set_if_contains(None);
+                    clone.set_if_matches(None);
                     clone.if_empty = false;
                     clone.if_not_empty = false;
                     out.push(eval_owned(
@@ -1603,6 +1620,7 @@ fn expand_children(
                 child.if_not_equals(),
                 child.if_one_of(),
                 child.if_contains(),
+                child.if_matches(),
                 child.if_empty,
                 child.if_not_empty,
                 context,
@@ -1615,6 +1633,7 @@ fn expand_children(
                 clone.set_if_not_equals(None);
                 clone.set_if_one_of(None);
                 clone.set_if_contains(None);
+                    clone.set_if_matches(None);
                 clone.if_empty = false;
                 clone.if_not_empty = false;
                 out.push(eval_owned(
@@ -1748,6 +1767,7 @@ fn expand_children(
                 not_equals,
                 one_of,
                 contains,
+                matches,
                 empty,
                 not_empty,
             } => {
@@ -1757,6 +1777,7 @@ fn expand_children(
                     not_equals.as_deref(),
                     one_of.as_deref(),
                     contains.as_deref(),
+                    matches.as_deref(),
                     *empty,
                     *not_empty,
                     context,
@@ -1782,6 +1803,7 @@ fn expand_children(
                 not_equals,
                 one_of,
                 contains,
+                matches,
                 empty,
                 not_empty,
             } => {
@@ -1796,6 +1818,7 @@ fn expand_children(
                         not_equals.as_deref(),
                         one_of.as_deref(),
                         contains.as_deref(),
+                        matches.as_deref(),
                         *empty,
                         *not_empty,
                         context,

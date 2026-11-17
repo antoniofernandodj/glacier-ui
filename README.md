@@ -392,6 +392,10 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 | `shortcut` | `action` | atalho global de teclado, **declarado no layout** (não desenha nada): `key` (`"ctrl+s"`, `"f5"`; a ordem dos modificadores não importa) e `on_press`. Vale enquanto a tela estiver montada |
 | `shortcutinput` | `keysequenceedit` | o campo que captura uma combinação (`QKeySequenceEdit`): `value` (chave), `placeholder`, `on_change`. Clique e tecle; Esc desiste, Backspace limpa |
 | `sizegrip` | — | o canto que redimensiona a janela (`QSizeGrip`), para apps com titlebar própria: `corner` (default `se`, sudeste), `size`. Builtin |
+| `alert` | — | o aviso que **fica** na tela (o `toast()` passa, o `dialog` interrompe): `title` (o texto sem nome — `alert("Salvo")`), `description`, `variant` (`info` · `success` · `warning` · `error`), `icon` (`none` tira), `on_close` (ação da tela no "×"; sem ela, sem "×"). O que vai dentro entra sob a descrição (`slot`). Builtin, fase gpui-kit |
+| `kbd` | — | a tecla desenhada, como uma tampinha: `keys` (o texto sem nome — `kbd("Ctrl+K")`), `size`. Dentro de um `prose`, `kbd` segue sendo código inline. Builtin, fase gpui-kit |
+| `descriptionlist` | — | pares rótulo → valor (a ficha de um item): `items` (chave com `[{label, value}]`), `layout` (`horizontal` · `vertical`), `label_width` (default `140`), `spacing`, `size`. Valor vazio vira `—`. Builtin, fase gpui-kit |
+| `command` | — | a **paleta de comandos**: `items` (chave com `[{id, label, hint?, shortcut?, keywords?}]`), `value` (chave da busca — o widget grava sozinho), `filter` (o valor dela: `filter = @busca`), `on_select` (ação da tela, recebe o `id`), `placeholder`, `max_height`. Filtra por palavras, sem caixa (`matches=`); `shortcut` sai num `kbd`. Builtin, fase gpui-kit |
 
 ### Estruturais (composição, fluxo, recursos)
 
@@ -768,12 +772,13 @@ text(content = "Painel Admin", if = @papel, equals = admin)
 text(content = "Acesso Comum", if = @papel, not_equals = admin)
 ```
 
-Mais quatro comparadores, todos sobre o mesmo `if`/`else_if`:
+Mais cinco comparadores, todos sobre o mesmo `if`/`else_if`:
 
 | Atributo | Casa quando |
 |---|---|
 | `one_of="a b c"` (`equals_any`) | o valor da chave é **um dos** tokens escritos no markup |
 | `contains="rede"` (`has`) | o **valor da chave é uma lista** (`"geral,rede"`) que tem esse item — o simétrico do `one_of` |
+| `matches="{busca}"` | **busca de texto**: cada palavra do valor aparece, sem diferenciar maiúsculas, na condição. Vazio casa sempre — `text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista enquanto se digita |
 | `empty` / `not_empty` (pelados) | a chave é (ou não é) um array JSON de zero elementos |
 
 `contains` é o que dá ao motor o **conjunto nomeado**: várias seções de um
@@ -2218,6 +2223,7 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example nome`.
 | `onda3` | o calendário: `calendar`, `monthyearpicker` e `daterangepicker` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `slot` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
+| `gpui_kit_luau` | a fase gpui-kit em Luau: `command` (paleta com Ctrl+K, filtro por palavras, `on_select`), `alert` dirigido pelo script com "×", `descriptionlist` da ficha do serviço e `kbd` nos atalhos. |
 
 ---
 

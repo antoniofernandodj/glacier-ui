@@ -1,0 +1,16 @@
+/* Só aparência. O fundo é do tema — nada aqui pinta área grande. */
+:root {
+  --fraco: #7F849C;
+  --linha: #45475A;
+}
+
+.tela    { width: fill; height: fill; padding: 16; spacing: 14; }
+.topo    { width: fill; align_y: center; spacing: 8; }
+.titulo  { size: 18; bold: true; }
+.dica    { size: 12; color: var(--fraco); }
+.paleta  { width: fill; padding: 10; spacing: 8; border_width: 1; border_color: var(--linha); border_radius: 8; }
+.rodape_paleta { spacing: 6; align_y: center; }
+.corpo   { width: fill; spacing: 24; }
+.coluna  { width: fill; spacing: 10; }
+.secao   { size: 13; bold: true; }
+.nota    { size: 12; color: var(--fraco); }

@@ -8,6 +8,18 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.161.0 — 2026-11-16
+
+Fase especial **gpui-kit** (`docs/arquivados/PLANO_WIDGETS.md` §7): a comparação com o catálogo do [gpui-kit](https://gpui-kit.com) e os quatro primeiros widgets que faltavam. Todos builtins, sem estado, sem registro.
+
+- **`alert`** — o aviso que **fica** na tela (o `toast()` passa, o `dialog` interrompe): `title` (o texto sem nome, `alert("Salvo")`), `description`, `variant` (`info`/`success`/`warning`/`error`, as do `toast()`), `icon` (`none` tira), `on_close` (ação da tela no "×"; sem ela não há "×") e `slot` sob a descrição.
+- **`kbd`** — a tecla desenhada: `kbd("Ctrl+K")`, `size`, `text_class`. Dentro de um `prose`, `kbd` continua sendo código inline.
+- **`descriptionlist`** — pares rótulo → valor de uma chave `[{label, value}]`, coluna de rótulos de largura fixa (`label_width`, 140), `layout = vertical`; valor ausente ou vazio vira `—`.
+- **`command`** — a paleta de comandos: `command(:items = comandos, :value = busca, filter = @busca, on_select = executar)`. O widget grava a busca sozinho, filtra por palavras sem caixa em `label`/`hint`/`keywords`, desenha `shortcut` num `kbd` e entrega o `id` escolhido à tela. Sem setas/Enter (limite documentado).
+- **Condição `matches=`** em qualquer `if`/`else_if`/`template(if)`: casa quando cada palavra do valor aparece, sem diferenciar maiúsculas, na condição; vazio casa sempre. Filtra uma lista enquanto se digita sem script: `text("{s.nome}", if = @s.nome, matches = @busca)`.
+- Texto sem nome no `.gv` para `kbd` (vira `keys`) e `alert` (vira `title`).
+- Exemplo `gpui_kit_luau` (paleta com Ctrl+K, aviso dirigido pelo script, ficha do serviço). Extensão Glacier View 0.27.0: as quatro tags, `matches` e as seções na referência.
+
 ## glacier-ui 0.160.0 — 2026-11-12
 
 - **`save_download(nome, conteúdo)`: grava na pasta Downloads do sistema, sem diálogo.** Devolve `true, caminho` ou `false, mensagem` (ex.: sem pasta Downloads — caia no `save_file`). **Nunca sobrescreve:** se `nome` já existe, grava `nome-1.ext`, `nome-2.ext`…; no Unix o arquivo nasce `0600` (costuma ser uma credencial) e um nome com `../` vira só o último componente. A pasta vem da crate `dirs` (XDG no Linux, `~/Downloads` no macOS, Known Folder no Windows); em wasm/Android responde `false, "indisponível nesta plataforma"`. Declarado no `glacier.d.luau` do template e no `AGENTS.md`.

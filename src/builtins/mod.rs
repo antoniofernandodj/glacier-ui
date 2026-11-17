@@ -81,19 +81,23 @@
 //! — é o **único** ponto que o motor lê; nada mais precisa mudar. Guia completo,
 //! com checklist e armadilhas, em `BUILTINS.md`.
 mod accordion;
+mod alert;
 mod avatar;
 mod badge;
 mod button_box;
 mod card;
 mod chip;
 mod color_dialog;
+mod command;
 mod command_link;
+mod description_list;
 mod drawer;
 mod font_dialog;
 mod font_select;
 mod frame;
 mod group_box;
 mod input_dialog;
+mod kbd;
 pub(crate) mod list_view;
 mod notification_dot;
 mod progress_dialog;
@@ -112,6 +116,7 @@ mod tool_button;
 mod wizard;
 
 use crate::builtins::accordion::{Accordion, AccordionItem, ToolBox, ToolBoxItem};
+use crate::builtins::alert::Alert;
 use crate::builtins::avatar::Avatar;
 use crate::builtins::badge::Badge;
 use crate::builtins::button_box::ButtonBox;
@@ -123,7 +128,9 @@ use crate::builtins::color_dialog::ColorDialog;
 pub(crate) use crate::builtins::color_dialog::{
     COLOR_DIALOG_BODY, HEX_KEY as COLOR_DIALOG_HEX_KEY,
 };
+use crate::builtins::command::Command;
 use crate::builtins::command_link::CommandLink;
+use crate::builtins::description_list::DescriptionList;
 use crate::builtins::drawer::Drawer;
 // Consumidos pela camada Luau, que não existe no alvo web.
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
@@ -136,6 +143,7 @@ use crate::builtins::group_box::GroupBox;
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 pub(crate) use crate::builtins::input_dialog::INPUT_DIALOG_BODY;
 use crate::builtins::input_dialog::InputDialog;
+use crate::builtins::kbd::Kbd;
 use crate::builtins::list_view::ListView;
 use crate::builtins::notification_dot::NotificationDot;
 // Consumidos pela camada Luau, que não existe no alvo web.
@@ -167,19 +175,23 @@ pub fn builtin_components() -> Vec<Box<dyn Component>> {
     vec![
         Box::new(Accordion),
         Box::new(AccordionItem),
+        Box::new(Alert),
         Box::new(Avatar),
         Box::new(Badge),
         Box::new(ButtonBox),
         Box::new(Card),
         Box::new(Chip),
         Box::new(ColorDialog),
+        Box::new(Command),
         Box::new(CommandLink),
+        Box::new(DescriptionList),
         Box::new(Drawer),
         Box::new(FontDialog),
         Box::new(FontSelect),
         Box::new(Frame),
         Box::new(GroupBox),
         Box::new(InputDialog),
+        Box::new(Kbd),
         Box::new(ListView),
         Box::new(NotificationDot),
         Box::new(ProgressDialog),

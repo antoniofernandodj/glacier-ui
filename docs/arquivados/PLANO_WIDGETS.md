@@ -1,6 +1,11 @@
 # Plano de construção da biblioteca de widgets — rumo a um "Qt em Rust"
 
 > **ARQUIVADO — CONCLUÍDO** (2026-10-25). Mantido como registro histórico. O catálogo foi dado por fechado; o que sobrou está marcado como fora de escopo ou aguarda pedido (Onda 14, `print{}`).
+>
+> **REABERTO PARCIALMENTE (2026-11-16) — Fase especial gpui-kit, §7.** A
+> comparação com o catálogo do [gpui-kit](https://gpui-kit.com/component/form/)
+> (80 componentes para GPUI) achou o que falta ao glacier-ui. A §7 é o
+> relatório e a fila dessa fase; o resto do documento continua arquivado.
 
 Este documento é o **planejamento de longo prazo** da biblioteca de widgets do
 `glacier-ui`. A meta declarada é concorrer diretamente com o **Qt**: acumular,
@@ -2761,3 +2766,93 @@ escrito.
 | Widget | Nível | Prio | Nota |
 |---|---|---|---|
 | `TextBrowser` | Built | P2 | **Fora por decisão (2026-09-09).** Render read-only de markdown com links, sobre o `markdown` do iced — pediria uma primitiva `markdown` própria; não é carona do registro de famílias |
+
+---
+
+## 7. Fase especial — gpui-kit (aberta em 2026-11-16)
+
+O [gpui-kit](https://gpui-kit.com/component/form/) é uma biblioteca de
+componentes prontos para o GPUI (o motor do Zed): 80 entradas numa lista só,
+sem categorias. Esta fase compara aquele catálogo com o nosso e registra o que
+falta. Não é uma onda do formato antigo (um habilitador, meia dúzia de widgets):
+é uma **lista de lacunas**, a ser atacada aos poucos, ao longo dos dias.
+
+Legenda igual à da §1: ✅ existe · 🟡 parcial · ⬜ falta.
+
+### 7.1 O que já tínhamos (não abre item)
+
+A maior parte do catálogo do gpui-kit já existe aqui, às vezes com outro nome:
+
+| gpui-kit | glacier-ui |
+|---|---|
+| Accordion, Avatar, Badge, GroupBox, Skeleton, Spinner, StatusBar, Toolbar | os mesmos nomes |
+| Button, Checkbox, Radio, Switch/Toggle, Slider | `button`, `checkbox`, `radio`/`radiogroup`, `toggle`, `slider`/`rangeslider` |
+| Input, Textarea, Editor, NumberInput | `textinput`, `maskedinput`, `textarea`, `spinbox` |
+| Select, Combobox | `select`, `comboedit`, `autocomplete` |
+| Calendar, DatePicker, TimeField | `calendar`, `dateedit`, `daterangepicker`, `timeedit` |
+| ColorPicker | `colorwheel` + `pick_color()` |
+| Dialog, AlertDialog | `dialog`, `confirm()` |
+| Notification | `toast()` / `notify()` |
+| Popover, Tooltip | `popover`, `tooltip=` |
+| Menu | `menu`, `menubar`, `contextmenu` |
+| Tabs | `tabs`, `tabbar` |
+| Table, DataTable, VirtualList | `tableview` (+ `virtualize`) |
+| Tree, List | `treeview`, `columnview`, `listview` |
+| Chart, Plot | `linechart` (área, scatter, série múltipla), `barchart`, `piechart`, `canvas` |
+| Collapsible, Resizable, Dock, Sheet | `reveal`, `splitter`, `dock`, `drawer` |
+| Pagination, Progress, Rating, Stepper | `pagination`, `progressbar`, `rating`, `wizard`/`wizardnav` |
+| Empty, GridLayout, Scrollable, Image, Icon | `fallback`, `grid`/`flow`, `scrollable`, `image`, `svg` |
+| Label, TextView, Clipboard, Theme, Root View | `text`/`prose`/`markdown`, ação `clipboard:`, `theme`, `app`/`screen` |
+
+### 7.2 A tabela da fase
+
+| gpui-kit | tag proposta | Nível | Prio | Status | Nota |
+|---|---|---|---|---|---|
+| Alert | `alert` | Built | P1 | ✅ **0.161** | o aviso que fica; variantes do `toast()`, `on_close` da tela, `slot` sob a descrição |
+| Kbd | `kbd` | Built | P1 | ✅ **0.161** | a tampinha; fora do `prose` (dentro, `kbd` segue código inline) |
+| DescriptionList | `descriptionlist` | Built | P1 | ✅ **0.161** | `[{label, value}]`, rótulo de largura fixa, `layout = vertical` |
+| Command | `command` | Built + Motor | P1 | ✅ **0.161** | paleta; pediu a condição `matches=` no motor (busca por palavras, sem caixa) |
+| Form (layout) | `field` dentro de `form` | Built | P1 | 🟡 | a validação existe (`FormBuilder`, `rules=`); falta o **layout**: `field(label, description, required)`, `columns(n)`/`col_span`, rodapé de ações alinhado |
+| DropdownButton | `dropdownbutton` (ou `menu=` no `toolbutton`) | Built | P2 | ⬜ | botão + `menu` ancorado; hoje se compõe à mão com `popover` |
+| Input Group | `inputgroup` | Built | P2 | ⬜ | prefixo/sufixo (ícone, `R$`, botão) colados ao campo, uma moldura só |
+| HoverCard | `hovercard` | Prim | P2 | ⬜ | o `popover` aberto por hover com atraso; precisa de hover com tempo no motor |
+| OtpInput | `otpinput` | Built/Prim | P2 | ⬜ | N caixas de um dígito com foco que avança; o avanço de foco é o difícil |
+| Tag | `tag` | Built | P3 | 🟡 | o `chip` cobre; faltam variantes de cor por prop |
+| Carousel | `carousel` | Built | P3 | 🟡 | `swipeview` + `pageindicator` já fazem; faltam setas e autoplay (`every`) |
+| TitleBar | `titlebar` | Built | P3 | 🟡 | as ações `window:drag/close/minimize/maximize` existem; falta o widget pronto |
+| Sidebar | `sidebar` | Built | P3 | ⬜ | coluna de navegação com itens, grupos e recolher; o rustploy monta a sua à mão (`nav_item`) |
+| Settings | `settings` | Built | P3 | ⬜ | páginas de preferências (seção + linha rótulo/controle); provavelmente sai do `field` do Form |
+| Attachment | `attachment` | Built | P3 | ⬜ | chip de arquivo (nome, tamanho, remover) + área de soltar; soltar arquivo pede evento do SO |
+| Diff | `diff` | Prim | P3 | ⬜ | visualização de diff linha a linha (+/−); o cálculo do diff seria dependência nova |
+| Marker | `mark` fora do `prose` | Prim | P3 | ⬜ | realce de trechos num texto (busca); o `prose` já tem `mark` |
+| Shimmer | — | Prim | P3 | ⬜ | o brilho animado sobre o `skeleton`; a pulsação ficou de fora por decisão na Onda 11 |
+| Focus Trap | — | Motor | P3 | ⬜ | prender o Tab dentro de um painel; o `dialog` modal já isola, falta para `drawer`/`popover` |
+| Bubble, Message, MessageScroller | `bubble`, `message`, … | Built | P3 | ⬜ | a família de chat; só se esse for um caminho do produto |
+| Questionnaire | — | Built | P3 | ⬜ | perguntas encadeadas; está perto do `wizard` |
+| Speech | — | Motor | P3 | ⬜ | voz (TTS/STT): integração de SO, fora do escopo atual |
+
+### 7.3 O que a primeira leva (0.161) ensinou
+
+- **O habilitador escondido, de novo.** O `command` parecia um builtin puro e
+  não era: o motor sabia comparar (`equals`), pertencer (`one_of`/`contains`)
+  e testar lista vazia, mas não **procurar texto**. A condição `matches=` (cada
+  palavra da agulha, sem caixa, em qualquer lugar do palheiro; agulha vazia
+  casa sempre) custou um campo no `Cond` e nos dois `NodeType::If`/`ElseIf`, e
+  vale para qualquer lista filtrável — não só a paleta.
+- **O `for_each` não expõe a posição do item.** O `descriptionlist` queria uma
+  linha divisória *entre* os pares, e um `rule` por item deixa um sobrando
+  depois do último. Ficou sem divisória. Se outro widget pedir o mesmo
+  (`first`/`last`/`index` no item), é a hora de abrir.
+- **O que a paleta não tem.** Setas e Enter: o `textinput` não tem
+  `on_submit`, e um `update` de builtin não despacha a ação do app. "Nenhum
+  resultado" também não: o template não conta o que o filtro deixou passar.
+  Os dois são motor, não widget.
+
+### 7.4 A fila, por ordem
+
+1. **Form (layout)** — o maior ganho por linha: toda tela de configuração usa.
+2. **DropdownButton** e **Input Group** — composições de coisas que existem.
+3. **HoverCard** e **OtpInput** — pedem motor (hover com atraso, foco que
+   avança).
+4. O resto da tabela, sob demanda.
+
