@@ -527,6 +527,7 @@ fn campo_base(node: &UiNode) -> Option<crate::stylesheet::StyleRule> {
         border_color: node.border_color().map(str::to_string),
         border_width: node.border_width,
         border_radius: node.border_radius,
+        border_radius_corners: node.border_radius_corners(),
         text_color: node.text_color().map(str::to_string),
         ..Default::default()
     };
@@ -1169,7 +1170,7 @@ fn single_line_editor<'a>(
                     style.border.width = bw;
                 }
                 if let Some(br) = r.border_radius {
-                    style.border.radius = iced::border::Radius::new(br);
+                    style.border.radius = raio_de(br, r.border_radius_corners);
                 }
                 if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                     style.value = tc;
@@ -2707,7 +2708,7 @@ fn render_masked_input<'a>(
                     style.border.width = bw;
                 }
                 if let Some(br) = r.border_radius {
-                    style.border.radius = iced::border::Radius::new(br);
+                    style.border.radius = raio_de(br, r.border_radius_corners);
                 }
                 if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                     style.value = tc;
@@ -4763,6 +4764,7 @@ pub fn render_node<'a>(
                 .or_else(|| btn_gradient.is_some().then_some(Color::TRANSPARENT));
             if let Some(col) = btn_color {
                 let br_radius = node.border_radius.unwrap_or(0.0);
+                let br_cantos = node.border_radius_corners();
                 let br_width = node.border_width.unwrap_or(0.0);
                 let br_color = node
                     .border_color()
@@ -4854,7 +4856,10 @@ pub fn render_node<'a>(
                         .and_then(|r| r.text_color.as_deref())
                         .and_then(parse_hex_color)
                         .unwrap_or(label_col);
-                    let radius = overlay.and_then(|r| r.border_radius).unwrap_or(br_radius);
+                    let radius = match overlay.and_then(|r| r.border_radius) {
+                        Some(r) => iced::border::Radius::new(r),
+                        None => raio_de(br_radius, br_cantos),
+                    };
                     let width = overlay.and_then(|r| r.border_width).unwrap_or(br_width);
                     let border_color = overlay
                         .and_then(|r| r.border_color.as_deref())
@@ -4864,7 +4869,7 @@ pub fn render_node<'a>(
                         background: Some(background),
                         text_color,
                         border: Border {
-                            radius: iced::border::Radius::new(radius),
+                            radius,
                             width,
                             color: border_color,
                         },
@@ -4876,6 +4881,19 @@ pub fn render_node<'a>(
                             anim.borrow_mut().estilo(estilo, &tr, std::time::Instant::now())
                         }
                         _ => estilo,
+                    }
+                });
+            } else if node.border_radius.is_some() {
+                // Sem `color`, o botão é o primário do tema — e antes ignorava
+                // o `border_radius`. Agora o raio (único ou por canto) vale
+                // aqui também, com as cores do tema intactas: é o que deixa um
+                // botão colado na borda de um `inputgroup` arredondar só por fora.
+                let raio = raio_de(node.border_radius.unwrap_or(0.0), node.border_radius_corners());
+                btn = btn.style(move |theme: &iced::Theme, status| {
+                    let base = iced::widget::button::primary(theme, status);
+                    iced::widget::button::Style {
+                        border: Border { radius: raio, ..base.border },
+                        ..base
                     }
                 });
             }
@@ -5001,7 +5019,7 @@ pub fn render_node<'a>(
                                 style.border.width = bw;
                             }
                             if let Some(br) = r.border_radius {
-                                style.border.radius = iced::border::Radius::new(br);
+                                style.border.radius = raio_de(br, r.border_radius_corners);
                             }
                             if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                                 style.value = tc;
@@ -5629,7 +5647,7 @@ pub fn render_node<'a>(
                                 style.border.width = bw;
                             }
                             if let Some(br) = r.border_radius {
-                                style.border.radius = iced::border::Radius::new(br);
+                                style.border.radius = raio_de(br, r.border_radius_corners);
                             }
                             if let Some(tc) = r.text_color.as_deref().and_then(parse_hex_color) {
                                 style.value = tc;
@@ -6515,6 +6533,49 @@ pub fn render_node<'a>(
             placeholder,
             on_change,
         } => render_shortcut_input(context, value_var, placeholder, on_change),
+        NodeType::OtpInput {
+            value_var,
+            length,
+            mode,
+            secure,
+            size,
+            on_change,
+            on_complete,
+        } => {
+            let atual = context.get(value_var.as_str()).map(String::as_str).unwrap_or("");
+            let chave = value_var.clone();
+            let acao = on_change.clone();
+            // O contrato do `textinput`: sem `on_change`, o widget grava a
+            // chave sozinho; com ele, delega (e quem trata grava).
+            let mudar = move |v: String| {
+                if acao.is_empty() {
+                    EngineMessage::ContextPatch(vec![(chave.clone(), v)])
+                } else {
+                    EngineMessage::UiInputChanged { action: acao.clone(), value: v }
+                }
+            };
+            let mut w = crate::otp::OtpInput::new(
+                atual,
+                length.trim().parse().unwrap_or(6),
+                crate::otp::Modo::parse(mode),
+                mudar,
+            )
+            .secreto(*secure);
+            if let Ok(l) = size.trim().parse::<f32>() {
+                w = w.lado(l);
+            }
+            if let Some(e) = node.spacing {
+                w = w.espaco(e);
+            }
+            if !on_complete.is_empty() {
+                let acao = on_complete.clone();
+                w = w.ao_completar(move |v| EngineMessage::UiInputChanged {
+                    action: acao.clone(),
+                    value: v,
+                });
+            }
+            w.into()
+        }
         // Um `shortcut` não desenha: ele é uma **declaração** que o motor
         // colhe da árvore avaliada (`collect_tree_bindings`) e casa contra o
         // teclado. Sai do layout inteiro, como um `hidden`.
@@ -7133,6 +7194,7 @@ pub fn render_node<'a>(
             disabled,
             items,
             variant,
+            on_click,
             ..
         } => {
             // Gatilho de dropdown: tanto o topo de uma `MenuBar` quanto um
@@ -7146,53 +7208,30 @@ pub fn render_node<'a>(
                 items.as_deref(),
                 context,
             ));
-            let mut btn = button(text(label.as_str()).size(13)).padding(Padding::from([6.0, 12.0]));
-            btn = match variant.as_deref() {
-                // O estilo de botão do tema — o mesmo de um `button` sem
-                // `color` (primary) ou o neutro (secondary).
-                Some("primary") => btn.style(|theme: &iced::Theme, status: button::Status| {
-                    button::Style {
-                        border: Border {
-                            radius: iced::border::Radius::new(4.0),
-                            ..Border::default()
-                        },
-                        ..button::primary(theme, status)
-                    }
-                }),
-                Some("secondary") => btn.style(|theme: &iced::Theme, status: button::Status| {
-                    button::Style {
-                        border: Border {
-                            radius: iced::border::Radius::new(4.0),
-                            ..Border::default()
-                        },
-                        ..button::secondary(theme, status)
-                    }
-                }),
-                _ => btn.style(|theme: &iced::Theme, status: button::Status| {
-                    let pal = theme.extended_palette();
-                    let bg = match status {
-                        button::Status::Hovered | button::Status::Pressed => {
-                            pal.background.weak.color
-                        }
-                        _ => Color::TRANSPARENT,
-                    };
-                    button::Style {
-                        background: Some(Background::Color(bg)),
-                        text_color: pal.background.base.text,
-                        border: Border {
-                            radius: iced::border::Radius::new(4.0),
-                            width: 0.0,
-                            color: Color::TRANSPARENT,
-                        },
-                        shadow: iced::Shadow::default(),
-                        snap: false,
-                    }
-                }),
+            let abrir = (!*disabled).then(|| EngineMessage::OpenMenuBarDropdown { tree });
+            let variante = variant.clone();
+            let gatilho = |rotulo: &str, raio: iced::border::Radius, padding: [f32; 2]| {
+                let variante = variante.clone();
+                button(text(rotulo.to_string()).size(13))
+                    .padding(Padding::from(padding))
+                    .style(move |theme: &iced::Theme, status: button::Status| {
+                        estilo_gatilho_menu(variante.as_deref(), raio, theme, status)
+                    })
             };
-            if !*disabled {
-                btn = btn.on_press(EngineMessage::OpenMenuBarDropdown { tree });
+            match on_click {
+                // Split button: as duas metades com o mesmo texto e padding
+                // (alturas iguais), e só os cantos DE FORA arredondados — o
+                // que diz "isto é um grupo". A fresta de 1 px separa os alvos.
+                Some(acao) => {
+                    let principal = gatilho(label, iced::border::left(4.0), [6.0, 12.0])
+                        .on_press_maybe((!*disabled).then(|| EngineMessage::UiClick(acao.clone())));
+                    let seta = gatilho("▾", iced::border::right(4.0), [6.0, 8.0]).on_press_maybe(abrir);
+                    row![principal, seta].spacing(1).into()
+                }
+                None => gatilho(label, iced::border::radius(4.0), [6.0, 12.0])
+                    .on_press_maybe(abrir)
+                    .into(),
             }
-            btn.into()
         }
         NodeType::ContextMenu { items } => {
             // `children[0]` é o elemento envolvido (renderizado normalmente);
@@ -7283,6 +7322,7 @@ pub fn render_node<'a>(
             matches!(&node.kind, NodeType::Button { .. }) && node.gradient().is_some();
         let bg_opt = if campo || botao_gradiente { None } else { background_for(node) };
         let br_opt = if campo { None } else { node.border_radius };
+        let br_cantos = if campo { None } else { node.border_radius_corners() };
         let bw_opt = if campo {
             0.0
         } else {
@@ -7309,7 +7349,7 @@ pub fn render_node<'a>(
             c = c.style(move |_theme| container::Style {
                 background: bg_opt,
                 border: Border {
-                    radius: iced::border::Radius::new(br_opt.unwrap_or(0.0)),
+                    radius: raio_de(br_opt.unwrap_or(0.0), br_cantos),
                     width: bw_opt,
                     color: bc_opt.unwrap_or(Color::TRANSPARENT),
                 },
@@ -7415,10 +7455,83 @@ pub fn render_node<'a>(
         let label = container(text(tip).size(12))
             .padding([4, 8])
             .style(container::dark);
-        element = Tooltip::new(element, label, position).gap(6).into();
+        let mut balao = Tooltip::new(element, label, position).gap(6);
+        if let Some(atraso) = node.tooltip_delay().and_then(parse_duracao) {
+            balao = balao.delay(atraso);
+        }
+        element = balao.into();
     }
 
     element
+}
+
+/// O raio de uma borda: os quatro cantos do `border_radius = "0 6 6 0"` quando
+/// existem, senão o raio único nos quatro.
+pub(crate) fn raio_de(uniforme: f32, cantos: Option<[f32; 4]>) -> iced::border::Radius {
+    match cantos {
+        Some([top_left, top_right, bottom_right, bottom_left]) => iced::border::Radius {
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        },
+        None => iced::border::Radius::new(uniforme),
+    }
+}
+
+/// O estilo do gatilho de um `menu`: `primary`/`secondary` são os botões do
+/// tema; sem variante, o chapado da `menubar` (transparente, cinza no hover).
+/// `raio` é por canto — é o que deixa as duas metades de um split button
+/// arredondarem só por fora.
+fn estilo_gatilho_menu(
+    variante: Option<&str>,
+    raio: iced::border::Radius,
+    theme: &iced::Theme,
+    status: button::Status,
+) -> button::Style {
+    let base = match variante {
+        Some("primary") => button::primary(theme, status),
+        Some("secondary") => button::secondary(theme, status),
+        _ => {
+            let pal = theme.extended_palette();
+            let bg = match status {
+                button::Status::Hovered | button::Status::Pressed => pal.background.weak.color,
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                text_color: pal.background.base.text,
+                ..button::Style::default()
+            }
+        }
+    };
+    button::Style {
+        border: Border {
+            radius: raio,
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        ..base
+    }
+}
+
+/// Uma duração escrita no markup: `"600ms"`, `"1.5s"`, ou um número puro, que
+/// vale **milissegundos** — a convenção dos atributos de tempo do motor
+/// (`delay` do `delaybutton`, `duration` do `reveal`). Espaço entre o número e
+/// a unidade é aceito (`"3 s"`). Qualquer outra coisa (negativo, unidade
+/// desconhecida, vazio) é `None`, e quem chama mantém o seu default.
+pub fn parse_duracao(s: &str) -> Option<std::time::Duration> {
+    let s = s.trim().to_ascii_lowercase();
+    let (numero, fator_ms) = if let Some(n) = s.strip_suffix("ms") {
+        (n, 1.0)
+    } else if let Some(n) = s.strip_suffix('s') {
+        (n, 1000.0)
+    } else {
+        (s.as_str(), 1.0)
+    };
+    let valor: f64 = numero.trim().parse().ok()?;
+    (valor.is_finite() && valor >= 0.0)
+        .then(|| std::time::Duration::from_secs_f64(valor * fator_ms / 1000.0))
 }
 
 /// Maps a `cursor="…"` value to an [`iced::mouse::Interaction`]. Covers the

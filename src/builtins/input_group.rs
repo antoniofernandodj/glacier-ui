@@ -7,13 +7,27 @@
 ///   input(form_control = preco)
 /// }
 ///
-/// inputgroup(prefix = "https://") {
+/// inputgroup(prefix = "https://", action = Copiar, on_action = "clipboard:dominio") {
 ///   input(:value = dominio, on_change = dominio)
-///   template(slot = suffix) {
-///     button("Copiar", on_click = "clipboard:dominio")
-///   }
 /// }
 /// ```
+///
+/// # O botão colado: `action`
+///
+/// Um botão no fim do grupo é o caso comum (Copiar, Buscar, Enviar), e ele só
+/// lê como parte do grupo quando **encosta**: a altura inteira do campo, sem
+/// folga, cantos retos do lado do campo e redondos do lado de fora. É o que
+/// `action`/`on_action` desenham (com o `border_radius = "0 5 5 0"` por canto,
+/// 0.164). Um `button` posto no slot `suffix` fica solto lá dentro — o slot é
+/// para ícone ou texto, não para botão.
+///
+/// A altura casa por **aritmética**, não por `height = fill`: o `textinput` e
+/// o `button` do iced têm o mesmo corpo de texto e o mesmo padding vertical
+/// padrão (5 px), então `padding = "5 14"` dá ao botão a altura natural do
+/// campo. A primeira versão usava `height = fill` dentro da `row` que encolhe
+/// e o botão saiu mais baixo que o próprio rótulo. Consequência: um campo com
+/// padding vertical próprio (`.minha_classe { padding: 13 14 }`) desencontra
+/// as alturas — repinte o botão por `action_class` com o mesmo padding.
 ///
 /// # Uma moldura, não duas
 ///
@@ -38,9 +52,11 @@
 ///
 /// # Props
 ///
-/// - `prefix` / `suffix` — texto colado antes / depois do campo. Para algo que
-///   não é texto (um `svg`, um `button`), use o slot nomeado de mesmo nome
-///   (`template(slot = prefix) { … }`), que vence a prop.
+/// - `prefix` / `suffix` — texto colado antes / depois do campo. Para um
+///   ícone, o slot nomeado de mesmo nome (`template(slot = prefix) { … }`),
+///   que vence a prop.
+/// - `action` / `on_action` — o botão colado no fim (o rótulo e a ação da
+///   tela). Ocupa o lugar do `suffix`. `action_class` repinta o botão.
 /// - `width`  — Default: `fill`.
 /// - `addon_class` — classe dos dois textos (`class` no uso pinta a moldura,
 ///   a raiz).
@@ -90,7 +106,10 @@ impl Component for InputGroup {
                     }
                   }
                   slot
-                  template(if = "{slot_suffix|false}", equals = true) {
+                  template(if = "{action|}", not_equals = "") {
+                    button(class = @action_class, text = @action, on_click = "app:{on_action}", border_radius = "0 5 5 0", padding = "5 14")
+                  }
+                  template(else_if = "{slot_suffix|false}", equals = true) {
                     container(padding = "0 8 0 4") {
                       slot(name = suffix)
                     }

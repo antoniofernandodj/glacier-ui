@@ -3355,6 +3355,23 @@ fn eval_owned(
             placeholder: process_tpl(placeholder, context),
             on_change: namespace_action(process_tpl(on_change, context), owner),
         },
+        NodeType::OtpInput {
+            value_var,
+            length,
+            mode,
+            secure,
+            size,
+            on_change,
+            on_complete,
+        } => NodeType::OtpInput {
+            value_var: process_tpl(value_var, context),
+            length: process_tpl(length, context),
+            mode: process_tpl(mode, context),
+            secure: *secure,
+            size: process_tpl(size, context),
+            on_change: namespace_action(process_tpl(on_change, context), owner),
+            on_complete: namespace_action(process_tpl(on_complete, context), owner),
+        },
         NodeType::Shortcut { key, action } => NodeType::Shortcut {
             key: process_tpl(key, context),
             action: namespace_action(process_tpl(action, context), owner),
@@ -3794,6 +3811,7 @@ fn eval_owned(
             disabled,
             items,
             variant,
+            on_click,
         } => NodeType::Menu {
             label: process_tpl(label, context),
             icon: icon.as_ref().map(|i| process_tpl(i, context)),
@@ -3803,6 +3821,10 @@ fn eval_owned(
                 .as_ref()
                 .map(|v| process_tpl(v, context))
                 .filter(|v| !v.trim().is_empty()),
+            on_click: on_click
+                .as_ref()
+                .map(|a| namespace_action(process_tpl(a, context), owner))
+                .filter(|a| !a.trim().is_empty()),
         },
         NodeType::MenuItem {
             label,
@@ -3900,7 +3922,17 @@ fn eval_owned(
     let spacing_eval = num_template(NumAttr::Spacing)
         .or(node.spacing)
         .or(style.spacing);
-    let border_radius_eval = num_template(NumAttr::BorderRadius)
+    let border_radius_templado = num_template(NumAttr::BorderRadius);
+    // Os cantos andam com o raio que venceu: o inline (templado ou literal)
+    // leva os cantos inline; senão vale a classe, com os cantos dela.
+    let border_radius_corners_eval = if border_radius_templado.is_some() {
+        None
+    } else if node.border_radius.is_some() {
+        node.border_radius_corners()
+    } else {
+        style.border_radius_corners
+    };
+    let border_radius_eval = border_radius_templado
         .or(node.border_radius)
         .or(style.border_radius);
     let border_width_eval = num_template(NumAttr::BorderWidth)
@@ -3924,6 +3956,7 @@ fn eval_owned(
     // `on_press`) — interpolado direto pra suportar `tooltip="{var}"`.
     let tooltip_eval = node.tooltip().map(|s| process_tpl(s, context));
     let tooltip_position_eval = node.tooltip_position().map(str::to_string);
+    let tooltip_delay_eval = node.tooltip_delay().map(|s| process_tpl(s, context));
     let whats_this_eval = node.whats_this().map(|s| process_tpl(s, context));
     let role_eval = node.role().map(str::to_string);
     let aria_label_eval = node.aria_label().map(|s| process_tpl(s, context));
@@ -4142,6 +4175,7 @@ fn eval_owned(
                     d.to_string()
                 }
             }),
+            border_radius_corners: border_radius_corners_eval,
             transition: style.transition.clone(),
         }),
         interact: crate::parser::caixa(crate::parser::Interact {
@@ -4150,6 +4184,7 @@ fn eval_owned(
             cursor: cursor_eval,
             tooltip: tooltip_eval,
             tooltip_position: tooltip_position_eval,
+            tooltip_delay: tooltip_delay_eval,
             whats_this: whats_this_eval,
             role: role_eval,
             aria_label: aria_label_eval,

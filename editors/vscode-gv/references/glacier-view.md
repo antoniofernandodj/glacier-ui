@@ -735,6 +735,7 @@ dentro de outro `menu`, é um **submenu**, com profundidade arbitrária.
 | `disabled` | `false` | inerte, esmaecido, não abre |
 | `items` | — | **nome da chave** com os itens em JSON, em vez de filhos escritos |
 | `variant` | — | `primary`/`secondary`: o gatilho com o estilo de botão do tema (fora de uma `menubar`) |
+| `on_click` | — | fora de uma `menubar`: o gatilho vira split button (o rótulo dispara a ação, o "▾" abre o menu) |
 
 A forma dinâmica aceita a árvore inteira, submenus incluídos:
 
@@ -1735,6 +1736,28 @@ Um atalho **sem modificador** não rouba a tecla de um campo focado — digitar 
 num `textinput` não dispara `shortcut(key = s)`. Um **com** modificador
 atravessa, porque nenhum campo de texto consome `Ctrl+S`.
 
+### `otpinput`
+O código de uso único em caixinhas (SMS, e-mail, autenticador). Um widget, um
+valor: digitar acrescenta, Backspace apaga o último, Ctrl+V cola o código
+inteiro.
+
+```gv
+otpinput(:value = codigo, length = 6, on_complete = verificar)
+```
+
+| prop | default | o que faz |
+| --- | --- | --- |
+| `value` | — | **nome da chave** do código |
+| `length` | `6` | quantas caixas (1 a 12) |
+| `mode` | `digits` | `alnum`: letras e dígitos, letra em maiúscula |
+| `secure` | `false` | desenha `•` |
+| `size` | `44` | largura de cada caixa |
+| `spacing` | `8` | entre as caixas |
+| `on_change` | — | vazio = grava a chave sozinho |
+| `on_complete` | — | recebe o código inteiro quando a última caixa enche |
+
+Entra na ordem de Tab; Esc ou clicar fora tira o foco.
+
 ### `shortcutinput` (`keysequenceedit`)
 O campo que captura uma combinação (`QKeySequenceEdit`).
 
@@ -2036,6 +2059,15 @@ canvas(class = tela-desenho) {
 - **Traço e preenchimento são estilo** — `fill` / `stroke` / `stroke_width` —, então vêm de uma **classe `.gss`** (são apelidos de `background` / `border_color` / `border_width`; `.forma { fill: var(--realce); stroke: var(--linha) }`).
 - **Sem `on_click`/hover numa forma** e sem animação — um alvo de clique dentro de um canvas é geometria que o `.gv` não descreve.
 
+### `tooltip_delay="…"` — o atraso do balão
+Atributo universal, junto do `tooltip=`: quanto o ponteiro fica parado antes de
+o balão aparecer. `"600ms"`, `"1.5s"` ou um número puro em milissegundos;
+interpola (`tooltip_delay = "{atraso}"`). Sem ele, o balão é imediato.
+
+```gv
+button("?", tooltip = "Abre a ajuda", tooltip_delay = "800ms")
+```
+
 ### `whats_this="…"` — o `QWhatsThis`
 Um **atributo universal** (como `tooltip=`), num nó qualquer. A ação
 `whatsthis:on` / `off` / `toggle` liga a chave do motor `__whatsthis`; com o
@@ -2166,8 +2198,7 @@ dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
 | `on_click` | — | a ação principal; presente = split button |
 | `items` | — | **nome da chave** com o JSON do `menu` |
 | `variant` | `primary` | `flat` = transparente |
-| `caret` | `▾` | a seta |
-| `button_class` | — | classe do botão principal |
+| `caret` | `▾` | a seta do botão-menu (sem `on_click`) |
 
 `menuitem`/`menuseparator` dentro somam-se ao JSON; as ações são da tela. Abre
 no ponto do clique (é o `menu` do motor por baixo).
@@ -2176,15 +2207,15 @@ no ponto do clique (é o `menu` do motor por baixo).
 O campo com acessórios numa moldura só.
 
 ```gv
-inputgroup(prefix = "https://") {
+inputgroup(prefix = "https://", action = Copiar, on_action = "clipboard:dominio") {
   input(:value = dominio, on_change = dominio)
-  template(slot = suffix) { button("Copiar", on_click = "clipboard:dominio") }
 }
 ```
 
 | prop | default | o que faz |
 | --- | --- | --- |
-| `prefix` / `suffix` | vazio | texto antes / depois; os slots de mesmo nome vencem |
+| `prefix` / `suffix` | vazio | texto antes / depois; os slots de mesmo nome (para ícone) vencem |
+| `action` / `on_action` | — | o botão colado no fim, com a altura do campo; ocupa o lugar do `suffix` |
 | `width` | `fill` | largura |
 | `addon_class` | — | classe dos textos |
 

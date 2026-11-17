@@ -52,6 +52,7 @@ end
 function init(): ()
     ctx.busca = ""
     ctx.dominio = "api.exemplo.com"
+    ctx.codigo = ""
     ctx.erro_dominio = ""
     ctx.por_regiao = "1"
     ctx.deploy_extras = json.encode(json.array({
@@ -98,6 +99,19 @@ end
 
 -- O `inputgroup` não valida nada: quem diz que o domínio é ruim é o script,
 -- e o `field` em volta mostra a mensagem.
+-- on_complete: chega com o código inteiro, quando a última caixa enche.
+function verificar(codigo: string): ()
+    if codigo == "246810" then
+        avisar("success", "Código confirmado", "")
+    else
+        avisar("error", "Código inválido", `{codigo} não confere; apague e tente de novo.`)
+    end
+end
+
+function limpar_codigo(): ()
+    ctx.codigo = ""
+end
+
 function editar_dominio(texto: string): ()
     ctx.dominio = texto
     ctx.erro_dominio = if string.find(texto, "/", 1, true) then "só o domínio, sem caminho" else ""

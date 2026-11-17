@@ -135,6 +135,8 @@ const NATIVE_TAGS = {
   DelayButton: ["delaybutton"],
   RubberBand: ["rubberband"],
   ShortcutInput: ["shortcutinput", "keysequenceedit"],
+  // Fase gpui-kit (0.164): o código de uso único em caixinhas (src/otp.rs).
+  OtpInput: ["otpinput"],
   // `shortcut` não desenha nada, mas é do LAYOUT e não do `resources`: quem
   // o encontra é o coletor que varre a árvore avaliada. Por isso ele fica aqui,
   // entre os widgets, e não com o `dialog` lá embaixo.

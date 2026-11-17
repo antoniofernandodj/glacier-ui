@@ -8,6 +8,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.164.0 — 2026-11-17
+
+- **`otpinput`** — o código de uso único em caixinhas (o `OtpInput` do gpui-kit), primitiva nova em `src/otp.rs`: **um** widget com **um** valor, N caixas desenhadas. Digitar acrescenta, Backspace apaga o último, **Ctrl+V cola** o código inteiro (separadores somem), Esc ou clicar fora tira o foco, e ele entra na ordem de Tab. `value`, `length` (6), `mode` (`digits` · `alnum`, maiúscula), `secure`, `size`, `spacing`, `on_change` (vazio = grava sozinho) e `on_complete` (o código inteiro, depois de gravar).
+- **`tooltip_delay`** — atributo universal ao lado do `tooltip=`: o atraso até o balão aparecer, em `"600ms"`, `"1.5s"` ou número puro em ms; interpola. Sem ele, imediato como antes. `glacier_ui::widget::parse_duracao` é a leitura.
+- **`dropdownbutton`, de novo:** o split button agora é **um** `menu` com `on_click` (novo no `menu` avulso), que desenha as duas metades no mesmo render — mesma altura, cantos arredondados só por fora, fresta de 1 px. A 0.163 compunha um `button` com um `menu` ao lado: duas alturas e quatro cantos redondos, que não liam como um grupo. Sai a prop `button_class`.
+- **`border_radius` por canto**: `"0 6 6 0"` (superior-esquerdo, superior-direito, inferior-direito, inferior-esquerdo) ou `"6 0"`, no atributo e no `.gss` — a gramática do CSS. Vale no `button`, na moldura de qualquer caixa e nos campos de texto. E um `button` **sem** `color` passa a respeitar o `border_radius` (antes só o caminho com cor o aplicava), com as cores do tema.
+- **`inputgroup(action = …, on_action = …)`**: o botão colado no fim do grupo — altura do campo, cantos retos do lado dele, redondos por fora. Um `button` no slot `suffix` ficava solto lá dentro, com folga e quatro cantos redondos.
+- **Exemplo `gpui_kit_luau` abria vazio** desde a 0.161: os `shortcut` soltos na raiz, ao lado da `column(class = tela)`, faziam o motor empilhar três raízes numa coluna `shrink`, e a `.tela` (`fill`) colapsava. Eles foram para dentro da coluna.
+- `PLANO_WIDGETS.md` §7.7: HoverCard **fora por decisão** (o `tooltip=` basta); OtpInput ✅. Exemplo `gpui_kit_luau` ganha o código de verificação. Extensão Glacier View 0.30.0.
+
 ## glacier-ui 0.163.0 — 2026-11-17
 
 - **`dropdownbutton`** — o botão com menu (o `DropdownButton` do gpui-kit). Com `on_click`, *split button*: a ação principal e um "▾" colado com as alternativas; sem, o botão inteiro abre o menu. Opções por markup (`menuitem`, `menuseparator`, submenu) e/ou por chave JSON (`items`, o formato do `menu`), somadas; ações da tela. `variant = primary | flat`, `caret`, `button_class`.

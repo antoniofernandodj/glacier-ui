@@ -27,10 +27,13 @@
 /// clique só pediria motor novo. O preço do `menu`: o painel abre no ponto do
 /// clique, não alinhado à borda do botão.
 ///
-/// O que faltava no `menu` para isto era o gatilho com cara de botão: o
-/// atributo `variant` (`primary`/`secondary`) do motor, que a metade do "▾"
-/// usa para casar com a metade da ação principal (um `button` sem `color`, que
-/// já é o primário do tema).
+/// O que faltava no `menu` para isto o motor ganhou: `variant`
+/// (`primary`/`secondary`, o gatilho com o estilo de botão do tema) e
+/// `on_click`, que o faz desenhar o **split button** — as duas metades no
+/// mesmo render, com o mesmo texto e padding (alturas iguais) e só os cantos
+/// de fora arredondados, o que as faz ler como um grupo. A primeira versão
+/// compunha um `button` com um `menu` ao lado e ficou com duas alturas e
+/// quatro cantos redondos.
 ///
 /// # As opções
 ///
@@ -47,8 +50,8 @@
 /// - `items`    — **nome da chave** com o array JSON das opções.
 /// - `variant`  — `primary` (default, o botão do tema) ou `flat` (fundo
 ///   transparente, como numa barra de ferramentas).
-/// - `caret`    — o glifo da seta. Default: `▾`.
-/// - `button_class` — classe do botão da ação principal.
+/// - `caret`    — o glifo da seta no botão-menu (sem `on_click`). Default: `▾`.
+///   No split button a seta é sempre `▾`.
 use crate::component::{Component, Context, Template};
 
 pub struct DropdownButton;
@@ -59,29 +62,15 @@ impl Component for DropdownButton {
     }
 
     fn template(&self) -> Template {
-        // `spacing = 1`: a fresta entre as duas metades é o que faz o split
-        // button ler como dois alvos de clique, sem precisar de borda por
-        // canto (que o motor não tem).
+        // As duas formas são o MESMO `menu` do motor: com `on_click`, ele se
+        // desenha como split button (as duas metades no mesmo render, cantos
+        // arredondados só por fora); sem, é um botão só, com a seta no rótulo.
+        // A `row` em volta existe porque a raiz de um template é um nó só.
         Template::Inline(
             r##"
-                row(spacing = 1, align_y = center) {
-                  style """
-                                        .dropdownbutton-flat {
-                                            color: #00000000;
-                                            text_color: #80868d;
-                                            border_width: 0;
-                                            border_radius: 4;
-                                        }
-                                        .dropdownbutton-flat:hover { background: #8080803d; }
-                                    """
+                row {
                   template(if = @on_click, not_equals = "") {
-                    template(if = "{variant|primary}", equals = flat) {
-                      button(class = "dropdownbutton-flat {button_class}", text = @label, on_click = "app:{on_click}", padding = "6 12")
-                    }
-                    template(else) {
-                      button(class = @button_class, text = @label, on_click = "app:{on_click}", padding = "6 12")
-                    }
-                    menu(label = "{caret|▾}", variant = "{variant|primary}", :items = "{items}") {
+                    menu(label = @label, on_click = "app:{on_click}", variant = "{variant|primary}", :items = "{items}") {
                       slot
                     }
                   }

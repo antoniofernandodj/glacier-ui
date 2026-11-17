@@ -2260,6 +2260,12 @@ pub enum NodeType {
         /// `dropdownbutton` usa `primary` para a metade do "▾" casar com a
         /// metade da ação principal. Só vale no gatilho; um submenu ignora.
         variant: Option<String>,
+        /// Com ação, o gatilho vira **split button**: `label` à esquerda
+        /// dispara esta ação, um "▾" colado à direita abre o menu. As duas
+        /// metades saem do mesmo render (mesmo texto, mesmo padding) e só
+        /// arredondam os cantos de fora — é o que as faz ler como um grupo.
+        /// Namespaceada como o `on_click` de um `button`.
+        on_click: Option<String>,
     },
     /// A leaf, clickable menu row. `on_click` is namespaced exactly like
     /// [`NodeType::Button::on_click`]. `checked_var` is a context key read as
@@ -3424,6 +3430,24 @@ pub enum NodeType {
         placeholder: String,
         on_change: String,
     },
+    /// `otpinput`: o código de uso único em N caixinhas — ver [`crate::otp`].
+    OtpInput {
+        /// Chave do código (o padrão do `textinput`: o NOME, nunca o valor).
+        value_var: String,
+        /// Quantas caixas. Texto, porque aceita `{prop}`; o render converte
+        /// (default 6, entre 1 e 12).
+        length: String,
+        /// `digits` (default) ou `alnum`.
+        mode: String,
+        /// Desenha `•` no lugar do caractere.
+        secure: bool,
+        /// Largura de cada caixa, em px (texto, como `length`). Default 44.
+        size: String,
+        /// Vazio = o widget grava a chave; preenchido = delega.
+        on_change: String,
+        /// Ação disparada com o código inteiro quando a última caixa enche.
+        on_complete: String,
+    },
     /// `QShortcut`/`QAction`: um atalho global declarado no markup.
     ///
     /// Não desenha nada — é uma **declaração** que o motor colhe da árvore
@@ -3612,6 +3636,7 @@ impl NodeType {
             NodeType::DelayButton { .. } => "delaybutton",
             NodeType::RubberBand { .. } => "rubberband",
             NodeType::ShortcutInput { .. } => "shortcutinput",
+            NodeType::OtpInput { .. } => "otpinput",
             NodeType::Shortcut { .. } => "shortcut",
             NodeType::Space => "space",
             NodeType::Spinner { .. } => "spinner",
@@ -3918,6 +3943,11 @@ pub struct Interact {
     /// Lado do balão (`tooltipPosition="right"`, padrão): `top`/`bottom`/
     /// `left`/`right`/`follow` (segue o cursor). Ignorado sem `tooltip`.
     pub tooltip_position: Option<String>,
+    /// Quanto o ponteiro tem de ficar parado sobre o elemento antes de o
+    /// balão aparecer (`tooltip_delay="600ms"`, `"1.5s"`, ou um número puro em
+    /// milissegundos, a convenção de `delay`/`duration` do motor). Ausente =
+    /// imediato, o comportamento de sempre. Ver [`crate::widget::parse_duracao`].
+    pub tooltip_delay: Option<String>,
     /// `whats_this="…"` (`QWhatsThis`, Onda 13): a ajuda que só aparece no
     /// **modo pegajoso**, ligado pela chave do motor `__whatsthis`
     /// (`whatsthis:on`/`off`/`toggle`). Com o modo ligado, pairar sobre o
@@ -4005,6 +4035,10 @@ pub struct Look {
     /// (que particiona os filhos do uso antes de expandi-los) e não chega a ser
     /// uma prop — por isso está em [`DIRECTIVE_ATTRS`].
     pub slot_name: Option<String>,
+    /// `border_radius = "0 6 6 0"` — um raio por canto. Ver
+    /// [`crate::stylesheet::parse_raio_cantos`]; `None` = o raio único de
+    /// [`UiNode::border_radius`] vale nos quatro.
+    pub border_radius_corners: Option<[f32; 4]>,
     /// `transition: background 150ms` do `.gss` (texto cru): o botão o lê para animar
     /// a troca entre os estados (repouso, hover, pressionado). Ver `crate::transition`.
     pub transition: Option<String>,
@@ -4513,6 +4547,10 @@ impl UiNode {
     pub fn tooltip_position(&self) -> Option<&str> {
         self.interact.as_ref()?.tooltip_position.as_deref()
     }
+    /// Ver [`Interact::tooltip_delay`].
+    pub fn tooltip_delay(&self) -> Option<&str> {
+        self.interact.as_ref()?.tooltip_delay.as_deref()
+    }
     /// Ver [`Interact::whats_this`].
     pub fn whats_this(&self) -> Option<&str> {
         self.interact.as_ref()?.whats_this.as_deref()
@@ -4673,6 +4711,10 @@ impl UiNode {
             return;
         }
         self.look.get_or_insert_with(Default::default).border_color = v;
+    }
+    /// Ver [`Look::border_radius_corners`].
+    pub fn border_radius_corners(&self) -> Option<[f32; 4]> {
+        self.look.as_ref()?.border_radius_corners
     }
     /// Ver [`Look::font`].
     pub fn font(&self) -> Option<&str> {
@@ -4990,7 +5032,7 @@ impl UiNode {
         // `canvas` (Onda 13) é o mesmo campo, e assim `fill="{cor}"` interpola
         // pelo caminho que já existe.
         let background = Self::get_attr(&node, &["background", "bg", "fill"]);
-        let border_radius = Self::get_attr_num(
+        let mut border_radius = Self::get_attr_num(
             &node,
             &[
                 "border_radius",
@@ -4998,6 +5040,17 @@ impl UiNode {
             NumAttr::BorderRadius,
             &mut numeric_templates,
         );
+        // `border_radius = "0 6 6 0"`: o `get_attr_num` não lê (não é UM
+        // número); a forma por canto sai daqui.
+        let mut border_radius_corners = None;
+        if border_radius.is_none()
+            && let Some(cru) = Self::get_attr(&node, &["border_radius"])
+            && !cru.contains('{')
+            && let Some((uniforme, cantos)) = crate::stylesheet::parse_raio_cantos(&cru)
+        {
+            border_radius = Some(uniforme);
+            border_radius_corners = cantos;
+        }
         let border_width = Self::get_attr_num(
             &node,
             &[
@@ -5051,6 +5104,7 @@ impl UiNode {
             &node,
             &["tooltip_position"],
         );
+        let tooltip_delay = Self::get_attr(&node, &["tooltip_delay"]);
         let whats_this = Self::get_attr(
             &node,
             &[
@@ -6237,6 +6291,15 @@ impl UiNode {
                 .unwrap_or_default(),
                 color: Self::get_attr(&node, &["color"]).unwrap_or_default(),
             },
+            "otpinput" => NodeType::OtpInput {
+                value_var: Self::get_attr(&node, &["value"]).unwrap_or_default(),
+                length: Self::get_attr(&node, &["length"]).unwrap_or_default(),
+                mode: Self::get_attr(&node, &["mode"]).unwrap_or_default(),
+                secure: Self::get_attr_bool(&node, &["secure", "password"]),
+                size: Self::get_attr(&node, &["size"]).unwrap_or_default(),
+                on_change: Self::get_attr(&node, &["on_change"]).unwrap_or_default(),
+                on_complete: Self::get_attr(&node, &["on_complete"]).unwrap_or_default(),
+            },
             "shortcutinput" | "keysequenceedit" => {
                 NodeType::ShortcutInput {
                     value_var: Self::get_attr(&node, &["value"]).unwrap_or_default(),
@@ -6502,6 +6565,7 @@ impl UiNode {
                     disabled,
                     items,
                     variant: Self::get_attr(&node, &["variant"]),
+                    on_click: Self::get_attr(&node, &["on_click"]),
                 }
             }
             "menuitem" => {
@@ -6960,6 +7024,7 @@ impl UiNode {
                 pin_y,
                 anchor,
                 slot_name,
+                border_radius_corners,
                 transition: None,
             }),
             interact: caixa(Interact {
@@ -6968,6 +7033,7 @@ impl UiNode {
                 cursor,
                 tooltip,
                 tooltip_position,
+                tooltip_delay,
                 whats_this,
                 role,
                 aria_label,

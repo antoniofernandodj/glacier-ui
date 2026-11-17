@@ -20,6 +20,9 @@
 //!   o "▾" com as alternativas do JSON e do markup); "Ver" abre o menu inteiro.
 //! - `field` + `inputgroup` (0.162/0.163): o domínio com `https://` colado e um
 //!   "Copiar" dentro da mesma moldura; o script valida e o `field` mostra o erro.
+//! - `otpinput` (0.164): seis caixas; Ctrl+V cola um código inteiro, e o
+//!   `on_complete` confere quando a última enche. O "limpar" tem
+//!   `tooltip_delay = "600ms"`.
 use glacier_ui::GlacierDaemon;
 
 fn main() -> iced::Result {

@@ -2816,8 +2816,8 @@ A maior parte do catálogo do gpui-kit já existe aqui, às vezes com outro nome
 | Form (layout) — grade e rodapé | `form(columns = n)`, `span`, `footer` | Motor | P2 | ⬜ | o `form` é primitiva (não tem `slot`), então colunas e rodapé são motor; o `grid` precisaria de célula que ocupa várias colunas |
 | DropdownButton | `dropdownbutton` | Built + Motor | P2 | ✅ **0.163** | split button (com `on_click`) ou botão-menu; sobre o `menu` do motor, que ganhou `variant = primary/secondary` no gatilho. Abre no ponto do clique |
 | Input Group | `inputgroup` | Built | P2 | ✅ **0.163** | `prefix`/`suffix` (texto ou slot), moldura única; tira a borda do campo por regra de descendente (`inputgroup textinput`) |
-| HoverCard | `hovercard` | Prim | P2 | ⬜ | o `popover` aberto por hover com atraso; precisa de hover com tempo no motor |
-| OtpInput | `otpinput` | Built/Prim | P2 | ⬜ | N caixas de um dígito com foco que avança; o avanço de foco é o difícil |
+| HoverCard | — | Prim | — | **fora por decisão (2026-11-17)** | o `tooltip=` basta. O que o HoverCard soma — markup no balão e poder entrar nele para clicar — não tem pedido. Em troca, o tooltip ganhou `tooltip_delay` (0.164) |
+| OtpInput | `otpinput` | Prim | P2 | ✅ **0.164** | **um** widget, um valor, N caixas desenhadas (`src/otp.rs`): digitar acrescenta, Backspace apaga, Ctrl+V cola, Tab entra; `on_complete` com o código inteiro |
 | Tag | `tag` | Built | P3 | 🟡 | o `chip` cobre; faltam variantes de cor por prop |
 | Carousel | `carousel` | Built | P3 | 🟡 | `swipeview` + `pageindicator` já fazem; faltam setas e autoplay (`every`) |
 | TitleBar | `titlebar` | Built | P3 | 🟡 | as ações `window:drag/close/minimize/maximize` existem; falta o widget pronto |
@@ -2889,12 +2889,38 @@ rodada.
 Fica de fora, por escrito: o anel de foco e o `:invalid` dentro do grupo (a
 borda do campo é zero, e o grupo não sabe do foco de dentro).
 
+### 7.7 `otpinput` e o HoverCard que não veio (0.164)
+
+**O HoverCard saiu da fila por decisão.** O plano o tinha como "popover aberto
+por hover", e o trabalho começou pelo motor (o `anchored` abrindo por hover,
+com atraso e com o cursor podendo entrar no painel). A pergunta que parou a
+obra: *isso não é o tooltip que já existe?* Em boa parte, sim. O que o
+HoverCard soma — markup no balão e poder clicar dentro dele — não tinha nenhum
+pedido. O que tinha pedido era mais simples: o **atraso** do tooltip, que saiu
+como `tooltip_delay` (`"600ms"`, `"1.5s"`, número puro em ms) sobre o
+`Tooltip::delay` que o `iced` já oferecia.
+
+**O `otpinput` é primitiva, não builtin.** A tabela o previa como N campos de um
+caractere, e o difícil era o foco que avança — um `update` de builtin não move
+foco. Virar **um** widget com **um** valor apagou o problema: as caixas são só o
+desenho, e "avançar" é acrescentar no fim. Colar sai de graça (o `update` do
+widget recebe o clipboard), e o `Focusable` do estado o põe na ordem de Tab,
+o mesmo desenho do `focus_button`.
+
+**O que a tela mostrou, e os testes não.** O exemplo abria **vazio** desde a
+0.161 (os `shortcut` soltos na raiz viravam uma coluna `shrink` em volta da
+`.tela` `fill`); a árvore avaliada estava certa, o layout não. E as duas
+"junções" — o split button e o botão no fim do `inputgroup` — saíram com
+cantos redondos dos dois lados e alturas diferentes, o que não lê como grupo.
+Dois ajustes de motor fecharam isso: o `menu` com `on_click` desenha as duas
+metades no mesmo render, e o `border_radius` passou a aceitar um raio por
+canto (`"0 6 6 0"`, a gramática do CSS), usado pelo `action` do `inputgroup`.
+
 ### 7.4 A fila, por ordem
 
 1. ~~**Form (layout)**~~ — o `field` saiu na 0.162; colunas e rodapé ficam para
    quando outra tela pedir.
 2. ~~**DropdownButton** e **Input Group**~~ — saíram na 0.163.
-3. **HoverCard** e **OtpInput** — pedem motor (hover com atraso, foco que
-   avança).
+3. ~~**HoverCard**~~ (fora por decisão) e ~~**OtpInput**~~ (0.164).
 4. O resto da tabela, sob demanda.
 

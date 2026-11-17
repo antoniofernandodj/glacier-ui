@@ -7888,19 +7888,20 @@ fn test_gpui_dropdownbutton_split_e_menu_inteiro() {
   menuitem(label = Reverter, on_click = reverter)
 }"#,
     );
-    // ação principal (da tela, sem dono) + o gatilho do menu, com a cara do tema
-    assert_eq!(ev.children.len(), 2);
-    assert_eq!(clique_de(&ev.children[0]), "deploy");
-    match &ev.children[1].kind {
-        NodeType::Menu { label, items, variant, .. } => {
-            assert_eq!(label, "▾");
+    // UM menu, que se desenha como split button: a ação principal é da tela
+    // (sem o prefixo do widget), e as duas metades saem do mesmo render.
+    assert_eq!(ev.children.len(), 1);
+    match &ev.children[0].kind {
+        NodeType::Menu { label, items, variant, on_click, .. } => {
+            assert_eq!(label, "Deploy");
+            assert_eq!(on_click.as_deref(), Some("deploy"));
             assert_eq!(items.as_deref(), Some("acoes"), "items é o NOME da chave");
             assert_eq!(variant.as_deref(), Some("primary"));
         }
         outro => panic!("esperava o menu, veio {outro:?}"),
     }
     // o menuitem do slot é da tela: a ação sai sem o prefixo do widget
-    match &ev.children[1].children[0].kind {
+    match &ev.children[0].children[0].kind {
         NodeType::MenuItem { on_click, .. } => assert_eq!(on_click.as_deref(), Some("reverter")),
         outro => panic!("esperava o menuitem, veio {outro:?}"),
     }
@@ -7908,9 +7909,10 @@ fn test_gpui_dropdownbutton_split_e_menu_inteiro() {
     let ev = tela_gpui(&mut motor, "t_dd_menu", r#"dropdownbutton(label = Exportar, variant = flat)"#);
     assert_eq!(ev.children.len(), 1, "sem on_click, o botão inteiro é o menu");
     match &ev.children[0].kind {
-        NodeType::Menu { label, variant, .. } => {
+        NodeType::Menu { label, variant, on_click, .. } => {
             assert_eq!(label, "Exportar ▾");
             assert_eq!(variant.as_deref(), Some("flat"));
+            assert_eq!(*on_click, None, "sem on_click, não há split");
         }
         outro => panic!("esperava o menu, veio {outro:?}"),
     }
@@ -7939,9 +7941,110 @@ fn test_gpui_inputgroup_acessorios_e_campo_sem_borda() {
         "t_ig_slot",
         r#"inputgroup(suffix = "x") {
   input(form_control = dominio)
-  template(slot = suffix) { button("Copiar", on_click = "clipboard:dominio") }
+  template(slot = suffix) { text("✓") }
 }"#,
     );
     assert_eq!(ev.children.len(), 2);
-    assert_eq!(clique_de(&ev.children[1].children[0]), "clipboard:dominio");
+    assert_eq!(texto_de(&ev.children[1].children[0]), "✓");
+
+    // `action`: o botão COLADO — sem container em volta, altura do campo e
+    // cantos retos do lado do campo; a ação é da tela (builtin passa intacto).
+    let ev = tela_gpui(
+        &mut motor,
+        "t_ig_action",
+        r#"inputgroup(action = Copiar, on_action = "clipboard:dominio", suffix = "ignorado") {
+  input(form_control = dominio)
+}"#,
+    );
+    assert_eq!(ev.children.len(), 2, "action ocupa o lugar do suffix");
+    let botao = &ev.children[1];
+    assert_eq!(clique_de(botao), "clipboard:dominio");
+    assert_eq!(botao.height, None, "altura natural (casa com a do campo), não `fill`");
+    assert_eq!(botao.padding.as_deref(), Some("5 14"));
+    assert_eq!(botao.border_radius_corners(), Some([0.0, 5.0, 5.0, 0.0]));
+}
+
+#[test]
+fn test_border_radius_por_canto() {
+    use glacier_ui::stylesheet::parse_raio_cantos;
+    assert_eq!(parse_raio_cantos("6"), Some((6.0, None)));
+    assert_eq!(parse_raio_cantos("6 0"), Some((6.0, Some([6.0, 0.0, 6.0, 0.0]))));
+    assert_eq!(parse_raio_cantos("0 6 6 0"), Some((0.0, Some([0.0, 6.0, 6.0, 0.0]))));
+    assert_eq!(parse_raio_cantos("1 2 3"), None, "três valores não é forma aceita");
+
+    // pela classe do .gss também
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(
+        &mut motor,
+        "t_raio",
+        r#"resources {
+  style """
+    .esq { border_radius: 6 0 0 6; }
+  """
+}
+column {
+  button("a", class = esq)
+  button("b", border_radius = 4)
+}"#,
+    );
+    let botoes: Vec<&UiNode> = ev.children.iter().filter(|n| matches!(n.kind, NodeType::Button { .. })).collect();
+    assert_eq!(botoes[0].border_radius_corners(), Some([6.0, 0.0, 0.0, 6.0]));
+    assert_eq!(botoes[1].border_radius_corners(), None, "raio único = sem cantos");
+}
+
+// --- `otpinput` e `tooltip_delay` (0.164) -----------------------------------
+
+#[test]
+fn test_gpui_otpinput_no_e_logica_de_digitar_e_colar() {
+    use glacier_ui::otp::{Modo, acrescenta, filtra};
+
+    let mut motor = GlacierUI::new();
+    let ev = tela_gpui(
+        &mut motor,
+        "t_otp",
+        r#"column { otpinput(:value = codigo, length = 4, mode = alnum, secure = true, on_complete = verificar) }"#,
+    );
+    match &ev.children[0].kind {
+        NodeType::OtpInput { value_var, length, mode, secure, on_complete, on_change, .. } => {
+            assert_eq!(value_var, "codigo", "value é o NOME da chave");
+            assert_eq!(length, "4");
+            assert_eq!(mode, "alnum");
+            assert!(*secure);
+            assert_eq!(on_complete, "verificar");
+            assert!(on_change.is_empty(), "sem on_change, o widget grava a chave");
+        }
+        outro => panic!("esperava o otpinput, veio {outro:?}"),
+    }
+
+    // colar: separadores somem, corta no comprimento, alnum vira maiúscula
+    assert_eq!(filtra("123 456", Modo::Digitos, 6), "123456");
+    assert_eq!(filtra("12-34-56-78", Modo::Digitos, 6), "123456");
+    assert_eq!(filtra("a7k-2q9", Modo::Alfanumerico, 6), "A7K2Q9");
+    // digitar: acrescenta até encher; recusa o que o modo não aceita
+    assert_eq!(acrescenta("12", "3", Modo::Digitos, 4).as_deref(), Some("123"));
+    assert_eq!(acrescenta("1234", "5", Modo::Digitos, 4), None);
+    assert_eq!(acrescenta("12", "x", Modo::Digitos, 4), None);
+}
+
+#[test]
+fn test_tooltip_delay_unidades() {
+    use glacier_ui::widget::parse_duracao;
+    use std::time::Duration;
+
+    assert_eq!(parse_duracao("3s"), Some(Duration::from_secs(3)));
+    assert_eq!(parse_duracao("1.5s"), Some(Duration::from_millis(1500)));
+    assert_eq!(parse_duracao("600ms"), Some(Duration::from_millis(600)));
+    assert_eq!(parse_duracao("600"), Some(Duration::from_millis(600)), "número puro = ms");
+    assert_eq!(parse_duracao(" 2 S "), Some(Duration::from_secs(2)));
+    assert_eq!(parse_duracao("-1s"), None);
+    assert_eq!(parse_duracao("3min"), None);
+
+    let mut motor = GlacierUI::new();
+    motor.define_data("atraso", "800ms");
+    let ev = tela_gpui(
+        &mut motor,
+        "t_tip",
+        r#"column { button("?", tooltip = "ajuda", tooltip_delay = "{atraso}") }"#,
+    );
+    assert_eq!(ev.children[0].tooltip_delay(), Some("800ms"), "interpola");
 }

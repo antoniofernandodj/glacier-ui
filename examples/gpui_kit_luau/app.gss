@@ -14,4 +14,5 @@
 .coluna  { width: fill; spacing: 10; }
 .secao   { size: 13; bold: true; }
 .nota    { size: 12; color: var(--fraco); }
-.copiar  { padding: 4 10; }
+.acoes_otp { spacing: 10; align_y: center; }
+.btn_fraco { padding: 4 10; }

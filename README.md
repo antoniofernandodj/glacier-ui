@@ -356,8 +356,8 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 | `prose` | — | blocos de leitura (`p`, `h1`–`h6`, `blockquote`, `ul`/`ol`, `figure`, `pre`) com estilo inline (`b`, `i`, `code`, `u`, `s`, `span`, `a`); `syntax`+`content` lê o texto de uma chave — [`docs/TEXTO.md`](docs/TEXTO.md) |
 | `markdown` | `markdown`, `md` | CommonMark (tabelas, imagens locais), `content`, `size` — [`docs/TEXTO.md`](docs/TEXTO.md) |
 | `form` | — | `on_submit`, `name` — renderiza como `column` |
-| `dropdownbutton` | — | o botão com menu: `label`, `on_click` (presente = *split button*, ação principal + "▾"; ausente = o botão inteiro abre o menu), `items` (chave com o JSON do `menu`), `variant` (`primary` · `flat`), `caret`; `menuitem`/`menuseparator` dentro somam-se ao JSON. Sobre o `menu` do motor. Builtin, fase gpui-kit |
-| `inputgroup` | — | o campo com acessórios numa moldura só: `prefix`/`suffix` (texto) ou os slots nomeados `prefix`/`suffix` (ícone, botão); tira a borda do `textinput`/`maskedinput`/`comboedit` de dentro. Builtin, fase gpui-kit |
+| `dropdownbutton` | — | o botão com menu: `label`, `on_click` (presente = *split button*, ação principal + "▾"; ausente = o botão inteiro abre o menu), `items` (chave com o JSON do `menu`), `variant` (`primary` · `flat`), `caret`; `menuitem`/`menuseparator` dentro somam-se ao JSON. Sobre o `menu` do motor, que com `on_click` desenha as duas metades com a mesma altura e só os cantos de fora redondos. Builtin, fase gpui-kit |
+| `inputgroup` | — | o campo com acessórios numa moldura só: `prefix`/`suffix` (texto) ou os slots nomeados `prefix`/`suffix` (ícone); `action`/`on_action` desenham o botão **colado** no fim (altura do campo, cantos redondos só por fora); tira a borda do `textinput`/`maskedinput`/`comboedit` de dentro. Builtin, fase gpui-kit |
 | `field` | — | a casca de um campo de formulário: `label`, `required` (só o `*`), `description` (ajuda), `error` (`@erro_<campo>`; no lugar da ajuda), `label_position` (`top` · `left`), `label_width`; o controle vai dentro, e `template(slot = aside)` põe algo ao lado do rótulo. Builtin, fase gpui-kit |
 | `select` | `dropdown`, `picklist`, `combobox`, `seletor` | `options`/`items` (chave com array JSON), `value`, `on_change`/`on_select`, `placeholder`, `label_field` (padrão `label`), `value_field` (padrão `value`) |
 | `image` | — | `source`/`src`, `clip="Circle"` (corte circular) |
@@ -393,6 +393,7 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 | `rubberband` | — | retângulo de seleção arrastado sobre uma área: `items` (alvos `[{id,x,y,w,h}]`), `selection` (chave que recebe o conjunto nomeado), `on_select` (recebe `"x,y,w,h"`), `color`. Desenha os alvos que conhece |
 | `pageindicator` | — | os pontinhos de página: `value` (chave, base **0**), `total`, `on_change`. É `pagination` com pontos, e lê a mesma chave de um `swipeview` |
 | `shortcut` | `action` | atalho global de teclado, **declarado no layout** (não desenha nada): `key` (`"ctrl+s"`, `"f5"`; a ordem dos modificadores não importa) e `on_press`. Vale enquanto a tela estiver montada |
+| `otpinput` | — | o código de uso único em caixinhas: `value` (chave), `length` (6), `mode` (`digits` · `alnum`, que grava maiúscula), `secure`, `size` (largura da caixa), `spacing`, `on_change` (vazio = grava sozinho), `on_complete` (recebe o código quando a última caixa enche). Digitar acrescenta, Backspace apaga, Ctrl+V cola o código inteiro; entra na ordem de Tab. Fase gpui-kit |
 | `shortcutinput` | `keysequenceedit` | o campo que captura uma combinação (`QKeySequenceEdit`): `value` (chave), `placeholder`, `on_change`. Clique e tecle; Esc desiste, Backspace limpa |
 | `sizegrip` | — | o canto que redimensiona a janela (`QSizeGrip`), para apps com titlebar própria: `corner` (default `se`, sudeste), `size`. Builtin |
 | `alert` | — | o aviso que **fica** na tela (o `toast()` passa, o `dialog` interrompe): `title` (o texto sem nome — `alert("Salvo")`), `description`, `variant` (`info` · `success` · `warning` · `error`), `icon` (`none` tira), `on_close` (ação da tela no "×"; sem ela, sem "×"). O que vai dentro entra sob a descrição (`slot`). Builtin, fase gpui-kit |
@@ -719,7 +720,7 @@ Disponíveis em **qualquer** tag:
 | `spacing` | — | número (espaço entre filhos de `row`/`column`) |
 | `background` | `bg` | cor hex |
 | `gradient` | — | `"#a #b"` (cima→baixo) ou `"<ângulo> #a #b [#c …]"`; vence `background`; em `button` pinta o fundo do botão (hover/pressed derivam das paradas, `disabled` corta o alfa) |
-| `border_radius` | — | número |
+| `border_radius` | — | número, ou um por canto: `"0 6 6 0"` (sup.-esq., sup.-dir., inf.-dir., inf.-esq.) ou `"6 0"` — também no `.gss` |
 | `border_width` | — | número |
 | `border_color` | — | cor hex |
 | `class` | — | classes `.gss` separadas por espaço |
@@ -727,6 +728,9 @@ Disponíveis em **qualquer** tag:
 | `on_press` | — | ação no **pressionar** (envolve em `mouse_area`); viabiliza `onPress="window:drag"` |
 | `on_double_click` | `ao_clicar_duplo` | ação no **duplo-clique** (ex.: `window:maximize` na barra de título) |
 | `cursor` | `cursor_icon` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `not_allowed`, `resize-h/v/ne/nw`, … |
+| `tooltip` | `title` | texto do balão ao pairar o mouse; interpola (`tooltip = "{dica}"`) |
+| `tooltip_position` | — | `right` (default), `top`, `bottom`, `left`, `follow` (segue o cursor) |
+| `tooltip_delay` | — | atraso até o balão aparecer: `"600ms"`, `"1.5s"` ou número puro em ms. Sem ele, imediato |
 | `hidden` | — | `true`/`false` — remove do layout (não ocupa espaço) |
 | `disabled` | — | `true`/`false` — desativa a interação de `button`/`textinput`/`checkbox`/`toggle` |
 

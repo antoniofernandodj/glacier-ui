@@ -4,11 +4,13 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
     script(src = "scripts/app.luau")
   }
 
-  // Atalhos globais: moram no layout e não desenham nada.
-  shortcut(key = ctrl+k, on_press = alternar_paleta)
-  shortcut(key = escape, on_press = fechar_paleta)
-
   column(class = tela) {
+    // Atalhos globais: moram no layout e não desenham nada. DENTRO da coluna:
+    // soltos na raiz, ao lado dela, a tela vira três raízes que o motor
+    // empilha numa coluna `shrink` — e a `.tela` (fill) colapsa para zero.
+    shortcut(key = ctrl+k, on_press = alternar_paleta)
+    shortcut(key = escape, on_press = fechar_paleta)
+
     row(class = topo) {
       text("Serviços", class = titulo)
       // split button: a ação principal + as alternativas (JSON e markup somados)
@@ -45,11 +47,9 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
 
         // campo com acessórios: uma moldura só; o erro fica com o `field`
         field(label = "Domínio", description = "sem https:// e sem caminho", error = @erro_dominio) {
-          inputgroup(prefix = "https://") {
+          // o botão colado: altura do campo, cantos redondos só por fora
+          inputgroup(prefix = "https://", action = Copiar, on_action = "clipboard:dominio") {
             input(:value = dominio, on_change = editar_dominio, placeholder = "app.exemplo.com")
-            template(slot = suffix) {
-              button("Copiar", class = copiar, on_click = "clipboard:dominio")
-            }
           }
         }
         field(label = "Réplicas por região", label_position = left) {
@@ -59,6 +59,15 @@ screen(title = "Glacier — fase gpui-kit (Luau)", size = "920 680", min_size = 
         }
       }
       column(class = coluna) {
+        text("Código de verificação", class = secao)
+        // Um widget, um valor: digitar acrescenta, Backspace apaga, Ctrl+V cola
+        // o código inteiro. Sem on_change, ele grava `codigo` sozinho.
+        otpinput(:value = codigo, length = 6, on_complete = verificar)
+        row(class = acoes_otp) {
+          button("limpar", class = btn_fraco, on_click = limpar_codigo, tooltip = "apaga as seis caixas", tooltip_delay = "600ms")
+          text("o código certo é 246810", class = nota)
+        }
+
         text("Atalhos", class = secao)
         descriptionlist(:items = atalhos, layout = vertical)
         text("último comando: {ultimo}", class = nota)

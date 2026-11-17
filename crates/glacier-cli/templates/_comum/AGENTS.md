@@ -964,7 +964,7 @@ largura de um filho, e um `fill` ali colapsa o widget sem erro nenhum.
 
 ## O catálogo de widgets
 
-São **118 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
+São **119 tags**. Nenhuma precisa ser registrada, importada ou configurada: o
 motor conhece as primitivas e a lib auto-registra os builtins antes de a
 primeira tela existir. Se a tag está nesta seção, ela funciona.
 
@@ -1222,11 +1222,12 @@ na tabela de cada widget:
 | `align_x`, `align_y` | exatamente `start`, `center` ou `end`. `left`/`right`/`top` **não existem** e caem no default |
 | `background` | `#rrggbb` ou `#rrggbbaa` |
 | `gradient` | `"180 #1e1e2e #313244"` — ângulo em graus (opcional, default 180) seguido de **duas ou mais** cores, distribuídas por igual. Vence o `background`. Só aceita hex (`var(--x)` de cor nomeada funciona). **Em `button`** pinta o fundo do próprio botão: hover clareia e pressed escurece 10%, `disabled` corta o alfa; `:hover { gradient: … }` no `.gss` vence a derivação |
-| `border_radius`, `border_width` | um número |
+| `border_radius` | um número, ou um por canto: `"0 6 6 0"` (superior-esquerdo, superior-direito, inferior-direito, inferior-esquerdo) ou `"6 0"` (`a b a b`) |
+| `border_width` | um número |
 | `border_color` | `#rrggbb`/`#rrggbbaa` |
 | `max_width`, `max_height` | um número; o motor embrulha o nó num container que limita |
 | `hidden`, `disabled` | truthy: `"true"`/`"1"` liga; vazio, `"false"` e `"0"` desligam. Aceitam `{chave}` — é assim que se liga ao dado |
-| `tooltip`, `tooltip_position` | texto do balão; a posição é `top`/`bottom`/`left`/`right` |
+| `tooltip`, `tooltip_position`, `tooltip_delay` | texto do balão; a posição é `top`/`bottom`/`left`/`right`/`follow`; o atraso até aparecer é `"600ms"`, `"1.5s"` ou um número puro em ms (default: imediato) |
 | `whats_this` | ajuda do `QWhatsThis`. Só aparece com o **modo pegajoso** ligado (ação `whatsthis:on`/`off`/`toggle` → chave `__whatsthis`), e aí toma o lugar do `tooltip=` no hover |
 | `cursor` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not_allowed`, `none`, e as alças `resize_h`, `resize_v`, `resize_ne`, `resize_nw` (com os apelidos de bússola `n`, `s`, `e`, `w`, `ne`, `nw`, `sw`) |
 | `on_press`, `on_double_click` | nome de uma ação; clique em **qualquer** elemento (o `on_click` é do `button`) |
@@ -1676,18 +1677,16 @@ campo de dentro.
 
 ```gv
 field(label = Domínio, error = @erro_dominio) {
-  inputgroup(prefix = "https://") {
+  inputgroup(prefix = "https://", action = Copiar, on_action = "clipboard:dominio") {
     input(:value = dominio, on_change = editar_dominio)
-    template(slot = suffix) {
-      button("Copiar", on_click = "clipboard:dominio")
-    }
   }
 }
 ```
 
 | prop | default |
 |---|---|
-| `prefix`, `suffix` | texto antes / depois do campo. Para ícone ou botão, o slot nomeado de mesmo nome (`template(slot = suffix) { … }`), que vence a prop |
+| `prefix`, `suffix` | texto antes / depois do campo. Para um ícone, o slot nomeado de mesmo nome (`template(slot = suffix) { … }`), que vence a prop |
+| `action`, `on_action` | o **botão colado** no fim: altura do campo, cantos retos do lado do campo, ação da tela. Ocupa o lugar do `suffix`; `action_class` repinta |
 | `width` | `fill` |
 | `addon_class` | classe dos dois textos |
 
@@ -1697,6 +1696,8 @@ field(label = Domínio, error = @erro_dominio) {
   deixe borda e fundo para ele.
 - Sem anel de foco nem `:invalid` no campo (a borda dele é zero): mostre o erro
   com um `field(error = …)` em volta.
+- Botão no grupo é `action`, não um `button` no slot `suffix`: no slot ele fica
+  solto lá dentro, com folga e os quatro cantos redondos.
 
 **`maskedinput(:value = cpf, mask = cpf)`** — guarda **cru** e exibe
 mascarado. A chave nunca contém pontuação: é isso que faz um CPF gravado ser
@@ -1793,6 +1794,35 @@ sem deixar mexer.
 | `filled` / `empty` | `★` / `☆` — qualquer caractere serve |
 | `size` | `20` |
 | `color`, `on_change` | — |
+
+**`otpinput(:value = codigo, length = 6, on_complete = verificar)`** — o
+código de uso único em caixinhas (SMS, e-mail, app autenticador). É **um**
+widget com **um** valor: digitar acrescenta no fim, Backspace apaga o último,
+**Ctrl+V cola** o código inteiro (separadores como `123 456` e `123-456` somem).
+Não há cursor no meio, de propósito.
+
+| atributo | default |
+|---|---|
+| `value` | **nome da chave** do código |
+| `length` | `6` (entre 1 e 12) |
+| `mode` | `digits`; `alnum` aceita letras e dígitos e grava letra **maiúscula** |
+| `secure` | `false`; `true` desenha `•` |
+| `size` | `44` — a largura de cada caixa (a altura é 1,2 × isso) |
+| `spacing` | `8` — entre as caixas |
+| `on_change` | vazio = o widget grava a chave sozinho; com ele, delega |
+| `on_complete` | ação chamada com o código inteiro quando a última caixa enche — **depois** de gravar, então o handler já lê a chave nova |
+
+```lua
+function verificar(codigo: string): ()
+    if codigo ~= esperado then
+        toast({ message = "Código inválido", kind = "error" })
+        ctx.codigo = ""   -- apagar a chave limpa as caixas
+    end
+end
+```
+
+Entra na ordem de Tab; clicar foca, clicar fora ou Esc tira o foco. Não é
+`form_control`: quem confere é o `on_complete`.
 
 **`shortcutinput(:value = atalho_salvar)`** — captura uma combinação e grava na
 forma canônica `ctrl+shift+alt+super+tecla`, nessa ordem, minúscula. Só um campo
@@ -2632,7 +2662,7 @@ declare `on_change` e no handler grave as chaves (`storage.set` no Luau).
 
 | tag | atributos |
 |---|---|
-| `menu` | `label`, `icon`, `disabled`, `items`, `variant` (`primary`/`secondary`: o gatilho com o estilo de botão do tema; vazio = chapado, como numa `menubar`) |
+| `menu` | `label`, `icon`, `disabled`, `items`, `variant` (`primary`/`secondary`: o gatilho com o estilo de botão do tema; vazio = chapado, como numa `menubar`), `on_click` (fora da `menubar`: vira split button — o rótulo dispara a ação, o "▾" abre o menu) |
 | `menuitem` | `label`, `icon`, `on_click`, `checked` (nome de chave, truthy), `disabled` |
 | `menuseparator` | — |
 | `contextmenu(:items = acoes)` | botão direito no **primeiro** filho; o resto é o menu |
@@ -2689,13 +2719,13 @@ dropdownbutton(label = Exportar, variant = flat) {
 | `on_click` | a ação principal; presente = split button |
 | `items` | **nome da chave** com o JSON do `menu` (`{label, action, separator, items, …}`) |
 | `variant` | `primary` (o botão do tema) ou `flat` (transparente, para barra de ferramentas) |
-| `caret` | `▾` |
-| `button_class` | classe do botão da ação principal |
+| `caret` | `▾` — a seta do botão-menu (sem `on_click`) |
 
 As opções vêm do markup (`menuitem`, `menuseparator`, `menu` para submenu), do
 JSON, ou dos dois somados — e todas as ações são da **tela**. Por baixo é o
 `menu` do motor: o painel tem a cor do tema e fecha ao escolher, mas abre no
-ponto do clique, não alinhado à borda do botão.
+ponto do clique, não alinhado à borda do botão. No split button as duas metades
+têm a mesma altura e só os cantos de fora arredondados.
 
 **`toolbar` + `toolbutton`** — faixa de ações.
 
@@ -2732,9 +2762,9 @@ compilação. `class` no uso pinta a `row` inteira, não os botões.
 botão de duas linhas com seta, o "próximo passo" de um assistente.
 
 **`RoundButton(text = +, color = #89B4FA, size = 48, on_click = "…")`** — botão
-circular. O `color` **precisa** existir: o `button` só aplica `border_radius`
-dentro do fecho de estilo que a cor (ou um `gradient`) liga, então sem nenhum dos dois sai um retângulo. O
-default é `#45475A` justamente por isso.
+circular. Props `text`, `color` (default `#45475A`), `size`, `on_click`. Desde a
+0.164 um `button` sem `color` também respeita o `border_radius` (com as cores do
+tema).
 
 **`sizegrip`** — canto de redimensionar, para apps com titlebar própria.
 `corner` default `size` (14).
@@ -3373,7 +3403,7 @@ novas, é o mesmo campo com o nome do domínio.
 | `align_y` | `align_y` | idem |
 | `background` | `bg` | `#rrggbb`, `#rrggbbaa` |
 | `gradient` | — | `"180 #a #b"` — ângulo opcional + 2 ou mais cores; vale também em `button` |
-| `border_radius` | `border_radius` | número |
+| `border_radius` | `border_radius` | número, ou 2/4 por canto: `border_radius: 0 6 6 0;` (a ordem do CSS) |
 | `border_width` | `border_width` | número |
 | `border_color` | `border_color` | cor |
 | `color` | — | cor do texto — **mas num `button` é a cor de FUNDO** |

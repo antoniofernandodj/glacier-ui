@@ -36,6 +36,12 @@ pub struct StyleRule {
     pub align_y: Option<String>,
     pub background: Option<String>,
     pub border_radius: Option<f32>,
+    /// `border_radius: 0 6 6 0` — um raio por canto, na ordem do CSS
+    /// (superior-esquerdo, superior-direito, inferior-direito,
+    /// inferior-esquerdo); dois valores são `a b a b`. Quando existe, o
+    /// [`Self::border_radius`] guarda o primeiro, para quem só sabe de um raio.
+    /// Ver [`parse_raio_cantos`].
+    pub border_radius_corners: Option<[f32; 4]>,
     pub border_width: Option<f32>,
     pub border_color: Option<String>,
     pub color: Option<String>,
@@ -100,6 +106,9 @@ impl StyleRule {
         }
         if other.border_radius.is_some() {
             self.border_radius = other.border_radius;
+            // Um raio único depois de um por canto vence o por canto (e
+            // vice-versa): os dois andam juntos.
+            self.border_radius_corners = other.border_radius_corners;
         }
         if other.border_width.is_some() {
             self.border_width = other.border_width;
@@ -1956,7 +1965,13 @@ fn parse_rule_body(
             // reusar os campos evita três novos e faz `.classe { fill: … }`
             // funcionar pelo caminho que já resolve estilo.
             "background" | "bg" | "fill" => rule.background = Some(value),
-            "border_radius" => rule.border_radius = Some(parse_f32(&value)?),
+            "border_radius" => match parse_raio_cantos(&value) {
+                Some((uniforme, cantos)) => {
+                    rule.border_radius = Some(uniforme);
+                    rule.border_radius_corners = cantos;
+                }
+                None => rule.border_radius = Some(parse_f32(&value)?),
+            },
             "border_width" | "stroke_width" => {
                 rule.border_width = Some(parse_f32(&value)?)
             }
@@ -2766,5 +2781,24 @@ mod tests {
     fn has_tag_rules_false_without_tag_selectors() {
         let sheet = parse_gss(".a { color: #111; } #b { color: #222; }").unwrap();
         assert!(!sheet.has_tag_rules());
+    }
+}
+
+/// `border_radius` com 1, 2 ou 4 números separados por espaço — a gramática do
+/// CSS: `6` (os quatro), `6 0` (superior-esquerdo e inferior-direito = 6, os
+/// outros dois = 0), `0 6 6 0` (superior-esquerdo, superior-direito,
+/// inferior-direito, inferior-esquerdo). Devolve o raio "único" (o primeiro,
+/// para quem só sabe de um) e os cantos quando não são todos iguais por
+/// construção. `None` = não é essa forma (quem chama cai no parse de sempre).
+pub fn parse_raio_cantos(valor: &str) -> Option<(f32, Option<[f32; 4]>)> {
+    let nums: Vec<f32> = valor
+        .split_whitespace()
+        .map(|t| t.trim_end_matches("px").parse::<f32>().ok())
+        .collect::<Option<_>>()?;
+    match nums.as_slice() {
+        [r] => Some((*r, None)),
+        [a, b] => Some((*a, Some([*a, *b, *a, *b]))),
+        [tl, tr, br, bl] => Some((*tl, Some([*tl, *tr, *br, *bl]))),
+        _ => None,
     }
 }
