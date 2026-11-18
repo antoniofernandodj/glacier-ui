@@ -11,6 +11,7 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 ## glacier-ui 0.168.0 — 2026-11-18
 
 - **Arquivos binários no Luau.** `write_file`, `append_file` e `save_download` gravam a string Luau como **bytes** (`mlua::String`): antes recebiam `String` do Rust, e qualquer byte fora de UTF-8 (um NUL seguido de `\255`, um formato binário) fazia a chamada falhar. Texto continua igual: UTF-8 é um caso particular de bytes.
+- **`base64.encode(bytes)` / `base64.decode(texto)`** novos: um arquivo binário que chega dentro de uma resposta JSON vem em base64, e o Luau não tinha como voltar aos bytes para gravá-lo. `decode` ignora espaços e quebras de linha e devolve `bytes` ou `nil, mensagem`.
 - **`read_file(caminho)`** novo: lê o arquivo inteiro em bytes crus, **sem suspender**, e devolve `conteúdo` ou `nil, mensagem`. Era preciso o `fetch("file://…")`, que suspende a corrotina e entrega texto UTF-8 (ou base64, que o Luau não decodifica sozinho).
 
 ## glacier-ui 0.167.0 — 2026-11-17

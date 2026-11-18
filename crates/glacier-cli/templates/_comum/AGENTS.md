@@ -4385,7 +4385,9 @@ Nenhum deles suspende — é I/O local. `write_file`/`append_file` devolvem
 `append_file`, `save_download`) levam a string Luau como **bytes**, então um
 arquivo binário atravessa intacto; e `read_file(caminho)` lê de volta, também em
 bytes, sem suspender (`conteúdo` ou `nil, mensagem`). `fetch("file://caminho")`
-continua servindo para texto (ou base64) dentro de uma corrotina.
+continua servindo para texto (ou base64) dentro de uma corrotina. Um binário que
+chega dentro de um JSON vem em base64: `base64.decode(texto)` devolve os bytes
+(ou `nil, mensagem`) e `base64.encode(bytes)` faz o caminho inverso.
 
 `storage` é um JSON chaveado que o motor gerencia (a pasta sai do
 diretório de dados do `app(id)`, ou do `.storage_dir(...)` no `main.rs`); ao

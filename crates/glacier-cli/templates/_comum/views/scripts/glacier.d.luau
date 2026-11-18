@@ -229,6 +229,12 @@ declare function write_file(path: string, contents: string): (boolean, string?)
 -- Lê o arquivo inteiro, em bytes crus, sem suspender (0.168+). Devolve o
 -- conteúdo ou `nil, mensagem`. Para texto via rede/corrotina, `fetch`.
 declare function read_file(path: string): (string?, string?)
+-- Base64 <-> bytes (0.168+): para gravar um binário que chegou num JSON.
+-- `decode` devolve os bytes ou `nil, mensagem`.
+declare base64: {
+    encode: (bytes: string) -> string,
+    decode: (text: string) -> (string?, string?),
+}
 -- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
 -- log em Luau viável sem manter o arquivo inteiro em memória.
 declare function append_file(path: string, contents: string): (boolean, string?)

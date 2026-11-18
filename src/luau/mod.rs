@@ -2745,6 +2745,30 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
         Err(e) => Ok((None, Some(e.to_string()))),
     })?;
     luau.globals().set("read_file", read_file)?;
+
+    // `base64.encode(bytes)` / `base64.decode(texto)` — a ponte entre um corpo JSON (texto) e bytes
+    // crus: uma resposta da API que carrega um arquivo binário chega em base64, e o Luau não tinha como
+    // voltar aos bytes para gravá-los. `decode` devolve `bytes` ou `nil, "mensagem"`.
+    let base64 = luau.create_table()?;
+    base64.set(
+        "encode",
+        luau.create_function(|_, bytes: mlua::String| {
+            use base64::Engine as _;
+            Ok(base64::prelude::BASE64_STANDARD.encode(&*bytes.as_bytes()))
+        })?,
+    )?;
+    base64.set(
+        "decode",
+        luau.create_function(|lua, text: String| {
+            use base64::Engine as _;
+            let limpo: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+            match base64::prelude::BASE64_STANDARD.decode(limpo) {
+                Ok(bytes) => Ok((Some(lua.create_string(&bytes)?), None)),
+                Err(e) => Ok((None, Some(format!("base64 inválido: {e}")))),
+            }
+        })?,
+    )?;
+    luau.globals().set("base64", base64)?;
     Ok(())
 }
 
@@ -5476,6 +5500,28 @@ mod tests {
         assert_eq!(data.get("igual").map(String::as_str), Some("true"));
         assert_eq!(data.get("ausente").map(String::as_str), Some("true"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `base64` vai e volta com bytes fora de UTF-8, e `decode` de lixo devolve `nil, mensagem`.
+    #[test]
+    fn base64_codifica_e_decodifica_bytes() {
+        let comp = LuauComponent::from_source(
+            "function testar()\n\
+               local original = '\\0\\255\\128ok'\n\
+               local texto = base64.encode(original)\n\
+               ctx.texto = texto\n\
+               ctx.volta = tostring(base64.decode(texto) == original)\n\
+               local nada, erro = base64.decode('***')\n\
+               ctx.invalido = tostring(nada == nil and erro ~= nil)\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "testar", None, HashMap::default());
+        assert_eq!(data.get("texto").map(String::as_str), Some("AP+Ab2s="));
+        assert_eq!(data.get("volta").map(String::as_str), Some("true"));
+        assert_eq!(data.get("invalido").map(String::as_str), Some("true"));
     }
 
     /// `zip_dir` compacta a árvore inteira (arquivo no topo + arquivo numa
