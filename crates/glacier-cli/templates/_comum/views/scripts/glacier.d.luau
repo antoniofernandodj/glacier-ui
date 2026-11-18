@@ -224,10 +224,13 @@ declare audio: {
     available: () -> boolean,
 }
 
+-- `contents` é gravado como BYTES (0.168+): a string Luau pode ser binária.
 declare function write_file(path: string, contents: string): (boolean, string?)
+-- Lê o arquivo inteiro, em bytes crus, sem suspender (0.168+). Devolve o
+-- conteúdo ou `nil, mensagem`. Para texto via rede/corrotina, `fetch`.
+declare function read_file(path: string): (string?, string?)
 -- Irmão do `write_file`, mas ACRESCENTA em vez de sobrescrever — o que torna um
--- log em Luau viável sem manter o arquivo inteiro em memória. Para LER um
--- arquivo, use `fetch("file://…")`.
+-- log em Luau viável sem manter o arquivo inteiro em memória.
 declare function append_file(path: string, contents: string): (boolean, string?)
 -- Grava `contents` na pasta Downloads do sistema (sem diálogo), NUNCA sobrescrevendo: se `filename` já
 -- existe, grava `nome-1.ext`, `nome-2.ext`…; no Unix o arquivo nasce 0600. Síncrono. Devolve

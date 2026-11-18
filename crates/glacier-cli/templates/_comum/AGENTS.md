@@ -4368,6 +4368,7 @@ p:cancel()                                            -- interrompe as próximas
 
 ```lua
 local ok, erro = write_file("saida/relatorio.txt", texto)   -- sobrescreve
+local dados, erro = read_file("saida/relatorio.bin")        -- bytes crus, ou nil + erro
 local ok, erro = append_file("saida/log.txt", linha .. "\n") -- acrescenta
 local ok, caminho = save_download("chave.txt", texto)     -- pasta Downloads, sem sobrescrever
 zip_dir("pasta/origem", "saida/pacote.zip")                  -- compacta a árvore
@@ -4380,8 +4381,11 @@ storage.remove("ultimo_projeto")
 ```
 
 Nenhum deles suspende — é I/O local. `write_file`/`append_file` devolvem
-`(true)` ou `(false, mensagem)`; para **ler** um arquivo, use
-`fetch("file://caminho")`.
+`(true)` ou `(false, mensagem)`. Desde a 0.168 os três gravadores (`write_file`,
+`append_file`, `save_download`) levam a string Luau como **bytes**, então um
+arquivo binário atravessa intacto; e `read_file(caminho)` lê de volta, também em
+bytes, sem suspender (`conteúdo` ou `nil, mensagem`). `fetch("file://caminho")`
+continua servindo para texto (ou base64) dentro de uma corrotina.
 
 `storage` é um JSON chaveado que o motor gerencia (a pasta sai do
 diretório de dados do `app(id)`, ou do `.storage_dir(...)` no `main.rs`); ao

@@ -2689,7 +2689,9 @@ fn install_storage(luau: &Lua, path: PathBuf) -> mlua::Result<()> {
 /// - sucesso: `write_file(path, txt)` → `true`
 /// - falha:   `write_file(path, txt)` → `false, "mensagem"`
 fn install_write_file(luau: &Lua) -> mlua::Result<()> {
-    let write_file = luau.create_function(|_, (path, contents): (String, String)| {
+    // `contents` é a string Luau como BYTES (`mlua::String`), não um `String` do Rust: uma string Luau
+    // carrega qualquer byte, e exigir UTF-8 aqui recusava gravar um arquivo binário.
+    let write_file = luau.create_function(|_, (path, contents): (String, mlua::String)| {
         let path = PathBuf::from(path);
         if let Some(parent) = path.parent()
             && !parent.as_os_str().is_empty()
@@ -2697,7 +2699,7 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
         {
             return Ok((false, Some(e.to_string())));
         }
-        match std::fs::write(&path, contents) {
+        match std::fs::write(&path, &*contents.as_bytes()) {
             Ok(()) => Ok((true, None)),
             Err(e) => Ok((false, Some(e.to_string()))),
         }
@@ -2710,7 +2712,7 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
     // ler-modificar-gravar com `fetch("file://…")`, que suspende a corrotina —
     // veneno dentro de uma seção crítica. Mesma assinatura de retorno:
     // `(ok, erro?)`, e também cria os diretórios que faltarem.
-    let append_file = luau.create_function(|_, (path, contents): (String, String)| {
+    let append_file = luau.create_function(|_, (path, contents): (String, mlua::String)| {
         use std::io::Write;
         let path = PathBuf::from(path);
         if let Some(parent) = path.parent()
@@ -2727,19 +2729,29 @@ fn install_write_file(luau: &Lua) -> mlua::Result<()> {
             Ok(f) => f,
             Err(e) => return Ok((false, Some(e.to_string()))),
         };
-        match arquivo.write_all(contents.as_bytes()) {
+        match arquivo.write_all(&contents.as_bytes()) {
             Ok(()) => Ok((true, None)),
             Err(e) => Ok((false, Some(e.to_string()))),
         }
     })?;
     luau.globals().set("append_file", append_file)?;
+
+    // `read_file(path)` — a leitura SÍNCRONA e em bytes crus, contraparte do `write_file`. O
+    // `fetch("file://…")` suspende a corrotina e entrega texto UTF-8 (ou base64, que o Luau não
+    // decodifica sozinho); um arquivo binário precisava dos dois contornos. Devolve `conteúdo` ou
+    // `nil, "mensagem"`.
+    let read_file = luau.create_function(|lua, path: String| match std::fs::read(&path) {
+        Ok(bytes) => Ok((Some(lua.create_string(&bytes)?), None)),
+        Err(e) => Ok((None, Some(e.to_string()))),
+    })?;
+    luau.globals().set("read_file", read_file)?;
     Ok(())
 }
 
 /// Grava `contents` em `dir/<nome>` **sem sobrescrever**: se o nome já existe, tenta `nome-1.ext`,
 /// `nome-2.ext`… (perder um arquivo antigo por colisão de nome é o pior desfecho para uma chave).
 /// No Unix o arquivo nasce `0600` (costuma ser uma credencial). Devolve o caminho gravado.
-fn save_unique(dir: &std::path::Path, filename: &str, contents: &str) -> std::io::Result<PathBuf> {
+fn save_unique(dir: &std::path::Path, filename: &str, contents: &[u8]) -> std::io::Result<PathBuf> {
     use std::io::Write;
     // só o último componente: `../x` ou `/etc/x` não escapam da pasta
     let name = std::path::Path::new(filename)
@@ -2767,7 +2779,7 @@ fn save_unique(dir: &std::path::Path, filename: &str, contents: &str) -> std::io
         }
         match options.open(&candidate) {
             Ok(mut file) => {
-                file.write_all(contents.as_bytes())?;
+                file.write_all(contents)?;
                 return Ok(candidate);
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -2787,13 +2799,13 @@ fn save_unique(dir: &std::path::Path, filename: &str, contents: &str) -> std::io
 /// - falha:   `false, "mensagem"` — inclusive "sem pasta Downloads" (ambiente headless), caso em que o
 ///   chamador deve cair no `save_file` (diálogo).
 fn install_save_download(luau: &Lua) -> mlua::Result<()> {
-    let save_download = luau.create_function(|_, (filename, contents): (String, String)| {
+    let save_download = luau.create_function(|_, (filename, contents): (String, mlua::String)| {
         #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
         {
             let Some(dir) = dirs::download_dir() else {
                 return Ok((false, "o sistema não tem uma pasta Downloads".to_string()));
             };
-            match save_unique(&dir, &filename, &contents) {
+            match save_unique(&dir, &filename, &contents.as_bytes()) {
                 Ok(path) => Ok((true, path.display().to_string())),
                 Err(e) => Ok((false, e.to_string())),
             }
@@ -3840,9 +3852,9 @@ mod tests {
     #[test]
     fn save_unique_nao_sobrescreve_e_numera() {
         let dir = temp_dir("save_unique");
-        let primeiro = save_unique(&dir, "chave.txt", "A").unwrap();
-        let segundo = save_unique(&dir, "chave.txt", "B").unwrap();
-        let terceiro = save_unique(&dir, "chave.txt", "C").unwrap();
+        let primeiro = save_unique(&dir, "chave.txt", b"A").unwrap();
+        let segundo = save_unique(&dir, "chave.txt", b"B").unwrap();
+        let terceiro = save_unique(&dir, "chave.txt", b"C").unwrap();
         assert_eq!(primeiro.file_name().unwrap(), "chave.txt");
         assert_eq!(segundo.file_name().unwrap(), "chave-1.txt");
         assert_eq!(terceiro.file_name().unwrap(), "chave-2.txt");
@@ -3860,7 +3872,7 @@ mod tests {
     #[test]
     fn save_unique_nao_escapa_da_pasta() {
         let dir = temp_dir("save_unique_escape");
-        let caminho = save_unique(&dir, "../../fora.txt", "x").unwrap();
+        let caminho = save_unique(&dir, "../../fora.txt", b"x").unwrap();
         assert_eq!(caminho, dir.join("fora.txt"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -5432,6 +5444,37 @@ mod tests {
             conteudo, "linha 1\nlinha 2\n",
             "a segunda chamada não pode substituir a primeira"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `write_file`/`read_file` levam e trazem **bytes**: NUL, 0xFF e uma sequência que não é UTF-8
+    /// atravessam intactos (antes o `write_file` recebia `String` e recusava o binário).
+    #[test]
+    fn write_file_e_read_file_preservam_bytes_fora_de_utf8() {
+        let dir = std::env::temp_dir().join(format!("glacier_bytes_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let alvo = dir.join("dados.bin");
+        let comp = LuauComponent::from_source(
+            &format!(
+                "function gravar()\n\
+                   local ok = write_file({0:?}, '\\0\\255\\192\\1fim')\n\
+                   local lido, erro = read_file({0:?})\n\
+                   ctx.tamanho = tostring(#lido)\n\
+                   ctx.igual = tostring(lido == '\\0\\255\\192\\1fim')\n\
+                   local nada, motivo = read_file({0:?} .. '.nao-existe')\n\
+                   ctx.ausente = tostring(nada == nil and motivo ~= nil)\n\
+                 end",
+                alvo.to_str().unwrap()
+            ),
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, "gravar", None, HashMap::default());
+        assert_eq!(std::fs::read(&alvo).unwrap(), b"\0\xff\xc0\x01fim");
+        assert_eq!(data.get("tamanho").map(String::as_str), Some("7"));
+        assert_eq!(data.get("igual").map(String::as_str), Some("true"));
+        assert_eq!(data.get("ausente").map(String::as_str), Some("true"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

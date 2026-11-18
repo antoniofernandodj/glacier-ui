@@ -8,6 +8,11 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.168.0 — 2026-11-18
+
+- **Arquivos binários no Luau.** `write_file`, `append_file` e `save_download` gravam a string Luau como **bytes** (`mlua::String`): antes recebiam `String` do Rust, e qualquer byte fora de UTF-8 (um NUL seguido de `\255`, um formato binário) fazia a chamada falhar. Texto continua igual: UTF-8 é um caso particular de bytes.
+- **`read_file(caminho)`** novo: lê o arquivo inteiro em bytes crus, **sem suspender**, e devolve `conteúdo` ou `nil, mensagem`. Era preciso o `fetch("file://…")`, que suspende a corrotina e entrega texto UTF-8 (ou base64, que o Luau não decodifica sozinho).
+
 ## glacier-ui 0.167.0 — 2026-11-17
 
 - **Diálogos (`confirm`, `dialog`, `alert` do Luau):** o cartão alarga, até 600 px, para os botões caberem numa linha. A 380 px fixos, "Cancelar" + "Subir para o projeto" numa fonte monoespaçada passavam da largura por 3 px e os botões se empilhavam. A largura do rótulo é estimada por caractere no pior caso (monoespaçada de 16 px); a quebra de linha continua como último recurso.
