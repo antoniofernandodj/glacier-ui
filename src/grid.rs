@@ -500,6 +500,14 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for Grid<'_, M
             ) {
                 flexivel[coluna] = true;
             }
+            // Coluna de largura fixa: `larguras()` não lê a natural dela.
+            // Medi-la aqui seria só custo — e custo dobrado, porque o limite
+            // frouxo daqui e o da coluna no passo 2 alternam a cada layout, e
+            // um `text` com limite novo refaz o parágrafo inteiro.
+            if matches!(self.trilhas.get(coluna), Some(Trilha::Fixa(_))) {
+                medidas.push(Size::ZERO);
+                continue;
+            }
             let no = filho
                 .as_widget_mut()
                 .layout(&mut tree.children[i], renderer, &frouxo);

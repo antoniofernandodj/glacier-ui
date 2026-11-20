@@ -8,6 +8,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.168.2 — 2026-11-20
+
+Desempenho do `grid` (e, com ele, do `tableview`), sem mudança de API:
+
+- **O primeiro passo do layout não mede mais células de coluna fixa.** Ele só existe para achar a largura natural das colunas `auto` e o piso das `fill`; numa coluna de largura fixa o resultado era descartado. E custava em dobro: o limite frouxo desse passo e o da coluna no segundo alternavam a cada layout, e um `text` com limite novo refaz o parágrafo. Numa tabela de 40 linhas com todas as colunas fixas ou `fill` (a de Deployments do rustploy-gui), o quadro caiu de ~15 ms para ~5 ms.
+
 ## glacier-ui 0.168.1 — 2026-11-20
 
 Memória, a partir de um estudo no rustploy-gui (sem mudança de API):
