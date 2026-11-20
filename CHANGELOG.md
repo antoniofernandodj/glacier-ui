@@ -8,6 +8,16 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.168.1 — 2026-11-20
+
+Memória, a partir de um estudo no rustploy-gui (sem mudança de API):
+
+- **Contexto JSON sem cópia por turno.** As chaves JSON do `ctx` ficam num espelho por chave, e o texto só é copiado quando **muda**. Antes, cada execução de handler clonava o texto de toda chave JSON no começo (para as pendentes) e de novo no fim (para o cache) — com listas grandes no contexto e um evento a cada poucos segundos, era o grosso do lixo do heap. A tabela decodificada segue reaproveitada enquanto o texto é o mesmo.
+- **`GLACIER_PERF=1` mostra a memória:** uma linha `memória:` com o RSS do processo e o heap de cada VM Luau viva (as maiores primeiro). Diz se uma tela pesada é Luau ou não.
+- **Imagens e SVG embutidos sem cópia:** o handle aponta para os bytes do binário em vez de copiar cada imagem para o heap.
+- `inputgroup`: a documentação diz que `prefix`/`suffix` são rótulo, não valor (não entram na chave).
+- Extensão Glacier View 0.32.1 (referência em dia com 0.161–0.167); CLI 0.28.20.
+
 ## glacier-ui 0.168.0 — 2026-11-18
 
 - **Arquivos binários no Luau.** `write_file`, `append_file` e `save_download` gravam a string Luau como **bytes** (`mlua::String`): antes recebiam `String` do Rust, e qualquer byte fora de UTF-8 (um NUL seguido de `\255`, um formato binário) fazia a chamada falhar. Texto continua igual: UTF-8 é um caso particular de bytes.
