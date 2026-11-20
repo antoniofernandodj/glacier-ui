@@ -12,6 +12,18 @@
 /// }
 /// ```
 ///
+/// # `prefix` e `suffix` são rótulo, não valor
+///
+/// O texto de `prefix`/`suffix` é um `text` **irmão** do campo dentro da
+/// moldura — não entra no valor. Com `prefix = "R$"`, `suffix = ",00"` e o
+/// usuário digitando `150`, a chave guarda `"150"`, nunca `"R$150,00"`.
+///
+/// Também não é placeholder: o placeholder fica **dentro** do campo e some
+/// quando se digita; o prefixo fica **ao lado**, sempre visível, e não é
+/// clicável nem editável. É a unidade ou o contexto do campo (`R$`, `https://`,
+/// `kg`, `.com.br`). Precisa do valor completo (a URL inteira)? Junte prefixo e
+/// chave no script.
+///
 /// # O botão colado: `action`
 ///
 /// Um botão no fim do grupo é o caso comum (Copiar, Buscar, Enviar), e ele só

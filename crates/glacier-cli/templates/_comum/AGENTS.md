@@ -1692,6 +1692,10 @@ field(label = Domínio, error = @erro_dominio) {
 | `width` | `fill` |
 | `addon_class` | classe dos dois textos |
 
+- `prefix`/`suffix` são **rótulo, não valor**: ficam ao lado do campo, sempre
+  visíveis (não é placeholder), e não entram na chave — com `prefix = "R$"` e
+  `150` digitado, a chave guarda `"150"`. Precisa do valor completo (a URL
+  inteira)? Junte prefixo e chave no script.
 - A borda do campo some por uma regra da lib (`inputgroup textinput { … }`,
   idem `maskedinput`/`comboedit`). Uma **classe** sua no campo com
   `border_width` vence essa regra e devolve a borda dupla — dentro do grupo,

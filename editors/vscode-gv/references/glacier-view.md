@@ -1,27 +1,34 @@
 # Glacier View (`.gv`) — referência de sintaxe
 
-Markup XML do glacier-ui. Uma tela é uma árvore de tags; atributos configuram cada
-widget; `{var}` interpola o contexto; `script` carrega o comportamento em Lua;
+O markup do glacier-ui. Uma tela é uma árvore de tags; atributos configuram cada
+widget; `{var}` interpola o contexto; `script` carrega o comportamento em Luau;
 `style` carrega GSS.
 
 ## Estrutura
 
 ```gv
-container(padding = 24, background = #2E3440) {
-  column(spacing = 16, align_x = Center) {
-    text(content = "Olá {nome}", size = 22)
-    button(text = Clique, on_click = fazer_algo)
+screen(title = "Olá", size = "480 320") {
+  resources {
+    style """
+      .tela { padding: 24; spacing: 16; align_x: center; }
+      .titulo { size: 22; }
+    """
+    script """
+      function fazer_algo(): ()
+        ctx.nome = "mundo"
+      end
+    """
+  }
+  column(class = tela) {
+    text("Olá {nome|visitante}", class = titulo)
+    button("Clique", on_click = fazer_algo)
   }
 }
-script """
-function fazer_algo()
-  ctx.nome = "mundo"
-end
-"""
 ```
 
-- **Interpolação**: `content="Valor: {contador}"` — lê `ctx.contador`. `{k|default}` usa `default` quando a chave falta.
-- **Ações**: `on_click`, `on_click`, `on_change`/`on_change`, `on_toggle`, `on_submit`, `on_reorder`, `on_open`/`on_message`/`on_error`/`on_close`, mais as variantes `ao_*`/`aoX`. O valor é o **nome de uma função** definida no `script` (inline ou `src=`).
+- **Convenção**: tags e atributos do motor em minúsculas `snake_case`; o texto de `text`/`button` é o primeiro argumento; estilo numa classe do `.gss`, não inline (ver o `CLAUDE.md` do repositório).
+- **Interpolação**: `text("Valor: {contador}")` — lê `ctx.contador`. `{k|default}` usa `default` quando a chave falta. `@chave` é o valor da chave; `:atributo = chave` passa o **nome** da chave.
+- **Ações**: `on_click`, `on_change`, `on_toggle`, `on_submit`, `on_select`, `on_close`, `on_complete`, `on_reorder`, `on_open`/`on_message`/`on_error`. O valor é o **nome de uma função** definida no `script` (inline ou `src=`). Só a grafia em inglês com sublinhado existe.
 - **Comportamento**: `script """…"""` (Lua inline) ou `script(src = "arquivo.luau")` (externo, relativo ao template).
 - **Estilo**: `style """…"""` (GSS inline) ou `link(rel = stylesheet, href = "app.gss")`. Ver a extensão *Glacier GSS*.
 - **Cabeçalho** (obrigatório em arquivo, desde a 0.61): `screen(title = "…", size = "960 700")` (uma janela) ou `component` (o resto) como raiz, envolvendo o arquivo inteiro — um `resources` agrupando `style`/`script`/`link`/`import`, um `props` opcional e o layout depois. Ver `screen` abaixo.
@@ -32,6 +39,11 @@ end
 
 ### `container`
 Caixa única com padding/fundo/borda. Aceita um filho. Atributos: `padding`, `background`, `width`, `height`, `align_x`, `align_y`, `border_radius`, `border_width`, `border_color`.
+
+`border_radius` aceita um valor só ou **um por canto** (0.164), na ordem do CSS —
+superior-esquerdo, superior-direito, inferior-direito, inferior-esquerdo:
+`"0 6 6 0"`, ou `"6 0"` (diagonais). Vale no atributo e no `.gss`, em qualquer
+caixa, no `button` e nos campos de texto.
 
 ### `column`
 Empilha filhos na vertical. Atributos: `spacing`, `align` (eixo cruzado = X), `width`, `height`.
@@ -122,7 +134,10 @@ tela) ou `on_click` (um handler). O texto do link é o conteúdo. Só dentro de 
 Quebra de linha dentro de um parágrafo do `prose`.
 
 ### `button`
-Botão. Atributos: `text`, `on_click`, `navigate_to`, `navigate_back`, `color`, `type`.
+Botão. O texto é o primeiro argumento (`button("Salvar", on_click = salvar)`).
+Atributos: `text`, `on_click`, `navigate_to`, `navigate_back`, `color`, `type`.
+Sem `color`, usa as cores do tema e ainda assim respeita `border_radius` (0.164;
+antes só o caminho com cor o aplicava).
 `type="submit"`/`"reset"` (dentro de um `form`): o clique dispara o envio /
 o reset do formulário, sem `on_click` — ver `form`.
 
@@ -133,7 +148,7 @@ Campo de texto de uma linha. Atributos: `value`, `placeholder`, `on_change`,
 — ver `form`).
 
 ### `textarea` (`editor`)
-Editor multilinha. Atributos: `value`, `placeholder`, `on_change`. Desenha a
+Editor multilinha. Atributos: `value`, `placeholder`, `on_change`, `readonly`. Desenha a
 PRÓPRIA barra de rolagem à direita (arraste o thumb, clique na trilha para rolar
 uma página; a roda e o teclado seguem valendo); só aparece quando o texto não
 cabe. O `textinput` de uma linha não tem barra.
@@ -330,7 +345,7 @@ pagination(:value = pagina, total = @total_paginas, window = 3, ends = false, on
 
 O widget conta **páginas**, não itens: recortar a lista é do app, porque só o app sabe o que é um item.
 
-### `rating` (`Nota`)
+### `rating`
 A nota por estrelas, com pré-visualização ao passar o mouse.
 
 ```gv
@@ -351,7 +366,7 @@ rating(:value = media, read_only = true)
 
 Clicar na estrela já marcada **zera** a nota.
 
-### `popover` (`Painel`) · `popup`
+### `popover` · `popup`
 O painel que **flutua sobre a tela**, ancorado a um gatilho — ou, no `popup`, centrado na janela. **Uma primitiva só**; a tag decide se há âncora.
 
 ```gv
@@ -637,7 +652,7 @@ Seletor. Atributos: `options`, `value`, `on_change`, `placeholder`, `label_field
 ### `comboedit` (`editablecombo`)
 Combo editável: campo de texto com lista de sugestões. Atributos: `options`, `value`, `placeholder`, `on_change`, `on_select`.
 
-### `form` (`Formulario`)
+### `form`
 
 Agrupa `form_control`s. Renderiza como uma `column` (aceita `spacing`,
 `width`, …). Dá a cada controle um id de foco estável e liga o **Enter** de
@@ -736,7 +751,8 @@ dentro de outro `menu`, é um **submenu**, com profundidade arbitrária.
 | `disabled` | `false` | inerte, esmaecido, não abre; aceita `@chave` (vale também no `menuitem`) |
 | `items` | — | **nome da chave** com os itens em JSON, em vez de filhos escritos |
 | `variant` | — | `primary`/`secondary`: o gatilho com o estilo de botão do tema (fora de uma `menubar`) |
-| `on_click` | — | fora de uma `menubar`: o gatilho vira split button (o rótulo dispara a ação, o "▾" abre o menu) |
+| `on_click` | — | fora de uma `menubar`: o gatilho vira split button (o rótulo dispara a ação, o "▾" abre o menu; as metades se tocam, com um traço de 1 px entre elas) |
+| `color` / `class` | — | fora de uma `menubar` (0.166): com `color` no atributo, ou `color`/`gradient` na classe, o gatilho se pinta como um `button` do app — fundo, `text_color`, `:hover`/`:active`/`:disabled`, `padding`, `size`, `bold`, `border_radius`. Sem cor, o botão do tema |
 
 A forma dinâmica aceita a árvore inteira, submenus incluídos:
 
@@ -764,7 +780,7 @@ A folha: o que se clica.
 | `icon` | — | glifo ou `.svg` à esquerda |
 | `on_click` | — | a ação despachada; sem ela o item não faz nada |
 | `checked` | — | **nome de uma chave**: quando ela é verdadeira, o item mostra ✓ |
-| `disabled` | `false` | inerte e esmaecido |
+| `disabled` | `false` | inerte e esmaecido; aceita `@chave` (0.165) — o item acompanha o `busy_*` de uma ação em curso |
 
 Clicar fecha a cascata inteira e roteia `on_click` como um `button` comum —
 inclusive com o sufixo (`on_click="abrir_recente:a"` chama
@@ -876,10 +892,10 @@ Recurso externo declarado no próprio template. `rel` escolhe o tipo: `styleshee
 
 ## Cabeçalho da tela
 
-### `screen` (`tela`)
+### `screen`
 Raiz que declara o título (e, num arquivo avulso, os metadados da **janela**) e separa o que não desenha do que desenha. Num app com `app` raiz, a `screen` filha é só conteúdo — ver [`app`](#app-aplicativo--a-raiz-de-um-app-com-telas). Atributos: `title`, `size` (`"960 700"`, `"960x700"`), `min_size`, `max_size`, `fixed_size`, `resizable`, `decorations`/`decoracoes` e `icon`. O `fixed_size` é tamanho, mínimo e máximo de uma vez, e não convive com `size`/`min_size`/`max_size`/`resizable` (erro de parse). O template ganha do builder Rust; o título acompanha a navegação entre telas; o tamanho só é reaplicado no hot-reload quando o número muda no arquivo. Um `.gv` que é pedaço de tela usa `component`, não este. O `icon` é o ícone da **janela**, e é um caminho lido pela fonte de assets — como o `source` de um `image`, e como o `icon` da [`tray`](#tray-bandeja--item--check--separator), que é o da bandeja e outro atributo. Arquivo que falta ou não decodifica avisa no terminal e deixa a janela sem ícone; nunca impede de abrir.
 
-### `component` (`componente`)
+### `component`
 A mesma casca do `screen` para um `.gv` que é pedaço de tela (importado por outro template), não janela. Agrupa declarações igual e **não leva atributo nenhum** — `title`/`size` ali seriam promessa sem efeito, e viram erro de parse com a explicação.
 
 ### `resources`
@@ -1067,6 +1083,13 @@ o que quiser do default e herda o resto — inclusive os `:hover`.
 | `tabbar` | `tab_class`, `tab_active_class`, `label_class` |
 | `toolbar` | `bar_class`, `content_class` |
 | `toolbutton` | `icon_class`, `label_class`, `content_class` |
+| `alert` | `title_class`, `description_class` |
+| `kbd` | `text_class` |
+| `descriptionlist` | `row_class`, `label_class`, `value_class` |
+| `field` | `label_class`, `description_class`, `error_class` |
+| `dropdownbutton` | `button_class` |
+| `inputgroup` | `addon_class`, `action_class` |
+| `command` | `input_class`, `item_class`, `label_class`, `hint_class` |
 
 Onde há um par base/refinamento (`item_class` + `selected_class`, `tab_class` +
 `tab_active_class`), o segundo vence o primeiro. A raiz de cada widget não tem
@@ -1404,6 +1427,11 @@ button(text = Editar, on_click = "dialog:editar")
 | `icon` | — | `information`, `warning`, `error`, `question` |
 | `buttons` | um `Fechar` | lista `Rótulo:ação:papel` separada por `\|` (forma antiga; prefira o bloco `actions { button("…", on_click = …, role = …) }`, cujos botões quebram linha) |
 | `dismissible` | `true` | clicar fora fecha |
+
+Largura do cartão: 380 px sem corpo, 480 com corpo, e ele **alarga até 600 px**
+para os botões caberem numa linha (0.167; a largura do rótulo é estimada no pior
+caso). A quebra de linha dos botões fica como último recurso. Vale também para
+o `confirm{}`/`alert{}` do Luau.
 
 - **`buttons`**: o rótulo sai do **primeiro** `:`, o papel (quando é palavra-chave
   conhecida) do **último**, e o meio é a ação inteira — `:` inclusive, então
@@ -1961,7 +1989,7 @@ roundbutton(text = +, color = #89B4FA, on_click = novo, size = 48)
 | prop | default | o que faz |
 | --- | --- | --- |
 | `text` | vazio | o glifo/ícone |
-| `color` | `#45475A` | fundo do círculo — sem ele o `button` do motor não aplica `border_radius` nenhum |
+| `color` | `#45475A` | fundo do círculo |
 | `size` | `40` | diâmetro em px |
 
 ## A fonte que o motor sabe nomear (Onda 10)
@@ -1978,7 +2006,7 @@ Cargo `system-fonts`, as famílias do SO também entram na lista.
 - **Chave de contexto `__fonts`** — o motor a semeia com a lista de famílias
   registradas (array JSON de strings). `combo(items = __fonts)` a consome.
 
-### `FontSelect` (`SeletorFonte`)
+### `fontselect`
 A lista de famílias, **cada uma desenhada nela mesma** — o `QFontComboBox`.
 
 ```gv
@@ -1998,7 +2026,7 @@ família.
 
 ## O painel acoplável (Onda 12)
 
-### `Dock` (`DockWidget`)
+### `dock` (`dockwidget`)
 `QDockWidget`: um painel + um centro, e uma chave que diz onde o painel está.
 **Dois filhos**: o painel (0) e o centro (1). N painéis = `dock` aninhados.
 
@@ -2029,7 +2057,7 @@ painel `hidden` deixa uma aba `▸` na borda que o traz de volta ao último modo
 
 ## O desenho que o `.gv` escreve (Onda 13)
 
-### `Canvas`
+### `canvas`
 Uma superfície de desenho declarativa. **Filhos são formas**, desenhadas na
 ordem do markup (a de cima primeiro). Sem `width`/`height`, é `300`×`200`.
 
@@ -2080,10 +2108,15 @@ button(text = "?", on_click = "whatsthis:toggle")
 slider(:value = v, whats_this = "Arrasta para ajustar o volume.")
 ```
 
-## A fase gpui-kit (0.161)
+## A fase gpui-kit (0.161–0.166)
 
 Widgets que a comparação com o [gpui-kit](https://gpui-kit.com) mostrou que
-faltavam. Todos builtins, sem estado.
+faltavam: `alert`, `kbd`, `descriptionlist`, `command` (0.161), `field`
+(0.162), `dropdownbutton`, `inputgroup` (0.163) — todos builtins, sem estado
+— e a primitiva `otpinput` (0.164, documentada junto das outras primitivas).
+Vieram com eles a condição `matches=` (ver `if`), o `tooltip_delay=`, o
+`border_radius` por canto (ver `container`), o `textinput(readonly)` e o
+`disabled = @chave` no `menu`/`menuitem`.
 
 ### `alert`
 O aviso que **fica** na tela (o `toast()` passa sozinho; o `dialog`
@@ -2151,6 +2184,7 @@ ctx.ficha = json.encode(json.array({
 | `label_width` | `140` | largura da coluna de rótulos |
 | `spacing` | `8` | espaço entre as linhas |
 | `size` | `13` | corpo do texto |
+| `width` | `fill` | largura |
 | `row_class` / `label_class` / `value_class` | — | classes de dentro |
 
 Valor ausente ou vazio aparece como `—`.
@@ -2176,9 +2210,14 @@ form(on_submit = salvar) {
 | `required` | `false` | desenha o `*` (a regra fica no controle) |
 | `description` | vazio | ajuda sob o controle |
 | `error` | vazio | `@erro_<campo>`; com texto, aparece no lugar da ajuda |
-| `label_position` | `top` | `left`: rótulo ao lado, em `label_width` (140) |
+| `label_position` | `top` | `left`: rótulo ao lado, em `label_width` |
+| `label_width` | `140` | largura da coluna do rótulo com `label_position = left` |
 | `spacing` | `6` | entre as partes |
+| `width` | `fill` | largura |
 | `label_class` / `description_class` / `error_class` | — | classes de dentro |
+
+O erro do `form` vem em `erro_<form_control>` (o `error_prefix` padrão é `erro_`,
+não `error_`) e é string: `error = @erro_nome` basta, sem `if`/`not_empty`.
 
 `template(slot = aside)` põe algo à direita do rótulo. Classes da lib:
 `.field-label`, `.field-required`, `.field-description`, `.field-error`.
@@ -2199,11 +2238,20 @@ dropdownbutton(label = Deploy, on_click = deploy, :items = deploy_extras) {
 | `on_click` | — | a ação principal; presente = split button |
 | `items` | — | **nome da chave** com o JSON do `menu` |
 | `variant` | `primary` | `flat` = transparente |
-| `caret` | `▾` | a seta do botão-menu (sem `on_click`) |
-| `button_class` | — | classe do botão; com `color`/`gradient` pinta como um `button` do app (fundo, hover, padding, size, raio) |
+| `caret` | `▾` | a seta do botão-menu (sem `on_click`); no split button é sempre `▾` |
+| `disabled` | `false` | desliga o botão inteiro (ação principal e seta); aceita `@chave`, como o `busy_*` de uma ação em curso |
+| `tooltip` / `tooltip_delay` | — | o balão do botão, como em qualquer tag |
+| `button_class` | — | classe do botão (as duas metades); com `color`/`gradient` pinta como um `button` do app (fundo, rótulo, `:hover`, `:disabled`, `padding`, `size`, `border_radius`). `class` no uso segue pintando a raiz |
 
-`menuitem`/`menuseparator` dentro somam-se ao JSON; as ações são da tela. Abre
-no ponto do clique (é o `menu` do motor por baixo).
+```gv
+dropdownbutton(label = Deploy, on_click = deploy, button_class = "btn btn--primary", disabled = @busy_deploy) {
+  menuitem(label = Reverter, on_click = reverter, disabled = @busy_deploy)
+}
+```
+
+`menuitem`/`menuseparator`/`menu` (submenu) dentro somam-se ao JSON; as ações
+são da tela. Abre no ponto do clique (é o `menu` do motor por baixo). As duas
+metades do split button se tocam, com um traço de 1 px entre elas.
 
 ### `inputgroup`
 O campo com acessórios numa moldura só.
@@ -2220,6 +2268,12 @@ inputgroup(prefix = "https://", action = Copiar, on_action = "clipboard:dominio"
 | `action` / `on_action` | — | o botão colado no fim, com a altura do campo; ocupa o lugar do `suffix` |
 | `width` | `fill` | largura |
 | `addon_class` | — | classe dos textos |
+| `action_class` | — | repinta o botão de `action`; um campo com `padding` vertical próprio pede o mesmo `padding` aqui, ou as alturas desencontram |
+
+`prefix`/`suffix` são **rótulo, não valor**: ficam ao lado do campo, sempre
+visíveis (não é placeholder), e não entram na chave — com `prefix = "R$"` e
+`150` digitado, a chave guarda `"150"`. Precisa do valor completo (a URL
+inteira)? Junte prefixo e chave no script.
 
 Tira a borda do `textinput`/`maskedinput`/`comboedit` de dentro (uma classe sua
 com `border_width` no campo vence isso). Sem anel de foco nem `:invalid` no
@@ -2250,6 +2304,7 @@ function executar(id: string): () ctx.busca = "" end
 | `on_select` | — | ação da tela; recebe o `id` |
 | `placeholder` | `Digite um comando…` | dica do campo |
 | `max_height` | `320` | altura da lista, que rola além dela |
+| `width` | `fill` | largura |
 | `input_class` / `item_class` / `label_class` / `hint_class` | — | classes de dentro |
 
 O filtro casa cada palavra digitada, sem caixa, em `label`, `hint` ou
