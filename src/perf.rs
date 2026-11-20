@@ -206,6 +206,67 @@ fn med_p95(amostra: &mut [Duration]) -> (f64, f64) {
     (media, ms(amostra[i]))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    /// As VMs Luau vivas, para o relatório dizer quanto do heap é Luau. Guarda
+    /// `WeakLua`: a lista não segura VM nenhuma — uma janela fechada some daqui
+    /// na próxima linha impressa. Só é preenchida com a instrumentação ligada.
+    static VMS: RefCell<Vec<(String, mlua::WeakLua)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Registra uma VM Luau recém-criada, com o nome do componente, para a linha
+/// `memória` do relatório. Não faz nada com a instrumentação desligada.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn registra_vm(nome: &str, lua: &mlua::Lua) {
+    if ligado() {
+        VMS.with(|v| v.borrow_mut().push((nome.to_string(), lua.weak())));
+    }
+}
+
+/// `VmRSS` do processo, em KiB (só Linux; `None` no resto).
+fn rss_kib() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let linha = status.lines().find(|l| l.starts_with("VmRSS:"))?;
+    linha.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// A linha `memória` do relatório: RSS do processo e o heap de cada VM Luau
+/// viva (as maiores primeiro). É o que diz se uma tela pesada é Luau ou não.
+fn linha_memoria() -> String {
+    let mb = |b: f64| b / (1024.0 * 1024.0);
+    let rss = rss_kib()
+        .map(|k| format!("rss {:.1} MB", mb(k as f64 * 1024.0)))
+        .unwrap_or_else(|| "rss ?".to_string());
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut vms: Vec<(String, usize)> = VMS.with(|v| {
+            let mut v = v.borrow_mut();
+            v.retain(|(_, w)| w.try_upgrade().is_some());
+            v.iter()
+                .filter_map(|(n, w)| w.try_upgrade().map(|l| (n.clone(), l.used_memory())))
+                .collect()
+        });
+        if vms.is_empty() {
+            return rss;
+        }
+        vms.sort_unstable_by_key(|(_, b)| std::cmp::Reverse(*b));
+        let total: usize = vms.iter().map(|(_, b)| b).sum();
+        let maiores: Vec<String> = vms
+            .iter()
+            .take(4)
+            .map(|(n, b)| format!("{n} {:.2}", mb(*b as f64)))
+            .collect();
+        format!(
+            "{rss} | luau {:.2} MB em {} VMs ({})",
+            mb(total as f64),
+            vms.len(),
+            maiores.join(", ")
+        )
+    }
+    #[cfg(target_arch = "wasm32")]
+    rss
+}
+
 fn relata(j: &Janela, decorrido: Duration) {
     let ms = |d: Duration| d.as_secs_f64() * 1000.0;
     let mut renders = j.renders.clone();
@@ -256,7 +317,7 @@ fn relata(j: &Janela, decorrido: Duration) {
          [inclui ócio]\n               render {render_med:.3} méd \
          {render_p95:.3} p95 | dispatch {disp_por_quadro:.3}/quadro ({} msgs, {:.3} máx) | \
          app {app_por_quadro:.3}/quadro ({:.3} máx) | resto {resto:.1}ms/quadro \
-         ({parte_resto:.1}%)\n               msgs: {}",
+         ({parte_resto:.1}%)\n               msgs: {}\n               memória: {}",
         decorrido.as_secs_f64(),
         j.nos,
         colados,
@@ -268,6 +329,7 @@ fn relata(j: &Janela, decorrido: Duration) {
         } else {
             quais.join("  ")
         },
+        linha_memoria(),
     );
 }
 

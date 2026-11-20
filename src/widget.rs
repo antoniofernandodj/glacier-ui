@@ -1334,7 +1334,12 @@ pub(crate) fn cached_image_handle(
     if let Some(h) = IMAGE_HANDLES.with(|c| c.borrow().get(source).cloned()) {
         return h;
     }
-    let h = image::Handle::from_bytes(assets.read_bytes(source).unwrap_or_default().into_owned());
+    // Assets embutidos chegam emprestados do binário (`'static`): o `Bytes`
+    // aponta para eles, sem copiar cada imagem para o heap.
+    let h = match assets.read_bytes(source).unwrap_or_default() {
+        std::borrow::Cow::Borrowed(b) => image::Handle::from_bytes(b),
+        std::borrow::Cow::Owned(v) => image::Handle::from_bytes(v),
+    };
     IMAGE_HANDLES.with(|c| c.borrow_mut().insert(source.to_string(), h.clone()));
     h
 }
@@ -1372,7 +1377,8 @@ fn cached_svg_handle(source: &str, assets: &dyn crate::asset_source::AssetSource
     if let Some(h) = SVG_HANDLES.with(|c| c.borrow().get(source).cloned()) {
         return h;
     }
-    let h = svg::Handle::from_memory(assets.read_bytes(source).unwrap_or_default().into_owned());
+    // Idem: o `svg::Handle` aceita o `Cow` como veio, sem copiar o embutido.
+    let h = svg::Handle::from_memory(assets.read_bytes(source).unwrap_or_default());
     SVG_HANDLES.with(|c| c.borrow_mut().insert(source.to_string(), h.clone()));
     h
 }

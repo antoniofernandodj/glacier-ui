@@ -323,6 +323,7 @@ impl LuauComponent {
         pre: Option<&dyn Fn(&Lua) -> mlua::Result<()>>,
     ) -> std::result::Result<Self, String> {
         let luau = Lua::new();
+        crate::perf::registra_vm(&name, &luau);
         luau.load(PRELUDE)
             .set_name("<glacier prelude>")
             .exec()
@@ -440,9 +441,9 @@ impl LuauComponent {
     fn sync_to_luau(&self, ctx: &Context) -> mlua::Result<()> {
         self.ctx_table.clear()?;
         let mut json = self.json.borrow_mut();
-        json.pendentes.clear();
-        // Só as chaves que ainda são JSON tipado ficam no cache.
-        json.cache.retain(|k, _| ctx.tag_of(k) == Some(Tag::Json));
+        // Só as chaves que ainda são JSON tipado (e existem) ficam no espelho.
+        json.chaves
+            .retain(|k, _| ctx.tag_of(k) == Some(Tag::Json) && ctx.data.contains_key(k));
         for (k, v) in ctx.data.iter() {
             // Uma chave que um script gravou com tipo volta com esse tipo —
             // desde que o texto ainda seja o que a tag gravou (ver `ctx_types`).
@@ -454,9 +455,29 @@ impl LuauComponent {
                 },
                 // Não vai para a tabela agora: o primeiro acesso do script a
                 // `ctx.chave` a materializa (ver `instalar_ctx_preguicoso`).
-                Some(Tag::Json) => {
-                    json.pendentes.insert(k.clone(), v.clone());
-                }
+                // O texto só é copiado quando MUDOU desde o turno anterior (e aí
+                // reaproveitando a capacidade da `String` do espelho); no caso
+                // comum — o handler é de outra coisa — não há alocação nenhuma.
+                Some(Tag::Json) => match json.chaves.get_mut(k) {
+                    Some(e) => {
+                        if e.texto != *v {
+                            e.texto.clear();
+                            e.texto.push_str(v);
+                            e.tabela = None;
+                        }
+                        e.pendente = true;
+                    }
+                    None => {
+                        json.chaves.insert(
+                            k.clone(),
+                            EntradaJson {
+                                texto: v.clone(),
+                                tabela: None,
+                                pendente: true,
+                            },
+                        );
+                    }
+                },
                 None => self.ctx_table.raw_set(k.as_str(), v.as_str())?,
             }
         }
@@ -474,19 +495,36 @@ impl LuauComponent {
     /// gravados.
     fn sync_from_luau(&self, ctx: &mut Context) -> mlua::Result<()> {
         let mut present = std::collections::HashSet::new();
-        // Uma chave JSON que o script não tocou neste turno não está na tabela, mas
-        // também não foi apagada: continua como estava.
-        present.extend(self.json.borrow().pendentes.keys().cloned());
         for pair in self.ctx_table.pairs::<String, Value>() {
             let (k, val) = pair?;
             present.insert(k.clone());
             match luau_value_to_ctx(&self.luau, &val) {
                 Some((s, tag)) => {
+                    // O espelho acompanha o que vai para o contexto. Copia o texto
+                    // só se ele mudou — antes, toda chave materializada era
+                    // copiada de novo a cada turno.
                     if let (Some(Tag::Json), Value::Table(t)) = (tag, &val) {
-                        self.json
-                            .borrow_mut()
-                            .cache
-                            .insert(k.clone(), (s.clone(), t.clone()));
+                        let mut json = self.json.borrow_mut();
+                        match json.chaves.get_mut(&k) {
+                            Some(e) => {
+                                if e.texto != s {
+                                    e.texto.clear();
+                                    e.texto.push_str(&s);
+                                }
+                                e.tabela = Some(t.clone());
+                                e.pendente = false;
+                            }
+                            None => {
+                                json.chaves.insert(
+                                    k.clone(),
+                                    EntradaJson {
+                                        texto: s.clone(),
+                                        tabela: Some(t.clone()),
+                                        pendente: false,
+                                    },
+                                );
+                            }
+                        }
                     }
                     // Um número que não mudou mantém o texto que o widget escreveu
                     // (`0.50` de um slider, `5.00` de um spinbox): re-serializar
@@ -516,13 +554,19 @@ impl LuauComponent {
             }
         }
         // Chaves que existiam no contexto mas não estão mais na tabela (o Luau as
-        // setou para nil) são removidas.
+        // setou para nil) são removidas. Uma chave JSON que o script não tocou
+        // neste turno (ainda pendente) não está na tabela, mas também não foi
+        // apagada: continua como estava.
+        let json = self.json.borrow();
         let removed: Vec<String> = ctx
             .data
             .keys()
-            .filter(|k| !present.contains(*k))
+            .filter(|k| {
+                !present.contains(*k) && !json.chaves.get(*k).is_some_and(|e| e.pendente)
+            })
             .cloned()
             .collect();
+        drop(json);
         for k in removed {
             ctx.data.remove(&k);
         }
@@ -745,7 +789,9 @@ impl LuauComponent {
         ctx.set(chave, valor);
         // Escrita direta: não passa pelo `__newindex` do `ctx` preguiçoso, mas tira a
         // chave das pendentes (o valor novo é texto, não mais o JSON de antes).
-        self.json.borrow_mut().pendentes.remove(chave);
+        if let Some(e) = self.json.borrow_mut().chaves.get_mut(chave) {
+            e.pendente = false;
+        }
         self.ctx_table.raw_set(chave, valor)
     }
 
@@ -2078,16 +2124,31 @@ fn luau_value_to_ctx(lua: &Lua, v: &Value) -> Option<(String, Option<Tag>)> {
 /// Decodificar uma lista de 10 000 itens para o Luau (e recodificá-la ao fim do
 /// turno para saber se mudou) custa centenas de milissegundos — e custaria a CADA
 /// evento, mexesse o handler na lista ou não. Por isso uma chave `Json` não vai
-/// para a tabela `ctx` no começo do turno: fica em `pendentes` (`chave → texto`) e
+/// para a tabela `ctx` no começo do turno: fica pendente no espelho (`JsonState`) e
 /// só vira tabela no primeiro acesso do script a `ctx.chave`. No fim do turno só as
 /// materializadas são recodificadas; as outras ficam exatamente como estavam.
+///
+/// **Memória.** O espelho é UMA cópia persistente do texto de cada chave JSON,
+/// atualizada só quando o texto muda. A versão anterior clonava o texto de toda
+/// chave JSON no começo de **cada** turno (para as pendentes) e de novo no fim
+/// (para o cache) — com um snapshot de centenas de KB no contexto e um evento a
+/// cada 2 s, isso era o grosso do lixo do heap de um app como o rustploy-gui.
 #[derive(Default)]
 struct JsonState {
-    /// Chaves JSON ainda não tocadas neste turno: `chave → texto`.
-    pendentes: HashMap<String, String>,
-    /// As já decodificadas: `chave → (texto, tabela)`. Reusa o mesmo objeto Luau
-    /// enquanto o texto da chave for o mesmo, mantendo referências válidas.
-    cache: HashMap<String, (String, Table)>,
+    /// `chave → entrada`, uma por chave JSON do contexto.
+    chaves: HashMap<String, EntradaJson>,
+}
+
+/// Uma chave JSON do `ctx`: o texto atual, a tabela decodificada (se já houve
+/// acesso a este texto) e se ela ainda está pendente neste turno.
+struct EntradaJson {
+    /// O texto, igual ao do contexto no começo do turno.
+    texto: String,
+    /// A tabela decodificada de `texto`. Reusa o mesmo objeto Luau enquanto o
+    /// texto for o mesmo, mantendo referências válidas entre turnos.
+    tabela: Option<Table>,
+    /// `true` = o script ainda não leu nem escreveu `ctx.chave` neste turno.
+    pendente: bool,
 }
 
 /// Dá à tabela `ctx` o `__index` que materializa uma chave JSON pendente no primeiro
@@ -2106,23 +2167,26 @@ fn instalar_ctx_preguicoso(
             let Value::String(k) = k else {
                 return Ok(Value::Nil);
             };
-            let k = k.to_str()?.to_string();
             let mut st = e.borrow_mut();
-            let Some(texto) = st.pendentes.remove(&k) else {
+            let Some(entrada) = st.chaves.get_mut(k.to_str()?.as_ref()) else {
                 return Ok(Value::Nil);
             };
-            let tabela = match st.cache.get(&k).filter(|(snap, _)| *snap == texto) {
-                Some((_, tab)) => Some(tab.clone()),
-                None => json_to_table(lua, &texto),
+            if !entrada.pendente {
+                return Ok(Value::Nil);
+            }
+            entrada.pendente = false;
+            let tabela = match &entrada.tabela {
+                Some(tab) => Some(tab.clone()),
+                None => json_to_table(lua, &entrada.texto),
             };
             match tabela {
                 Some(tab) => {
-                    st.cache.insert(k.clone(), (texto, tab.clone()));
+                    entrada.tabela = Some(tab.clone());
                     t.raw_set(k, tab.clone())?;
                     Ok(Value::Table(tab))
                 }
                 None => {
-                    let s = lua.create_string(&texto)?;
+                    let s = lua.create_string(&entrada.texto)?;
                     t.raw_set(k, s.clone())?;
                     Ok(Value::String(s))
                 }
@@ -2133,8 +2197,10 @@ fn instalar_ctx_preguicoso(
     mt.set(
         "__newindex",
         lua.create_function(move |_, (t, k, v): (Table, Value, Value)| {
-            if let Value::String(s) = &k {
-                e.borrow_mut().pendentes.remove(s.to_str()?.as_ref());
+            if let Value::String(s) = &k
+                && let Some(entrada) = e.borrow_mut().chaves.get_mut(s.to_str()?.as_ref())
+            {
+                entrada.pendente = false;
             }
             t.raw_set(k, v)
         })?,
