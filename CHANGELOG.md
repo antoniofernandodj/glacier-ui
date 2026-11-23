@@ -8,6 +8,12 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.168.3 — 2026-11-23
+
+Correção, sem mudança de API:
+
+- **O texto de `textinput`/`textarea` não vaza mais de um `scrollable`.** O valor e o placeholder são desenhados numa camada própria (`with_layer`) recortada só pela caixa do campo, e essa camada não herdava o recorte do `scrollable` em volta: um campo rolado para fora pintava o texto por cima do que estivesse acima dele, como um cabeçalho fixo. A camada agora recorta pela interseção da caixa com a área visível. Visto no roadmapia, num campo numérico rolado para baixo do título da tela.
+
 ## glacier-ui 0.168.2 — 2026-11-20
 
 Desempenho do `grid` (e, com ele, do `tableview`), sem mudança de API:

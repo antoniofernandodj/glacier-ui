@@ -902,7 +902,7 @@ where
         _defaults: &renderer::Style,
         layout: Layout<'_>,
         _cursor: mouse::Cursor,
-        _viewport: &Rectangle,
+        viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
 
@@ -941,13 +941,19 @@ where
         );
 
         let text_bounds = bounds.shrink(self.padding);
+        // A camada do texto recorta pela caixa E pela área visível: `with_layer`
+        // abre uma camada que não herda o recorte de um `scrollable` em volta,
+        // então um campo rolado para fora dele pintava o valor por cima do que
+        // estivesse acima (um cabeçalho fixo, por exemplo).
+        let text_clip = text_bounds.intersection(viewport);
 
         if internal.editor.is_empty()
             && let Some(placeholder) = self.placeholder.clone()
+            && let Some(clip) = text_clip
         {
             // Camada recortada: o `clip_bounds` do `fill_text` não vale no
             // renderer de software, e o placeholder vazava para o vizinho.
-            renderer.with_layer(text_bounds, |renderer| {
+            renderer.with_layer(clip, |renderer| {
                 renderer.fill_text(
                     Text {
                         content: placeholder.into_owned(),
@@ -985,9 +991,11 @@ where
         };
         let origin = Point::new(text_bounds.x - hscroll, text_bounds.y);
 
-        if !internal.editor.is_empty() {
+        if !internal.editor.is_empty()
+            && let Some(clip) = text_clip
+        {
             // Camada recortada: com o texto deslocado, o que passa da caixa não pode vazar.
-            renderer.with_layer(text_bounds, |renderer| {
+            renderer.with_layer(clip, |renderer| {
                 renderer.fill_editor(&internal.editor, origin, style.value, text_bounds);
             });
         }
