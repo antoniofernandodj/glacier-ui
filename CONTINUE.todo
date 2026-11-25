@@ -80,33 +80,32 @@ CONTINUAÇÃO 2 (Claude, 2026-11-25) — itens 1–8 FECHADOS
 - 8 TESTES: `cargo test --workspace` verde (lib 486, CLI 65, integração toda); corpus_gv verde.
 
 ═══════════════════════════════════════════════════════════════════
-O QUE FALTA
+CONTINUAÇÃO 3 (Claude, 2026-11-25) — PUBLICADO E MIGRADO
 ═══════════════════════════════════════════════════════════════════
 
-9. PUBLICAÇÃO (só com o OK do dono — fluxo do AGENTS.md do rustploy, seção
-   "glacier-ui: nunca path"): versionar 0.169.0 no Cargo.toml + cabeçalho do
-   CHANGELOG ("não publicado" → data), commit completo, git push, cargo publish
-   (--dry-run antes). MOVER docs/PLANO_LINGUAGEM_GV_GSS.md para docs/arquivados/
-   só quando a fase 14 (remoção das formas velhas) fechar — ainda NÃO.
-10. RUSTPLOY (plano §14, DEPOIS da publicação e do bump no rustploy-gui/Cargo.toml):
-    - migrar o rustploy-gui com `glacier fmt --migrate` (a migração foi provada
-      numa cópia: 1725 trocas em 73 arquivos, idempotente);
-    - apagar busy.luau, busy_actions.luau, tools/busy_actions.py e os
-      `disabled = @busy_*`; ligar app(busy_buttons = true);
-    - unificar paleta (@theme), ligar gss_strict;
-    - atualizar o AGENTS.md do rustploy (agregador): "Armadilhas de template"
-      (if na raiz do componente agora VALE; fill não colapsa mais; vírgula já
-      funciona — conferir o que a seção ainda diz), "Botão que dispara requisição
-      fica travado" (o mecanismo manual sai), exigência glacier-ui ≥ 0.169 na
-      seção de i18n/testes;
-    - aceite final: corpus do rustploy-gui com ZERO formas velhas
-      (glacier check), glacier test -vvv verde, app abre.
+- 9 PUBLICAÇÃO: glacier-ui 0.169.0 → 0.169.1 → 0.169.2 e glacier-cli 0.29.0 → 0.29.1
+  no crates.io. As duas correções saíram da migração do rustploy-gui:
+  · 0.169.1: `textarea_end("x")` (e clipboard/open/audio/whatsthis) na forma de chamada
+    viravam handler Luau inexistente; `fmt --migrate` reescrevia `textarea_end:x` e
+    gerava `in ["@chave"]` para `one_of = @chave`.
+  · 0.169.2: texto entre aspas dentro de expressão interpola `@chave` — o
+    `if @current == "@target"` do TabButton (escrito à mão, válido na 0.168) e o
+    `equals = "@tab.id"` migrado comparavam com o texto literal.
+- 10 RUSTPLOY: rustploy-gui 0.1.92 com glacier-ui 0.169.2; `glacier fmt --migrate`
+  (73 arquivos), `glacier check` sem forma antiga, cargo test e `glacier test` (493)
+  verdes; app antigo × novo comparados na tela contra o servidor dev (Deployments, Em
+  execução, Engine, Monitoramento, Agendamentos, Ingress, Runtime, Volumes, Projetos,
+  Configurações, serviço/Geral/Variáveis/Logs): mesmo layout.
 
-Notas de contexto:
-- A migração mecânica de ```gv blocks de .md existe (migrar_markdown) — usar
-  `glacier fmt --migrate` nos docs em vez de editar bloco a bloco.
-- Decisões do dono registradas no plano: duas formas por conceito (curta + bloco);
-  else curto com erro de posição; matches continua; gss_color=css é opt-in até o
-  rustploy migrar.
-- No agregador rustploy: tudo limpo e pushado (ponteiro rustploy-gui nos WIP
-  d1870eb/4d70834 do usuário).
+═══════════════════════════════════════════════════════════════════
+O QUE AINDA FICA (decisão do dono, não bloqueia nada)
+═══════════════════════════════════════════════════════════════════
+
+- busy_buttons no rustploy: o `busy.luau` libera no 1º toast; o `busy_buttons`, no
+  fim do handler. Decidir antes de apagar busy.luau/busy_actions.luau/271 `disabled`.
+- unificar a paleta do rustploy com @theme e ligar gss_strict / gss_color = css.
+- fase 14 do plano (remover as formas velhas) e então arquivar
+  docs/PLANO_LINGUAGEM_GV_GSS.md em docs/arquivados/.
+- `glacier test --layout` no rustploy acusa nós de área zero (gaveta recolhida,
+  painéis de diálogo); na tela nada mudou — conferir se são falsos positivos da
+  medição sem janela.
