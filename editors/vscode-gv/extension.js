@@ -468,6 +468,17 @@ const TRAY_ACTIONS = new Set(["tray:open", "tray:quit", "notifications:toggle"])
  * `{ prefix, kind, arg, heading }` when `value` is an engine built-in, else
  * null. `heading` is the reference doc section that explains it.
  */
+/**
+ * A ação com argumentos da 0.169 (`remover(@id)`, `window.resize("nw")`) →
+ * o nome que ela chama (`remover`, `window:resize`). Os argumentos não mudam
+ * para onde o link aponta. Qualquer outro valor volta como está.
+ */
+function callHead(value) {
+  const m = /^([\p{L}_][\p{L}\p{N}_.:]*)\s*\(/u.exec(value);
+  if (!m) return value;
+  return m[1].replace(/^(window|style)\./, "$1:");
+}
+
 function builtinAction(value) {
   if (TRAY_ACTIONS.has(value)) {
     return { prefix: value, kind: "engine", arg: "", heading: TRAY_ACTIONS_HEADING };
@@ -2350,9 +2361,10 @@ async function provideDocumentLinks(document) {
     //    - `foo`: a plain handler.
     for (const attr of iterAttrs(tag.attrsText, tag.attrsStart)) {
       if (!isActionAttr(attr.name)) continue;
-      const value = attr.value.trim();
+      const written = attr.value.trim();
+      const value = callHead(written);
       if (!value || value.includes("{")) continue;
-      const start = attr.start + attr.value.indexOf(value);
+      const start = attr.start + attr.value.indexOf(written);
 
       // `dialog:nome` — the engine opens that dialog; point at its
       // `dialog(name = nome)` (or the component/screen of that name).
@@ -2793,7 +2805,7 @@ function classify(document, position) {
       if (offset < attr.start || offset > attr.end) continue;
       const lower = attr.name.toLowerCase();
       if (isActionAttr(lower)) {
-        const name = attr.value.trim();
+        const name = callHead(attr.value.trim());
         if (!name) return null;
         // `on_change="__dialog.texto"` names a draft KEY, not a handler —
         // see `DIALOG_DRAFT_KEY_RE`.
@@ -3025,6 +3037,8 @@ async function refreshDiagnostics(document, collection) {
       // apelido de diretiva (`vazio`, de `empty`) aparecia como faltando.
       passadas.add(nome);
       if (DIRECTIVE_ATTRS.has(nome)) continue;
+      // `class:nome = expr` (0.169) é classe condicional do uso, como o `class`.
+      if (nome.startsWith("class:")) continue;
       if (nomes.has(nome)) continue;
       const range = new vscode.Range(
         document.positionAt(attr.start - attr.name.length - 2),

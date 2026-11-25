@@ -55,64 +55,34 @@ REESCRITAS nesta continuação para a linguagem 0.169:
 - "Antes de dizer que está pronto": + `glacier check` / `glacier fmt --migrate`.
 
 ═══════════════════════════════════════════════════════════════════
-O QUE FALTA (em ordem)
+CONTINUAÇÃO 2 (Claude, 2026-11-25) — itens 1–8 FECHADOS
 ═══════════════════════════════════════════════════════════════════
 
-1. PRESET AGENTS.md — "Armadilhas que já custaram tempo" (~linha 3800, após os
-   edits). Bullets desatualizados:
-   - "fill dentro de shrink colapsa": em 0.169 column/row/container SEM width com
-     filho fill ENCHE (não colapsa). Reescrever: o que resta é o ancestral com
-     shrink EXPLÍCITO / scrollable (conferir tests/linguagem_layout.rs e
-     docs/PRIMITIVAS.md "Quatro armadilhas" para dizer o que sobreviveu).
-   - "Uma propriedade de .gss que o motor não conhece é ignorada": agora avisa com
-     arquivo:linha + sugestão (hífen→sublinhado) e é ERRO com gss_strict; além
-     disso o exemplo cita `box-shadow`, que AGORA EXISTE (box_shadow) — trocar o
-     exemplo (border-bottom, margin continuam não existindo).
-   - "Desligar uma chave é gravar vazio… template(if)… not_equals=\"false\"":
-     reescrever na forma de expressão (if = @x / != ""), sem comparador depreciado.
-   - "empty/not_empty testam array JSON, não texto": agora `is empty` cobre
-     ausente, "", null, [] e {} — reescrever.
-2. PRESET AGENTS.md — outras menções ao colapso do fill para alinhar com o fix:
-   ~linha 1797 (width do campo vira risco), "#### Largura dos campos — a
-   armadilha de sempre" (~3410), ~4735 (make run), checklist final "Nenhum
-   width=\"fill\" dentro de um ancestral shrink" (~5040). Decidir o que continua
-   valendo (scrollable e prop de builtin continuam) e citar `glacier test --layout`.
-3. PRESET AGENTS.md — varrer formas velhas restantes na PROSA e nos exemplos:
-   grep -n "for_each\|foreach(\|template(\|equals\|one_of\|not_empty\|contains" \
-     crates/glacier-cli/templates/_comum/AGENTS.md
-   Conhecido: exemplo do app inteiro (~linha 640) tem
-   `row(for_each = visiveis, var = s, class = linha)` → `each = @visiveis as s`.
-   Manter as menções INTENCIONAIS (a seção de depreciados e a de matches).
-4. OUTROS PRESETS: crates/glacier-cli/templates/*/ — conferir .gv, AGENTS e docs
-   de cada preset por formas velhas (o _comum é compartilhado; os outros podem
-   ter telas próprias).
-5. EXTENSÃO: editors/vscode-gv/references/glacier-view.md — atualizar a referência
-   para 0.169 (expressões, class:x, each curto/bloco, props tipados, busy, novas
-   propriedades .gss, @theme, display). O WIP já tocou extension.js (+3) e
-   glacier-view.tmLanguage.json (49 linhas) — conferir se a referência bate com a
-   gramática nova e se a versão da extensão precisa de bump (padrão do repo:
-   ext 0.32.1 → 0.33.0?).
-6. README.md do glacier-ui — visão geral da linguagem nova (apontar para
-   docs/LINGUAGEM.md; features da 0.169).
-7. CONFERIR docs já tocados no 4aed530 contra o plano §10:
-   - CLAUDE.md: tabela de sigilos (6.1), forma canônica (5.1), regra de nomes
-     (8.6), semântica de cor (8.1).
-   - docs/PRIMITIVAS.md: "Quatro armadilhas" marcadas como resolvidas na 0.169,
-     com o que restou.
-   - docs/GSS_MODERNO.md: aninhamento, :is/:not, tipografia, box_shadow, @theme.
-   - docs/I18N.md: forma curta t().
-8. TESTAR: cargo test (completo) + cargo test -p glacier-cli (o preset é
-   embarcado na CLI; garantir que nada quebra com o AGENTS.md novo). Se possível,
-   `glacier new` num projeto scratch e `glacier check`/`glacier fmt --migrate` nele.
-   ATENÇÃO: nesta continuação, 3 testes do glacier-cli falharam
-   (vsix::arquivo_sem_extensao_ganha_override, vsix::content_types_declara_toda_
-   extensao_presente, serve::servidor_responde_com_tipo_certo_e_sem_cache) embora
-   o `cargo test` completo tenha dado exit 0 no início da sessão, ANTES dos edits
-   (os edits não tocaram em vsix.rs nem serve.rs — suspeita de flaky/ambiente;
-   a verificação no HEAD limpo foi interrompida). Rodar de novo no HEAD limpo:
-   `git stash -u && cargo test -p glacier-cli && git stash pop`. Se falhar limpo,
-   é pré-existente do 4aed530; investigar antes de publicar.
-   Lib (src/): 485 testes VERDES após os edits.
+- 1–4 (preset AGENTS.md: armadilhas, fill, varredura; telas dos presets migradas,
+  `glacier check` = 0 achados): feitos pelo Qwen depois do commit e43442c, revisados
+  aqui. Sobravam 2 formas antigas (tablecolumn `"remover:{c.id}"`, comentário Luau)
+  e um `rangeslider(start = …)` sem `:` (pré-existente) — corrigidos.
+- vsix.rs/serve.rs: o `f7049ea` (0.149) converteu XML em sintaxe .gv dentro desses
+  .rs; o Qwen restaurou. Era a causa dos 3 testes da CLI falhando.
+- 5 EXTENSÃO: referência com "## A linguagem (0.169)" + controle de fluxo reescrito;
+  gv-shadow.js lê expressões/class:/if-expr/texto posicional-expressão (antes
+  desmontava a árvore — conferido em 231 .gv: só os 16 na sintaxe nova mudaram);
+  link de `f(@x)` vai para a função; `class:x` não é prop desconhecida.
+  Glacier View 0.33.0, Glacier GSS 0.4.0 (pseudo-classes estruturais). NÃO empacotado
+  (`make install` em editors/vscode-gv).
+- 6 README.md: Controle de fluxo (expressões, laço, formas antigas), props tipados,
+  botão ocupado, GSS 0.169, tabela de exemplos, sumário.
+- 7 docs: CLAUDE.md/PRIMITIVAS.md/GSS_MODERNO.md já estavam; I18N.md ganhou o t() curto.
+  Blocos ```gv/```gss de README, LINGUAGEM, referência e preset AGENTS parseados pelo
+  motor: os erros restantes são placeholders "…" de propósito.
+- migrar_gv: passo 6, `on_x = "f:{a.b}"` → `f(@a.b)` e `"f:lit"` → `f("lit")` (teste
+  acao_entre_aspas_vira_chamada). CHANGELOG corrigido (essas duas formas não avisam).
+- 8 TESTES: `cargo test --workspace` verde (lib 486, CLI 65, integração toda); corpus_gv verde.
+
+═══════════════════════════════════════════════════════════════════
+O QUE FALTA
+═══════════════════════════════════════════════════════════════════
+
 9. PUBLICAÇÃO (só com o OK do dono — fluxo do AGENTS.md do rustploy, seção
    "glacier-ui: nunca path"): versionar 0.169.0 no Cargo.toml + cabeçalho do
    CHANGELOG ("não publicado" → data), commit completo, git push, cargo publish

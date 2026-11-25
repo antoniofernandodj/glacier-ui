@@ -60,8 +60,26 @@ A linguagem do `.gv` e do `.gss` (`docs/PLANO_LINGUAGEM_GV_GSS.md`; referência 
 ### Depreciado (avisa no `stderr`; `glacier fmt --migrate` reescreve)
 
 `equals`/`not_equals`/`one_of`/`contains`/`empty`/`not_empty` ao lado de `if =` (o `matches` fica: não tem equivalente),
-`template(if/else/:for_each)`, `:for_each = x, var = v` num nó, `"{t('…')}"` sozinho,
-`on_x = handler:arg`, `hidden:` no `.gss`.
+`template(if/else/:for_each)`, `:for_each = x, var = v` num nó, `hidden:` no `.gss`.
+Sem aviso, mas também reescritos pelo `--migrate`: `"{t('…')}"` sozinho e `on_x = handler:arg`.
+
+### Documentação, exemplos e editores
+
+- Exemplos executáveis, um por assunto: `linguagem_expressoes`, `linguagem_props`,
+  `linguagem_ocupado` e `linguagem_gss`.
+- `README.md` (Controle de fluxo reescrito, expressões, laço, formas antigas, props com
+  tipo, botão ocupado, GSS da 0.169), `docs/I18N.md` (forma curta `t()`), o `AGENTS.md` dos
+  presets e as telas dos presets na forma nova (`glacier check` sem achados).
+- **Extensão Glacier View 0.33.0**: a leitura do `.gv` (`gv-shadow.js`) entende expressões,
+  `class:nome`, `if … {` com expressão e texto posicional que é expressão — antes cortava a
+  tag no primeiro espaço e desmontava a árvore, levando links e diagnósticos junto. O link
+  de uma ação com argumentos (`remover(@id)`) vai para a função; `class:x` no uso de um
+  componente não é acusado de prop. Referência embutida com a seção "A linguagem (0.169)".
+- **Extensão Glacier GSS 0.4.0**: `:first-child`/`:last-child`/`:only-child`/`:nth-child`
+  não são mais marcados como desconhecidos; README com aninhamento, `@theme` e modo estrito.
+- CLI: o `vsix` voltou a gerar `[Content_Types].xml` em XML (as tags tinham sido convertidas
+  para a sintaxe do `.gv` por engano no `f7049ea`), e os testes do `serve` voltaram a ter o
+  HTML que esperam.
 
 ## glacier-ui 0.168.3 — 2026-11-23
 

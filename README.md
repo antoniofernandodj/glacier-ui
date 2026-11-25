@@ -71,6 +71,9 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Atributos de layout e estilo](#atributos-de-layout-e-estilo)
   - [Data binding](#data-binding)
   - [Controle de fluxo](#controle-de-fluxo)
+    - [Expressões](#expressões)
+    - [Laço](#laço)
+    - [Formas antigas](#formas-antigas)
   - [Inputs de texto](#inputs-de-texto)
   - [Formulários (Reactive Forms)](#formulários-reactive-forms)
   - [Navegação entre telas](#navegação-entre-telas)
@@ -87,6 +90,7 @@ function decrementar() ctx.contador = ctx.contador - 1 end
   - [Internacionalização e acessibilidade](#internacionalização-e-acessibilidade)
   - [Estilos `.gss`](#estilos-gss)
     - [Pseudo-estados: `:hover` / `:focus` / `:active` / `:disabled`](#pseudo-estados-hover--focus--active--disabled)
+    - [Aninhamento, `@theme` e modo estrito (0.169)](#aninhamento-theme-e-modo-estrito-0169)
   - [`link(rel = "…")` e temas](#link-rel-e-temas)
   - [Toasts e diálogos (em Rust)](#toasts-e-diálogos-em-rust)
   - [Drag-and-drop: listas reordenáveis](#drag-and-drop-listas-reordenáveis)
@@ -410,7 +414,7 @@ Todas as tags e atributos se escrevem em `snake_case`, em minúsculas.
 | `NomeDoComponente(...)` | — | qualquer tag desconhecida referencia um componente por nome; atributos viram props. |
 | `foreach` | `for` | repete os filhos por item: `items`, `var`. |
 | `else` | — | renderiza quando o `if` imediatamente anterior foi falso. |
-| `template` | — | `foreach`/`if`/`else` sob um nome só — a flavour depende do atributo presente (`for_each`/`items`, `else`, `else_if`, `if`; nenhum deles agrupa os filhos incondicionalmente). Ver "Controle de fluxo". |
+| `template` | — | agrupa nós para um slot nomeado (`template(slot = footer) { … }`). Como condição/laço está depreciado: use o bloco `if`/`each` (ver "Controle de fluxo"). |
 | `screen` | — | cabeçalho da tela: metadados da janela (`title`, `size`, `min_size`, `resizable`) com os recursos e o layout dentro. Ver "Cabeçalho". |
 | `props` / `prop` | — | contrato de props de um `component`. Ver "Cabeçalho". |
 | `component` | `Component` | mesma casca do `screen` para um `.gv` que é **pedaço** de tela (importado por outro), sem os atributos de janela. |
@@ -574,7 +578,7 @@ screen(title = Serviços, size = "900 700") {
     }
   }
   column {
-    LinhaLog(for_each = log, var = l, hora = @l.hora, texto = @l.texto, nivel = @l.nivel)
+    LinhaLog(each = @log as l, hora = @l.hora, texto = @l.texto, nivel = @l.nivel)
   }
 }
 ```
@@ -623,7 +627,7 @@ que um `shell.gv` de 904 linhas virou ~200 e um `service.gv` de 1860 virou
   o atributo no ponto de uso:
 
   ```
-  ServiceLogsTab(if = @tab, equals = logs)
+  ServiceLogsTab(if = @tab == "logs")
   ```
 
   Para o corpo de um `if @x == "y" { … }` com vários filhos, extraia o **corpo**:
@@ -650,10 +654,11 @@ verificada no ponto de **uso**:
 ```gv
 component {
   props {
-    prop(name = nome)
+    prop(name = nome, type = string)
     prop(name = cor, default = #89B4FA)
+    prop(name = ativo, type = bool, default = false)
   }
-  text(content = @nome, color = @cor)
+  text(content = @nome, color = @cor, if = @ativo)
 }
 ```
 
@@ -662,7 +667,11 @@ component {
   quando quem chama omite;
 - um `props` vazio é um contrato ("não aceito prop nenhuma"), não a ausência
   de um;
-- **sem `props`, nada é checado** — declarar é opcional.
+- **sem `props`, nada é checado** — declarar é opcional;
+- `type = string | number | bool | list | object | action | component` (0.169)
+  confere o valor: um literal do tipo errado no uso (`ativo = talvez`) é erro,
+  mostrado na janela e no terminal; um valor do contexto do tipo errado avisa
+  uma vez. Exemplo: [`examples/linguagem_props`](examples/linguagem_props).
 
 O motivo de isto ser uma feature e não um comentário no topo do arquivo: as props
 entram como uma **camada** sobre o contexto de quem usa, e um lookup que falha na
@@ -676,13 +685,13 @@ Um card em lista costuma receber um atributo por campo, e **todos** são
 mapeamentos identidade — o nome à esquerda igual ao campo à direita:
 
 ```gv
-ServiceCard(for_each = linhas, var = c, id = @c.id, nome = @c.nome, porta = @c.porta, cpu = @c.cpu, mem = @c.mem)
+ServiceCard(each = @linhas as c, id = @c.id, nome = @c.nome, porta = @c.porta, cpu = @c.cpu, mem = @c.mem)
 ```
 
 `spread` passa o item inteiro no lugar dessa parede:
 
 ```gv
-ServiceCard(for_each = linhas, var = c, spread = @c)
+ServiceCard(each = @linhas as c, spread = @c)
 ```
 
 Cada campo do objeto cai na prop declarada de mesmo nome. **Dentro do componente
@@ -700,7 +709,7 @@ em silêncio. As regras:
 - sem `props`, não há o que filtrar: todo campo do objeto entra na camada;
 - valor **vazio** (a chave ainda não carregou) vale como "nenhum campo"; um
   escalar ou uma lista, aí sim, é erro;
-- uma lista aninhada atravessa como JSON e volta a ser lista num `for_each` de
+- uma lista aninhada atravessa como JSON e volta a ser lista num `each` de
   dentro (`spread="{c}"` com `c.tags` → `text(:for-each = tags, var = t)`).
 
 
@@ -761,51 +770,77 @@ compartilhado entre todas as telas.
 
 ## Controle de fluxo
 
-A forma recomendada são **atributos diretiva** aplicados em qualquer elemento
-(estilo Vue/Angular). A sintaxe antiga de tags-invólucro (`if`, `else`,
-`foreach`) continua suportada por retrocompatibilidade.
+Desde a 0.169 a condição é uma **expressão** e cada conceito tem **duas formas
+com a mesma semântica**: a curta, num nó só, e a de bloco, para vários. A
+gramática inteira está em [`docs/LINGUAGEM.md`](docs/LINGUAGEM.md).
 
-**Condicional** — `if` renderiza truthy (`true`/`1`/`yes`/`on`); `else`
-(pelado) se conecta ao `if` anterior; `equals`/`not_equals` comparam explicitamente:
+| | Curta (um nó) | Bloco |
+|---|---|---|
+| Condição | `button("Salvar", if = @sujo && !@ocupado)` | `if @logado { … } else if @x { … } else { … }` |
+| Senão de um nó | `text("B", else)` **logo depois** do irmão com `if =` | o `else` do bloco |
+| Laço | `Cartao(each = @usuarios as u, nome = @u.nome)` | `each @usuarios as u (key = id, fallback = Vazio) { … }` |
 
 ```gv
-column(if = @logado) {
-  text(content = "Bem-vindo!")
+if @logado {
+  text("Bem-vindo!")
+  button("Sair", on_click = sair)
+} else {
+  text("Por favor, conecte-se.")
 }
-column(else) {
-  text(content = "Por favor, conecte-se.")
-}
-text(content = "Painel Admin", if = @papel, equals = admin)
-text(content = "Acesso Comum", if = @papel, not_equals = admin)
+text("Painel Admin", if = @papel == "admin")
+text("Acesso Comum", else)
 ```
 
-Mais cinco comparadores, todos sobre o mesmo `if`/`else_if`:
+Um `else` que não vem logo depois de um `if` é **erro de parse**, com a linha —
+nunca um ramo que some calado. `if =` na raiz de um componente vale.
 
-| Atributo | Casa quando |
+### Expressões
+
+Valem em `if`, em **qualquer atributo** (um valor que começa por `@`, `!`, `(`,
+`[` ou uma função) e dentro de `{…}` num texto:
+
+| Escrita | Significa |
 |---|---|
-| `one_of="a b c"` (`equals_any`) | o valor da chave é **um dos** tokens escritos no markup |
-| `contains="rede"` (`has`) | o **valor da chave é uma lista** (`"geral,rede"`) que tem esse item — o simétrico do `one_of` |
-| `matches="{busca}"` | **busca de texto**: cada palavra do valor aparece, sem diferenciar maiúsculas, na condição. Vazio casa sempre — `text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista enquanto se digita |
-| `empty` / `not_empty` (pelados) | a chave é (ou não é) um array JSON de zero elementos |
+| `@a && @b`, `@a \|\| @b`, `!@a` | e, ou, não |
+| `@x == "y"`, `!=`, `<`, `<=`, `>`, `>=` | comparação (`<`/`>` só entre números) |
+| `"rede" in @abertas`, `@aba in ["a", "b"]` | pertence (lista literal, array JSON ou texto separado por vírgula/espaço) |
+| `@itens is empty`, `is not empty` | ausente, `""`, `null`, `[]` ou `{}` |
+| `@n > 9 ? "9+" : @n` | ternário (sem o `: b`, falso dá `""`) |
+| `len(@x)`, `num(@x)`, `lower`, `upper`, `trim`, `t("chave")` | funções |
 
-`contains` é o que dá ao motor o **conjunto nomeado**: várias seções de um
-accordion abertas, uma seleção múltipla, um filtro por tags — tudo numa chave
-de texto que o app nomeia, sem estado por instância. Os separadores aceitos são
-vírgula, ponto-e-vírgula e espaço, os três ao mesmo tempo, e o item comparado
-também interpola:
+**Falso** é: ausente, `""`, `false`, `0`, `no`/`não`, `off`, `null`, `[]` e
+`{}`. Todo o resto é verdadeiro, inclusive um texto qualquer.
 
 ```gv
-// ctx.abertas = "rede,disco"
-template(for_each = secoes, var = s) {
-  column("…", if = @abertas, contains = @s.id)
-}
+text("{@total > 9 ? '9+' : @total}", if = @total > 0)
+button("Rede", class = aba, class:aba--ativa = @aba == "rede", on_click = ir("rede"))
+svg(src = @maximizada ? "restaurar.svg" : "maximizar.svg")
+text(@s.titulo, each = @secoes as s, if = @s.id in @abertas)
 ```
 
-**Loop** — `for_each` itera sobre um **array JSON** do contexto; `var` nomeia a
-variável (padrão `item`). Objetos viram `{u.campo}`; escalares ficam em `{u}`:
+`class:nome = expr` acrescenta a classe quando a expressão é verdadeira e
+convive com o `class =` fixo. O **conjunto nomeado** (várias seções de um
+accordion abertas, uma seleção múltipla, um filtro por tags) é uma chave de
+texto `"rede,disco"` testada com `in`.
+
+**Busca de texto** — `matches` continua sendo atributo, porque a expressão não
+tem equivalente: casa quando cada palavra do valor aparece, sem diferenciar
+maiúsculas, no valor do `if`. Vazio casa sempre:
+`text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista enquanto se
+digita.
+
+### Laço
+
+`each` itera sobre um **array JSON** do contexto. Objetos viram `@u.campo`;
+escalares ficam em `@u`; `@itens.0.nome` desce por índice:
 
 ```gv
-CartaoUsuario(for_each = usuarios, var = u, nome = @u.nome, cargo = @u.cargo, cor = @u.cor)
+CartaoUsuario(each = @usuarios as u, nome = @u.nome, cargo = @u.cargo, cor = @u.cor)
+
+each @itens as i (key = id) {
+  text(@i.nome)
+  text(@i.detalhe)
+}
 ```
 
 ```rust
@@ -815,39 +850,25 @@ ctx.set("usuarios", serde_json::json!([
 ]).to_string());
 ```
 
-Combinados no mesmo elemento, `for_each` tem precedência: desenrola o loop
-primeiro e o `if` filtra cada item gerado no contexto local. Veja
+Na forma curta, `each` e `if` no mesmo nó: o laço desenrola primeiro e o `if`
+filtra cada item. O bloco (`if`/`each`) não desenha caixa nenhuma: os filhos
+saem como irmãos diretos do pai. Veja
+[`examples/linguagem_expressoes`](examples/linguagem_expressoes),
 [`examples/condicional`](examples/condicional) e [`examples/lista`](examples/lista).
 
-**Agrupar sem wrapper (`template`)** — nem a forma-atributo nem `for_each`
-num elemento comum resolvem "quero 2+ nós irmãos por condição/iteração, sem
-um `row`/`column` extra por baixo" — `if`/`for_each` num elemento SEMPRE
-produzem aquele elemento (um nó), nunca uma lista solta. Para isso, use
-`template` — o mesmo nome e a mesma ideia do `template(v-if)`/`template(x-for)` do Vue/Alpine:
+### Formas antigas
 
-```gv
-template(if = @aba, equals = detalhes) {
-  text(content = Detalhes)
-  text(content = @descricao)
-}
-template(else_if = @aba, equals = historico) {
-  text(content = Histórico)
-}
-template(else) {
-  text(content = "Selecione uma aba")
-}
-template(for_each = itens, var = i) {
-  text(content = @i.nome)
-  text(content = @i.detalhe)
-}
-```
+Continuam funcionando, e o `glacier fmt --migrate` reescreve todas (inclusive os
+blocos ```` ```gv ```` de um `.md`). As de condição e laço avisam no terminal e
+no `glacier check`:
 
-Cada `text` acima sai como irmão direto do pai de `template` — não há
-nó `template` nenhum na árvore renderizada. É a mesma mecânica que
-`if`/`foreach` (tags legadas) já tinham; `template` só lhes dá um
-nome único e comum aos dois lados (se um dia a `template`-condição
-precisar filtrar itens de um `template(for-each)`, aninhe-a no CORPO do
-loop — as duas diretivas não se combinam na mesma tag).
+| Antiga | Atual |
+|---|---|
+| `if = @x, equals = y` (e `not_equals`, `one_of`, `contains`, `empty`, `not_empty`) | `if = @x == "y"`, `!=`, `in [..]`, `"y" in @x`, `is empty`, `is not empty` |
+| `template(if = …)` / `template(else_if = …)` / `template(else)` | `if … { … } else if … { … } else { … }` |
+| `template(:for_each = xs, var = x)` / `:for_each = xs, var = x` | `each @xs as x { … }` / `each = @xs as x` |
+| `on_click = "remover:{i.id}"` | `on_click = remover(@i.id)` |
+| `text("{t('k')}")` | `text(t("k"))` |
 
 ---
 
@@ -999,7 +1020,7 @@ dialog(name = editar_servico, title = "Editar serviço", icon = question) {
   `resources` da tela (ou de um componente) e só aparece quando alguém o **abre**
   pelo `name`, que é único no app inteiro.
 - O **corpo** é um template como qualquer tela: enxerga o contexto, aceita
-  componentes, `if`, `for_each`.
+  componentes, `if`, `each`.
 - O **`actions`** são os botões do rodapé, na ordem escrita, alinhados à direita;
   quando não cabem numa linha, **quebram de linha** em vez de vazar do cartão.
   Rótulos, `title` e `message` aceitam `{chave}` e `{t('…')}`, resolvidos **na
@@ -1330,6 +1351,14 @@ end
 O retorno é `{ ok, status, body, error }`. O 2º argumento `opts` é opcional:
 `{ method = "POST", body = "...", headers = { ["Authorization"] = "..." } }`.
 Veja [`examples/fetch_luau`](examples/fetch_luau).
+
+**Botão ocupado automático (0.169).** Com `app(busy_buttons = true)`, um
+`button` fica desabilitado enquanto o handler do próprio `on_click` está
+suspenso — num `fetch`, num `confirm`, num diálogo —, sem chave `ocupado` nem
+`disabled` escritos à mão. Dois botões com o mesmo handler ficam ocupados
+juntos. O estado é a chave `__busy.<handler>`; `busy = false` desliga num nó e
+`busy = @x` troca a condição. Exemplo:
+[`examples/linguagem_ocupado`](examples/linguagem_ocupado).
 
 ### `require`: módulos Luau
 
@@ -1738,9 +1767,12 @@ da raiz do `card`, e `.lista > Card.destaque` alcança a própria raiz. O
 conteúdo de slot tem o **uso** como pai (`Caixa(class = c) { text }` →
 `.c > text`).
 
-Fora da gramática, e **erro** de parse em vez de regra ignorada: os combinadores
-de irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`, `:not(…)` e similares,
-e `:estado` num ancestral.
+**Seletores estruturais e funcionais (0.169):** `:first-child`, `:last-child`,
+`:only-child`, `:nth-child(an+b)`, `:not(composto, …)` e `:is(a, b)`.
+
+Fora da gramática, e **erro** de parse em vez de regra ignorada, com o motivo e
+a alternativa: os combinadores de irmão (`+`, `~`), `[atributo]` (use uma
+classe condicional no `.gv`), `::pseudo-elemento` e `:estado` num ancestral.
 
 Exemplo: uma lista de serviços estilizada só pelo lugar de cada nó, com uma
 classe vinda do dado e outra dinâmica num ancestral, em
@@ -1851,6 +1883,37 @@ rastrear hover manualmente. **Cobertura atual:**
 - **`checkbox`/`toggle`** — só o atributo `disabled` (usam o visual padrão do tema).
 
 Veja [`examples/pseudo_estados`](examples/pseudo_estados).
+
+### Aninhamento, `@theme` e modo estrito (0.169)
+
+```gss
+:root { --bg: #0A0E14; --tx: #E6EDF3; --hover: #1F2630; }
+@theme { background: var(--bg); text: var(--tx); primary: #58A6FF; danger: #F85149; }
+
+.btn {
+  padding: 8 15;
+  font_weight: 600;
+  box_shadow: 0 2 8 #00000055;
+  &:hover    { background: var(--hover); }   /* .btn:hover */
+  &--primary { background: #238636; }        /* .btn--primary (BEM) */
+  .icone     { size: 12; }                   /* .btn .icone */
+}
+```
+
+- **Propriedades novas:** `box_shadow`, `font_weight`, `font_style`,
+  `line_height` (fator ou `px`) e `display: none` (no lugar do `hidden`,
+  depreciado). `bold`/`font_weight` mudam só o peso, mantendo a família; `font:
+  mono` usa a `app(mono_font = "…")`.
+- **`@theme`** tira a paleta do tema do próprio `.gss` e vence um
+  `link(rel = theme)`.
+- **Propriedade desconhecida** é ignorada com aviso `arquivo:linha` e a grafia
+  certa quando o engano é hífen × sublinhado; com `app(gss_strict = true)` (ou
+  `glacier check --strict`) é erro.
+- **Cor:** com `app(gss_color = css)`, `color` é a cor do conteúdo em todo
+  widget, e `background` o fundo — inclusive no `button`, onde o `color` antigo
+  era o fundo. `glacier fmt --migrate-color` converte.
+
+Exemplo: [`examples/linguagem_gss`](examples/linguagem_gss).
 
 ---
 
@@ -1963,18 +2026,18 @@ customizada) roteadas ao `update` — o motor já fechou o diálogo antes. Veja
 
 ## Drag-and-drop: listas reordenáveis
 
-Um `foreach` com `on_reorder` + `reorder_key` vira uma lista reordenável por
+Um `each` com `on_reorder` + `reorder_key` vira uma lista reordenável por
 arrasto: arraste pelo elemento marcado `dragHandle="true"`. Ao soltar, `on_reorder`
 entrega a nova ordem (array JSON dos valores de `reorder_key`). Durante o arrasto,
 o item agarrado recebe `{t.__dragging} = "true"` para destacá-lo:
 
 ```gv
-foreach(items = tarefas, var = t, on_reorder = reordenar, reorder_key = id) {
-  row(if = @t.__dragging, equals = true, background = #434C5E, border_color = #88C0D0, ...) {
+each @tarefas as t (on_reorder = reordenar, reorder_key = id) {
+  row(if = @t.__dragging, background = #434C5E, border_color = #88C0D0, ...) {
     text(content = "⋮⋮", drag_handle = true, cursor = grabbing)
     text(content = @t.nome, width = fill)
   }
-  row(else = true, background = #3B4252, ...) {
+  row(else, background = #3B4252, ...) {
     text(content = "⋮⋮", drag_handle = true, cursor = grab)
     text(content = @t.nome, width = fill)
   }
@@ -2231,6 +2294,10 @@ Todos em [`examples/`](examples), rodáveis com `cargo run --example nome`.
 | `onda3` | o calendário: `calendar`, `monthyearpicker` e `daterangepicker` são a **mesma** primitiva — e a prop `today` saindo de `date.today()`. |
 | `onda2` | os recipientes que o `slot` destrancou: `groupbox`, `frame`, `card`, `toolbutton`, `toolbar`/`statusbar` e `tabbar`. |
 | `onda1` | `slider`, `space`, `radio`/`radiogroup` e `avatar` — e a diferença entre primitiva (o app grava a chave) e builtin (o widget grava). |
+| `linguagem_expressoes` | a linguagem de expressão da 0.169: `&&`/`\|\|`/`!`, comparação numérica, `in`, `is empty`, ternário, `class:x = expr` e `if`/`else` curto e de bloco. |
+| `linguagem_props` | props com tipo (`string`, `bool`, `number`, `list`); troque um literal para ver o erro de tipo na janela. |
+| `linguagem_ocupado` | `app(busy_buttons = true)`: o botão desabilita sozinho durante um diálogo e um `fetch`; `busy = false` num nó. |
+| `linguagem_gss` | GSS da 0.169: aninhamento com `&`, `:not()`/`:is()`, `font_weight`, `line_height`, `box_shadow`, `@theme` e `gss_strict`. |
 | `gpui_kit_luau` | a fase gpui-kit em Luau: `command` (paleta com Ctrl+K, filtro por palavras, `on_select`), `alert` dirigido pelo script com "×", `descriptionlist` da ficha do serviço e `kbd` nos atalhos. |
 
 ---

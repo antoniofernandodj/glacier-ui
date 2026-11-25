@@ -97,18 +97,18 @@ screen(
       )
 
       scrollable(class = rota) {
-        Botoes(if = @view, equals = botoes)
-        Texto(if = @view, equals = texto)
-        Numericos(if = @view, equals = numericos)
-        Selecao(if = @view, equals = selecao)
-        DataHora(if = @view, equals = data_hora)
-        Displays(if = @view, equals = displays)
-        Containers(if = @view, equals = containers)
-        Navegacao(if = @view, equals = navegacao)
-        Barras(if = @view, equals = barras)
-        Overlays(if = @view, equals = overlays)
-        Graficos(if = @view, equals = graficos)
-        Dialogos(if = @view, equals = dialogos)
+        Botoes(if = @view == "botoes")
+        Texto(if = @view == "texto")
+        Numericos(if = @view == "numericos")
+        Selecao(if = @view == "selecao")
+        DataHora(if = @view == "data_hora")
+        Displays(if = @view == "displays")
+        Containers(if = @view == "containers")
+        Navegacao(if = @view == "navegacao")
+        Barras(if = @view == "barras")
+        Overlays(if = @view == "overlays")
+        Graficos(if = @view == "graficos")
+        Dialogos(if = @view == "dialogos")
       }
     }
   }

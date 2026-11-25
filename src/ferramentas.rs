@@ -422,6 +422,25 @@ pub fn migrar_gv(src: &str) -> (String, usize) {
         })
         .into_owned();
 
+    // 6. A mesma coisa entre aspas: `on_x = "remover:{c.id}"` → `remover(@c.id)`,
+    //    `on_x = "ir:home"` → `ir("home")`. Só o sufixo de UMA interpolação
+    //    inteira ou de uma palavra: `"f:a-{x}"` (texto montado) fica como está.
+    let re = Regex::new(r#"(on_\w+\s*=\s*)"([A-Za-z_]\w*):(?:\{([A-Za-z_][\w.]*)\}|([\w.-]+))""#).unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            if ACOES_DO_MOTOR.contains(&&c[2]) {
+                return c[0].to_string();
+            }
+            n += 1;
+            let arg = match (c.get(3), c.get(4)) {
+                (Some(chave), _) => format!("@{}", chave.as_str()),
+                (_, Some(lit)) => como_literal(lit.as_str()),
+                _ => unreachable!(),
+            };
+            format!("{}{}({})", &c[1], &c[2], arg)
+        })
+        .into_owned();
+
     (s, n)
 }
 
@@ -701,6 +720,18 @@ button("y", on_click = window:drag)"#);
         assert!(s.contains("on_click = abrir(@id)"), "{s}");
         assert!(s.contains("on_change = field:nome"), "o prefixo do motor fica: {s}");
         assert!(s.contains("on_click = window:drag"), "{s}");
+    }
+
+    #[test]
+    fn acao_entre_aspas_vira_chamada() {
+        let src = "button(\"x\", on_click = \"remover:{c.id}\")\nbutton(\"y\", on_click = \"ir:home\")\nbutton(\"z\", on_click = \"clipboard:k\")\nbutton(\"w\", on_click = \"f:a-{x}\")\n";
+        let (s, n) = migrar_gv(src);
+        assert_eq!(n, 2, "{s}");
+        assert!(s.contains("on_click = remover(@c.id)"), "{s}");
+        assert!(s.contains("on_click = ir(\"home\")"), "{s}");
+        assert!(s.contains("on_click = \"clipboard:k\""), "embutido do motor fica: {s}");
+        assert!(s.contains("on_click = \"f:a-{x}\""), "texto montado fica: {s}");
+        assert_eq!(migrar_gv(&s).1, 0, "idempotente");
     }
 
     #[test]

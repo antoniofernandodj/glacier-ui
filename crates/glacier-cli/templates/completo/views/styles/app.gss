@@ -46,7 +46,7 @@
 
 @media (max-width: 720) {
   .sidebar     { width: 60; }
-  .marca       { hidden: true; }
-  .linha_cards { hidden: true; }
+  .marca       { display: none; }
+  .linha_cards { display: none; }
   .conteudo    { padding: 18 16; }
 }

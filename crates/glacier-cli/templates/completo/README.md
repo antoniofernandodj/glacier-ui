@@ -116,7 +116,7 @@ contexto global por conta própria: ele só compara o que recebeu.
 é preciso uma tag invólucro para condicionar um nó só:
 
 ```gv
-text("ativo", class = tag_ok, if = @i.ativo, equals = 1)
+text("ativo", class = tag_ok, if = @i.ativo == "1")
 text("parado", class = tag_off, else)
 ```
 

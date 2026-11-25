@@ -86,9 +86,9 @@ component {
             class = btn, text = info, on_click = "dizer:mensagem informativa",
           )
 
-          button(class = btn, text = sucesso, on_click = dlg_toast:success)
-          button(class = btn, text = aviso, on_click = dlg_toast:warning)
-          button(class = btn, text = erro, on_click = dlg_toast:error)
+          button(class = btn, text = sucesso, on_click = dlg_toast("success"))
+          button(class = btn, text = aviso, on_click = dlg_toast("warning"))
+          button(class = btn, text = erro, on_click = dlg_toast("error"))
         }
       }
 

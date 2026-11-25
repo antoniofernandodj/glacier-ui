@@ -74,8 +74,8 @@ app(
               )
             }
 
-            Home(if = @view, equals = home)
-            Sobre(if = @view, equals = sobre)
+            Home(if = @view == "home")
+            Sobre(if = @view == "sobre")
           }
         }
 

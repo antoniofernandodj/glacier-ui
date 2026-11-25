@@ -12,6 +12,12 @@ auto-closing are gone with the XML spelling they served.
 
 ## Features
 
+- **The 0.169 language** — expressions in `if`, in any attribute and inside `{…}`
+  (`&&`, `||`, `!`, comparisons, `in`, `is empty`, ternary), `if`/`else if`/`else`
+  and `each … as` blocks next to the short `if =`/`each =` forms, `class:name = expr`,
+  actions with arguments and typed `prop(type = …)` are highlighted and read
+  correctly by links, F12 and the props diagnostics. The bundled reference (hover
+  on a tag) has a section on each.
 - **Syntax highlighting** for Glacier View markup:
   - Tags (primitives, builtins, and app components), attributes, `{interpolation}`
     with `{key|default}`, and hex colors.
@@ -27,13 +33,14 @@ auto-closing are gone with the XML spelling they served.
   | --- | --- |
   | `script(src = "app.luau")` | the `.luau` file |
   | `on_click="salvar"` | `function salvar()` in that `.luau`, or in the inline `script` |
-  | `onToggle="escolher_tipo:roadmap"` | `function escolher_tipo(…)` — the `nome:sufixo` convention links on the name half |
+  | `on_click = remover(@i.id)`, `on_click = salvar(true)` | `function remover(…)` — an action with arguments (glacier-ui 0.169) links on the name |
+  | `on_toggle = "escolher_tipo:roadmap"` | `function escolher_tipo(…)` — the older `nome:sufixo` form (deprecated) links on the name half |
   | `on_click="MeuComp::salvar"` | `function salvar()` — the `owner::action` convention links on the action half |
   | `on_click="clipboard:obra_pasta"` | where that context key is written (`ctx.obra_pasta = …`, `ctx.set("obra_pasta", …)`) — same for `open:`, `textarea_end:`, `textarea_top:` |
-  | `on_click="window:close"`, `style:…` | the built-in actions table in the bundled reference |
+  | `on_click="window:close"`, `window.resize("nw")`, `style:…` | the built-in actions table in the bundled reference |
   | `hidden="{sem_perguntas}"`, `{status}`, `{modelo\|padrão}` | where that context key is written |
   | `value = "user_name"`, `items = "tarefas"`, `checked = "marcado"`, `cond=…` | idem: a binding attribute names a context key |
-  | `{c.titulo}` under `for-each="…" var="c"` | the `var = "c"` that declares the loop variable |
+  | `{c.titulo}` under `each @itens as c { … }` | the `c` that declares the loop variable |
   | `on_click = "salvar"` with no `script` | the `"salvar" =>` arm of the Rust `Component::update` |
   | `on_click = "dialog:editar"` | the `dialog(name = editar)` (or component/screen) it opens |
   | `dialog(buttons = "Salvar:salvar:accept\\|Voltar:dialog:editar:neutral")` | each button's action token — the `function`, or the chained `dialog` (the label and role keyword aren't linked) |
@@ -68,17 +75,6 @@ auto-closing are gone with the XML spelling they served.
   **whole app**, not just the file that links it (see `CLAUDE.md`'s markup
   convention) — any other `.gss` file or `style` block anywhere in the
   workspace, nearest one winning when a name repeats.
-
-- **Fechamento automático de tag** — terminar uma abertura com `>` já escreve o
-  par: `column` vira `column` com o cursor no meio. Vale para
-  componentes do app também; fica de fora só o que o motor lê como folha
-  (`image`, `badge`, `radio`, …), que o markup sempre escreve com `/>`.
-  Desliga em `glacierView.autoClosingTags`.
-- **Enter entre `<tag>` e `</tag>`** quebra o par em três linhas — a de cima
-  com a abertura, o cursor numa linha própria já indentada um nível, e o
-  fechamento descendo pra outra, de volta à indentação de fora — o mesmo que o
-  VS Code já faz pra `{ | }`. Antes o Enter só descia o `</tag>` pra uma linha
-  sem indentação nenhuma, colado no cursor.
 
 - **Hover** — over anything F12 resolves (a handler, a context key, a class, a native tag), shows the
   target's first lines in place: the `function` body, the `ctx.x = …` line, the `.gss` rule, the

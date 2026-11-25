@@ -29,7 +29,7 @@ component {
 
   column {
     button(
-      class = nav_on, if = @ativo, equals = @rota, text = @rotulo,
+      class = nav_on, if = @ativo == @rota, text = @rotulo,
       on_click = @acao,
     )
 

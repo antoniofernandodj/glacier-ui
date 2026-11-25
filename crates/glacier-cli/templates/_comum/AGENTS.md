@@ -76,7 +76,7 @@ screen(title = Contador, size = "320 240") {
    chaves — `shortcut(key = ctrl+s, on_press = salvar)`.
 3. **Atributo é `nome = valor`, separados por vírgula** (a última é opcional). Um
    marcador sem valor (`else`, `component`) se escreve só pelo nome —
-   `template(else)`, `prop(component, name = linha)`. O valor é uma palavra solta
+   `text("B", else)`, `prop(component, name = linha)`. O valor é uma palavra solta
    (`on_click = somar`, `size = 12`, `color = #7F849C`) ou uma string entre aspas
    (`size = "420 340"`, `padding = "10 20"`). Entre aspas sempre que tiver
    espaço, vírgula, `(`, `)` ou `//`. Quando não cabe em 80 colunas, um atributo
@@ -84,7 +84,7 @@ screen(title = Contador, size = "320 240") {
 
    ```gv
    rangeslider(
-     start = preco_min, end = preco_max,
+     :start = preco_min, :end = preco_max,
      min = 0, max = 1000, step = 10,
    )
    ```
@@ -270,7 +270,7 @@ Três consequências que mudam como se escreve:
      `text(content = "@msg.ola")` mostra `mundo`. Vale em qualquer `@…`/`{…}`
      (`@cfg.db.host`, `{msg.x|padrão}`, `if @cfg.ativo == "true"`), desce em lista
      por **índice a partir de 0** (`@itens.0.nome`) e em objeto aninhado pelo nome;
-     dentro de um `for_each`, também (`@i.endereco.cidade`). Uma folha número ou
+     dentro de um `each`, também (`@i.endereco.cidade`). Uma folha número ou
      booleano sai como texto (`3`, `true`); um objeto ou lista sai como o JSON em
      texto; `null` ou um caminho que não existe é ausente (vale o `|padrão`). É só
      **leitura**: um campo ligado a um widget de duas vias (`:value`) precisa ser uma
@@ -339,16 +339,19 @@ button("Salvar", on_click = salvar)
 O passo 5 é o atalho que faz `textinput(:value = nome, on_change = nome)`
 funcionar sem uma linha de script: a ação tem o nome da chave, e o motor grava.
 
-**Ação com carga.** `on_click="remover:banco"` chama `remover("banco")` — o
-sufixo depois do `:` vira o primeiro argumento. É como uma linha de lista passa
-o próprio id:
+**Ação com argumentos.** `on_click = remover("banco")` chama `remover("banco")` —
+literal chega com o tipo, `@chave` chega como texto. É como uma linha de lista
+passa o próprio id:
 
 ```gv
-button("✕", for_each = itens, var = i, on_click = "remover:{i.id}")
+button("✕", each = @itens as i, on_click = remover(@i.id))
 ```
 ```lua
 function remover(id: string): ()  …  end
 ```
+
+A forma antiga `on_click = "remover:banco"` (o sufixo depois do `:` vira o
+único argumento texto) está depreciada — o `glacier fmt --migrate` reescreve.
 
 **O valor.** Um `on_change`/`on_toggle` traz o texto novo. Em Luau ele chega
 como argumento (`function nome(v: string)`) e também no global `value`; em Rust,
@@ -638,16 +641,16 @@ screen(title = Serviços, size = "720 520", min_size = "480 360") {
     /* `value` é o NOME da chave; `on_change` com o mesmo nome faz o motor
          gravar sozinho (passo 5 do ciclo de uma ação). */
     textinput(:value = busca, on_change = filtrar, placeholder = "filtrar…")
-    /* Vazio e cheio são dois ramos do mesmo condicional. `empty` testa se a
-         chave é um array JSON sem elementos. */
+    /* Vazio e cheio são dois ramos do mesmo condicional. `is empty` cobre
+         chave ausente, "" e array JSON sem elementos. */
     text("nenhum serviço encontrado", if = @visiveis is empty, class = vazio)
     scrollable(height = fill) {
       column(class = lista) {
-        row(for_each = visiveis, var = s, class = linha) {
+        row(each = @visiveis as s, class = linha) {
           text("{s.nome}", class = nome)
           space
           badge(badge_text = @s.estado)
-          button("alternar", class = btn, on_click = "alternar:{s.id}")
+          button("alternar", class = btn, on_click = alternar(@s.id))
         }
       }
     }
@@ -703,7 +706,7 @@ function filtrar(texto: string): ()
     publicar()
 end
 
--- `on_click="alternar:{s.id}"` — o sufixo vira o primeiro argumento.
+-- `on_click = alternar(@s.id)` — o id chega como argumento.
 function alternar(id: string): ()
     for _, s in servicos do
         if s.id == id then
@@ -1311,8 +1314,8 @@ parsear o valor como JSON e, se não for JSON, trata como nome de chave:
 | `columns` | `tableview`/`tableheader` (JSON de colunas **ou** especificação de trilhas) |
 
 Todo o resto que é lista (`linechart(items)`, `listview(items)`,
-`treeview(items)`, `for_each`) é **só nome de chave**. Uma lista literal no
-atributo não existe ali.
+`treeview(items)`; o laço `each` quer `@chave`) é **só nome de chave**. Uma
+lista literal no atributo não existe ali.
 
 **Uma chave que não existe, ou um JSON inválido, não dá erro:** o widget
 renderiza vazio. Semear a chave no `init` do script é o que evita isso.
@@ -1659,10 +1662,10 @@ alert("{aviso}", variant = @aviso_tipo, description = @aviso_detalhe, on_close =
 | `width` | `fill` |
 | `title_class`, `description_class` | classes dos textos de dentro |
 
-O `alert` não se esconde sozinho: o `on_close` apaga a chave do `if`. Repare no
-`not_equals = ""` — `if = @aviso` sozinho é teste **truthy**, e `"Backup
-atrasado"` não é `true`. Classes da lib para repintar: `.alert`,
-`.alert-<variante>`, `.alert-icon-<variante>`.
+O `alert` não se esconde sozinho: o `on_close` apaga a chave do `if`. O
+`if = @aviso != ""` é redundante de propósito didático — `if = @aviso` sozinho
+dá no mesmo, porque todo texto não vazio é verdadeiro. Classes da lib para
+repintar: `.alert`, `.alert-<variante>`, `.alert-icon-<variante>`.
 
 **`kbd("Ctrl+K")`** — a tecla desenhada, como uma tampinha. Uma por
 combinação; para uma por tecla, uma tag por tecla (`kbd("Ctrl") text("+")
@@ -2466,7 +2469,7 @@ tableview(:items = linhas, var = c, :sort = ordem, :value = sel, row_key = id, h
   tablecolumn(key = tamanho, sort_key = tamanho_bytes, label = TAMANHO, width = 100, align = right)
   // sem key: a coluna não ordena; o clique no botão é dele, não da linha
   tablecolumn(label = AÇÃO, width = 120, align = right) {
-    button("Remover", class = remover, on_click = "remover:{c.id}")
+    button("Remover", class = remover, on_click = remover(@c.id))
   }
   // filhos que NÃO são tablecolumn: o conteúdo de "sem linhas"
   text("Nenhum item.", class = vazio)
@@ -2496,7 +2499,7 @@ Com `height` e alguma decoração (`tablecolumn` ou uma das classes), o
 `tablecolumn` e sem as classes desenha exatamente como antes.
 
 **`tableheader(columns = "…", widths = cols)`** — o mesmo cabeçalho **sem** o
-corpo, para quem monta as linhas à mão com um `for_each`. Compartilhar a chave
+corpo, para quem monta as linhas à mão com um `each`. Compartilhar a chave
 de `widths` entre ele e as linhas é o que mantém tudo alinhado.
 
 **`treeview(:items = arvore, :open = abertos)`** — árvore expansível. O item:
@@ -2658,13 +2661,14 @@ splashscreen(show = @carregando, background = #1e1e2e) {
 }
 ```
 
-`show` é **truthy**: qualquer valor liga, e vazio, `"false"` ou `"0"` desligam.
-A forma idiomática de fechar é apagar a chave (`ctx.carregando = nil`).
+`show` é **truthy**: todo texto não vazio liga; vazio, `false`, `0`, `no`/`não`,
+`off`, `null`, `[]` e `{}` desligam. A forma idiomática de fechar é apagar a
+chave (`ctx.carregando = nil`).
 
-Este widget já falhou de um jeito que vale conhecer: o template dele testava
-`not_equals="false"`, e como o valor "desligado" é a string **vazia**, a
-condição `"" != "false"` era sempre verdadeira e o painel nunca sumia. Sempre
-que um `template(if)` for sobre visibilidade, deixe-o **sem** comparador.
+Este widget já falhou de um jeito que vale conhecer: a condição dele testava
+`!= "false"`, e como o valor "desligado" é a string **vazia**, `"" != "false"`
+era sempre verdadeiro e o painel nunca sumia. Condição de visibilidade se
+escreve truthy — `if = @carregando`, sem comparador.
 
 **`rubberband(items = caixas, :selection = marcados)`** — retângulo de seleção
 arrastado sobre uma área. Cada alvo é `{ id, x, y, w, h }` (o `id` cai para o
@@ -2993,7 +2997,7 @@ tag `Nome(…)`, e tudo o que vale para uma tag de componente vale para ele:
 | os outros atributos | as props do componente, conferidas pelo `props` dele |
 | os filhos | o conteúdo do `slot` do componente |
 | `class` / `id` | a classe e o id do uso, como numa tag comum |
-| `if`, `for_each`, … | diretivas, avaliadas antes, como em qualquer nó |
+| `if`, `each`, … | diretivas, avaliadas antes, como em qualquer nó |
 
 E três regras próprias:
 
@@ -3053,7 +3057,7 @@ mecanismo — um nome de componente tratado como dado:
   (`template("…", slot = cabecalho)` no uso) — é mais direto do que
   declarar um componente só para passá-lo por nome.
 - **As opções são duas ou três, fixas e conhecidas pelo próprio componente.** Um
-  `template(if)` / `template(else)` lê melhor. O `render` compensa quando
+  `if` / `else` de bloco lê melhor. O `render` compensa quando
   **quem usa** escolhe, ou quando o nome vem de dado.
 
 ### Diálogos não são tags
@@ -3349,11 +3353,12 @@ Exemplo completo das duas direções: `examples/onda8b_luau`.
 
 #### Largura dos campos — a armadilha de sempre
 
-O cartão do diálogo é limitado, mas os containers do corpo nascem `shrink`. Para
-um campo esticar, a **cadeia inteira** até ele precisa ser `width: fill` (um
-`fill` dentro de um pai `shrink` colapsa o campo — ver PRIMITIVAS.md). Na
-prática: `.form`, cada `.campo`/`.row` intermediário e a classe do próprio
-`textinput` todos com `width: fill`.
+O cartão do diálogo é limitado. Desde 0.169, um container intermediário **sem
+`width` declarado** com filho `fill` **enche** em vez de colapsar — mas um
+`shrink` DECLARADO no meio da cadeia ainda corta o `fill` (ver PRIMITIVAS.md).
+Na dúvida, `width: fill` em `.form`, em cada `.campo`/`.row` intermediário e na
+classe do próprio `textinput` — e `glacier test --layout`, que acusa o campo
+que ficou com área zero.
 
 ## A folha de estilo (`.gss`), por inteiro
 
@@ -3739,11 +3744,15 @@ não testado, foco e geometria não chegam ao leitor).
 
 ## Armadilhas que já custaram tempo
 
-Todas silenciosas — nenhuma dá erro:
+Todas já custaram diagnósticos errados — algumas ainda são silenciosas:
 
-- **`fill` dentro de `shrink` colapsa.** Um filho `width="fill"` só mede o
-  espaço real se **todo** ancestral até um limite determinado também for `fill`.
-  Uma `column` sem `width` é `shrink`, e mede pelo irmão mais largo.
+- **`fill` dentro de `shrink` DECLARADO colapsa.** Desde 0.169, uma
+  `column`/`row`/`container` **sem** `width` com filho `fill` **enche** — o
+  colapso silencioso de sempre (o bloco some e fica o buraco) não existe mais
+  nesse caso. A armadilha que resta é o ancestral com `width = shrink`
+  explícito: um filho `width="fill"` só mede o espaço real se **todo**
+  ancestral até um limite determinado também for `fill`. O
+  `glacier test --layout` acusa qualquer nó que ficou com área zero.
 - **`fill` dentro de `scrollable` some.** O scrollable oferece altura
   infinita; um `height="fill"` ali mede infinito e empurra o resto para fora.
   Dentro de um scrollable, altura **declarada**.
@@ -3754,18 +3763,24 @@ Todas silenciosas — nenhuma dá erro:
   descartado em silêncio.
 - **`align_x="left"` não existe.** Os valores são `start`, `center`, `end`;
   qualquer outra coisa cai no default sem aviso.
-- **Uma propriedade de `.gss` que o motor não conhece é ignorada.**
-  `border-bottom`, `margin`, `box-shadow` somem no meio de um arquivo grande. O
-  aviso vai para o terminal.
+- **Uma propriedade de `.gss` que o motor não conhece não derruba o arquivo.**
+  Ela é ignorada com aviso de `arquivo:linha` e o nome certo quando o engano é
+  hífen vs. sublinhado — e vira **erro** com `app(gss_strict = true)` ou
+  `glacier check --strict`. `border-bottom` e `margin` não existem;
+  `box_shadow` (com sublinhado) existe.
 - **Um atributo de estilo inline vence a classe.** Um `size="12"` esquecido no
   `.gv` torna `.rotulo { size: 14 }` inalcançável — e a busca começa no `.gss`,
   que é o lugar errado.
-- **Desligar uma chave é gravar vazio nela.** Por isso um `template(if)` de
-  visibilidade não leva comparador: sem ele a condição é **truthy**. Com
-  `not_equals="false"`, o vazio passa — e o painel abre e nunca fecha. Foi
-  exatamente esse o bug que deixou o `splashscreen` visível para sempre.
-- **`empty`/`not_empty` testam array JSON, não texto.** Num valor que não
-  parseia como array, `empty` é sempre verdadeiro.
+- **Desligar uma chave é gravar vazio nela.** Por isso a condição de
+  visibilidade não leva comparador: `if = @x` é **truthy** — todo texto não
+  vazio é verdadeiro, exceto `false`, `0`, `no`/`não`, `off`, `null`, `[]` e
+  `{}`. Com `if = @x != "false"`, o vazio passa — e o painel abre e nunca
+  fecha. Foi exatamente esse o bug que deixou o `splashscreen` visível para
+  sempre.
+- **`is empty` cobre ausente, `""`, `null`, `[]` e `{}`** — texto e lista
+  JSON. Os atributos antigos `empty`/`not_empty` (depreciados) testavam só
+  array JSON: num valor que não parseava como array, `empty` era sempre
+  verdadeiro.
 - **Nome de componente que já é uma tag nunca é alcançado.** O motor mapeia a
   tag antes de procurar componentes: um `component(name = popover)` é ignorado e
   `popover` vira a primitiva. Componentes do app usam `CamelCase`, e por isso não
@@ -4729,11 +4744,13 @@ passam a existir depois (o valor padrão; o erro que o `form` publica ao
 enviar). Essas se **nomeiam** no `assert_complete(tela, { "erro_nome" })`, com um
 comentário dizendo por quê — o que sobrar é a falha, e ela diz quais chaves
 sobraram e quais faltaram. Fica de fora o que o motor publica sozinho (`__*`) e
-as variáveis locais de um `for_each`. `missing()` só olha as
+as variáveis locais de um `each`. `missing()` só olha as
 chaves; o que a tela **mostra** e o estilo declarado se conferem pela árvore
-avaliada (abaixo). O que nenhum teste alcança é a **geometria real** (a largura
-que um `fill` dentro de um pai `shrink` acaba ocupando): isso só o `make run`
-mostra.
+avaliada (abaixo). O que nenhum teste alcançava era a **geometria real** (a
+largura que um `fill` dentro de um pai `shrink` acaba ocupando): desde 0.169,
+`glacier test --layout` mede o layout sem janela a cada `:render()` e acusa
+todo nó com área zero (`--strict` reprova); o desenho pixel a pixel continua
+sendo só com `make run`.
 
 **A árvore avaliada.** `assert_renders("views/app.gv")` falha com a mensagem do
 parser (arquivo e linha) se **qualquer** view importada estiver quebrada, mesmo
@@ -5035,8 +5052,8 @@ cancelar depois.
   e a coluna; um `UnknownComponent` é tag com a caixa errada.
 - Toda chave que o markup lê é escrita em algum lugar — um `{total}` que ninguém
   publica renderiza **vazio**, sem aviso.
-- Nenhum `width="fill"` dentro de um ancestral `shrink`, e nenhum
-  `height="fill"` dentro de um `scrollable`.
+- Nenhum `width="fill"` dentro de um ancestral `shrink` **declarado**, e nenhum
+  `height="fill"` dentro de um `scrollable` (`glacier test --layout` confere).
 - Toda tela que pode crescer tem `scrollable`.
 - O estilo está no `.gss`, não inline (as três exceções estão na seção de
   convenções).

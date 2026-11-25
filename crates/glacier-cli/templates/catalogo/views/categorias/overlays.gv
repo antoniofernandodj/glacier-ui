@@ -36,7 +36,7 @@ component {
           button(
             "pare o mouse aqui",
             class = btn,
-            tooltip = "este é o balão de tooltip", on_click = dizer:tooltip
+            tooltip = "este é o balão de tooltip", on_click = dizer("tooltip")
           )
 
           button(
@@ -169,7 +169,7 @@ component {
 
         column(class = coluna) {
           each @ov_tarefas as t (
-            on_reorder = dizer:reordenou, reorder_key = id,
+            on_reorder = dizer("reordenou"), reorder_key = id,
           ) {
             row(class = linha) {
               text(

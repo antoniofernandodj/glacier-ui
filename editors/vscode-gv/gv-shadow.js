@@ -96,13 +96,43 @@ class Parser {
       return { kind: "src", ...this.string() };
     }
     if (c === undefined || c === "," || c === ")") throw new Error("valor");
+    // Nu: uma palavra (`salvar`, `fill`) ou uma expressão da 0.169
+    // (`@a && !@b`, `f(@id, true)`, `@x ? "a" : "b"`, `@xs as s`). Vai até a
+    // `,` ou o `)` de fora, pulando o que está entre aspas, `(…)` e `[…]`.
     const off = this.i;
+    const end = this.exprEnd((d, depth) => depth === 0 && (d === "," || d === ")"));
+    let fim = end;
+    while (fim > off && isWs(this.s[fim - 1])) fim--;
+    this.i = fim;
+    return { kind: "src", raw: this.s.slice(off, fim), off, triple: true };
+  }
+
+  /**
+   * Avança sobre uma expressão até `stop(caractere, profundidade)` dizer que
+   * acabou, ou até o fim da linha fora de parênteses (a leitura é tolerante: um
+   * parêntese por fechar não engole o arquivo). Devolve o índice do fim.
+   */
+  exprEnd(stop) {
+    let depth = 0;
     while (this.i < this.s.length) {
       const d = this.s[this.i];
-      if (isWs(d) || d === "," || d === ")" || this.starts("//")) break;
+      if (depth === 0 && (d === "\n" || this.starts("//"))) break;
+      if (stop(d, depth)) break;
+      if (d === '"' || d === "'") {
+        const q = d;
+        this.i++;
+        while (this.i < this.s.length && this.s[this.i] !== q && this.s[this.i] !== "\n") {
+          if (this.s[this.i] === "\\") this.i++;
+          this.i++;
+        }
+        if (this.s[this.i] === q) this.i++;
+        continue;
+      }
+      if (d === "(" || d === "[") depth++;
+      else if ((d === ")" || d === "]") && depth > 0) depth--;
       this.i++;
     }
-    return { kind: "src", raw: this.s.slice(off, this.i), off, triple: true };
+    return this.i;
   }
 
   refName() {
@@ -192,6 +222,18 @@ class Parser {
         }
         continue;
       }
+      // Texto sem nome que é expressão: `text(@nome)`, `text(t("k"))`,
+      // `text(!@x ? "a" : "b")`. O motor lê como `content = expr`.
+      const call = isIdent(c) && /^[\p{L}_][\p{L}\p{N}_]*\(/u.test(this.s.slice(this.i, this.i + 40));
+      if (c === "@" || c === "!" || c === "[" || c === "(" || call) {
+        const at = this.i;
+        try {
+          node.attrs.push({ name: "content", nameOff: at, v: this.value() });
+        } catch (_) {
+          while (this.i < this.s.length && this.s[this.i] !== "\n") this.i++;
+        }
+        continue;
+      }
       if (!isIdent(c) && c !== ":") {
         // o que está sendo digitado: pula a linha e segue (um `{` ou `}` encerra)
         if (c === "{" || c === "}") return;
@@ -205,6 +247,10 @@ class Parser {
       if (bound) {
         w.text = ":" + w.text;
         w.off -= 1;
+      } else if (this.peek() === ":" && isIdent(this.peek(1))) {
+        // `class:nome = expr` (classe condicional): o `:nome` faz parte do nome.
+        this.i++;
+        w.text += ":" + this.ident().text;
       }
       this.skipWs();
       // um marcador (`else`, `component`): sem `= valor`, o mesmo que `nome=""`
@@ -296,7 +342,27 @@ class Parser {
     const node = { tag: "template", tagOff: at, attrs: [], text: null, children: [], closeOff: at };
     parent.children.push(node);
     this.skipWs();
-    node.attrs.push(...this.condition(key, at));
+    // A forma simples (`@x`, `@x == "y"`, `"a" in @x`, `@x is empty`) vira os
+    // atributos de sempre, que os provedores já sabem ligar. Qualquer outra
+    // expressão (`@a && !@b`, `len(@x) > 2`) vai crua para o `if`.
+    const start = this.i;
+    let simple = null;
+    try {
+      simple = this.condition(key, at);
+      this.skipWs();
+      if (this.peek() !== "{") simple = null;
+    } catch (_) {
+      simple = null;
+    }
+    if (simple) node.attrs.push(...simple);
+    else {
+      this.i = start;
+      const end = this.exprEnd((d, depth) => depth === 0 && d === "{");
+      let fim = end;
+      while (fim > start && isWs(this.s[fim - 1])) fim--;
+      node.attrs.push({ name: key, nameOff: at, v: { kind: "src", raw: this.s.slice(start, fim), off: start, triple: true } });
+      this.i = end;
+    }
     this.skipWs();
     if (this.peek() === "{") this.block(node);
     return node;

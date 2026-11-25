@@ -132,7 +132,7 @@
               "name": "entity.name.tag.wildcard.gss"
             },
             {
-              "match": "(:)(hover|focus|active|pressed|disabled|invalid)\\b",
+              "match": "(:)(hover|focus|active|pressed|disabled|invalid|first-child|last-child|only-child|nth-child)(?![\\w-])",
               "captures": {
                 "1": { "name": "punctuation.definition.entity.pseudo.gss" },
                 "2": { "name": "entity.other.attribute-name.pseudo-class.gss" }

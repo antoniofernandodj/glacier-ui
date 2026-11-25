@@ -30,6 +30,6 @@
 .mini   { width: 220; height: 34; }
 
 @media (max-width: 720) {
-  .kpis     { hidden: true; }
+  .kpis     { display: none; }
   .tela     { padding: 16 14; }
 }

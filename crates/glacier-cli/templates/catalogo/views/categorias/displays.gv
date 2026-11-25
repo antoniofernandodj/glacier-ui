@@ -56,8 +56,8 @@ component {
           badge(badge_text = 3, badge_bg = #F38BA8, badge_size = 11)
 
           chip(
-            :for_each = di_tags, var = tag, label = @tag, class = chip,
-            on_remove = di_tirar_tag:@tag,
+            each = @di_tags as tag, label = @tag, class = chip,
+            on_remove = di_tirar_tag(@tag),
           )
 
           avatar(initials = AF, size = 40)

@@ -25,13 +25,13 @@ component {
           )
 
           button(
-            class = btn, text = Desabilitado, on_click = dizer:nunca,
+            class = btn, text = Desabilitado, on_click = dizer("nunca"),
             disabled = true,
           )
 
           toolbutton(
             icon = "✏", text = Editar, layout = beside, tooltip = Editar,
-            on_click = dizer:toolbutton,
+            on_click = dizer("toolbutton"),
           )
 
           toolbutton(
@@ -96,9 +96,9 @@ component {
         )
 
         buttonbox(
-          accept = Salvar, on_accept = dizer:accept, reject = Cancelar,
-          on_reject = dizer:reject, destructive = Excluir,
-          on_destructive = dizer:destructive,
+          accept = Salvar, on_accept = dizer("accept"), reject = Cancelar,
+          on_reject = dizer("reject"), destructive = Excluir,
+          on_destructive = dizer("destructive"),
         )
       }
 
@@ -112,10 +112,10 @@ component {
           commandlink(
             title = "Instalação típica",
             description = "Recomendado para a maioria",
-            on_click = dizer:commandlink,
+            on_click = dizer("commandlink"),
           )
 
-          roundbutton(text = +, on_click = dizer:roundbutton, size = 44)
+          roundbutton(text = +, on_click = dizer("roundbutton"), size = 44)
 
           delaybutton(
             text = Segure, on_press = "dizer:delaybutton disparou",

@@ -33,6 +33,113 @@ screen(title = "Olá", size = "480 320") {
 - **Estilo**: `style """…"""` (GSS inline) ou `link(rel = stylesheet, href = "app.gss")`. Ver a extensão *Glacier GSS*.
 - **Cabeçalho** (obrigatório em arquivo, desde a 0.61): `screen(title = "…", size = "960 700")` (uma janela) ou `component` (o resto) como raiz, envolvendo o arquivo inteiro — um `resources` agrupando `style`/`script`/`link`/`import`, um `props` opcional e o layout depois. Ver `screen` abaixo.
 
+
+## A linguagem (0.169)
+
+A gramática inteira em um lugar; a versão longa, com o porquê de cada decisão, está em `docs/LINGUAGEM.md` do glacier-ui.
+
+### Valores e sigilos
+
+| Escrita | Significa |
+|---|---|
+| `"texto"` | texto literal, com `@x` e `{expr}` interpolados (`@@` é o `@` literal) |
+| `nome` sem aspas | identificador: classe, handler, enum (`center`, `fill`) |
+| `@x` | o valor da chave `x` |
+| `{expr}` | expressão dentro de um texto; `{x\|padrão}` quando a chave falta |
+| `:attr = chave` | **liga** o widget à chave, nos dois sentidos (passa o *nome*) |
+| valor começando por `@`, `!`, `(`, `[`, `t(`, `len(`… | expressão, em qualquer atributo (exceto `on_*` e `:attr`) |
+| `on_x = nome(args)` | ação com argumentos |
+
+### Expressões
+
+```text
+expr := cond ? a : b            (sem o ": b", falso dá "")
+      | a || b | a && b | !a
+      | a == b | a != b | a < b | a <= b | a > b | a >= b
+      | item in lista | x is empty | x is not empty
+      | @chave | "texto" | 'texto' | 12 | true | false | null | [a, b] | (expr)
+      | t(…) num(…) date(…) len(…) lower(…) upper(…) trim(…) json(…)
+```
+
+- **Falso**: ausente, `""`, `false`, `0`, `no`/`não`, `off`, `null`, `[]`, `{}`. Todo o resto é verdadeiro, inclusive um texto qualquer.
+- `==` compara texto, ou número quando os dois lados são número (`"1.0" == 1`). `<`/`>` só com número.
+- `is empty` cobre ausente, `""`, `null`, `[]` e `{}`. `in` aceita lista literal, array JSON da chave ou texto separado por vírgula/espaço.
+
+```gv
+button("Salvar", if = @sujo && !@ocupado, on_click = salvar)
+text("{@total > 9 ? '9+' : @total}", if = @total > 0)
+text("nenhum item", if = @itens is empty)
+button("Rede", class:aba--ativa = @aba == "rede", on_click = ir("rede"))
+svg(src = @maximizada ? "restaurar.svg" : "maximizar.svg")
+```
+
+### Condicional e laço — duas formas, uma semântica
+
+| | Curta (um nó) | Bloco |
+|---|---|---|
+| Condição | `button("Salvar", if = @sujo)` | `if @sujo { … } else if @x { … } else { … }` |
+| Senão de um nó | `text("B", else)` **logo depois** do irmão com `if =` | o `else` do bloco |
+| Laço | `Linha(each = @servicos as s, nome = @s.nome)` | `each @servicos as s (key = id, fallback = Vazio) { … }` |
+
+- Um `else` (curto ou de bloco) que não vem logo depois de um `if` é **erro de parse**, com a posição — nunca some calado.
+- `if =` na raiz de um componente vale.
+- `matches = @busca` (filtro por palavras, sem caixa) continua sendo atributo ao lado de um `if =`: a expressão não tem equivalente.
+
+### Classe condicional
+
+`class:nome = expr` acrescenta a classe `nome` quando a expressão é verdadeira; convive com o `class =` fixo:
+
+```gv
+button(class = nav_item, class:nav_item--active = @view in @alvo, on_click = @acao)
+```
+
+### Ações com argumentos
+
+```gv
+on_click = salvar                       // handler sem argumento
+on_click = exportar(@item.key, true)    // exportar(chave, true): literal chega com o tipo
+on_click = window.resize("nw")          // embutido (era window:resize:nw)
+```
+
+O que vem de `@chave` chega como texto. A forma antiga `on_click = "remover:{i.id}"` está depreciada.
+
+### i18n
+
+`text(t("comum.salvar"))` e `button(t("svc.nome", nome = @n), …)`, sem aspas nem chaves. Dentro de um texto composto: `"Olá, {t('saudacao')}"`.
+
+### Props com tipo
+
+```gv
+props {
+  prop(name = rotulo, type = string)
+  prop(name = ativo, type = bool, default = false)
+  prop(name = total, type = number, default = 0)
+  prop(name = itens, type = list, default = [])
+}
+```
+
+Tipos: `string`, `number`, `bool`, `list`, `object`, `action`, `component`. Literal do tipo errado no uso (`ativo = talvez`) é erro, mostrado na janela e no terminal; um valor do contexto do tipo errado avisa uma vez.
+
+### Botão ocupado automático
+
+Com `app(busy_buttons = true)`, um `button` fica desabilitado enquanto o handler do próprio `on_click` está suspenso (num `fetch`, num `dialog.confirm`…). Dois botões com o mesmo handler ficam ocupados juntos. O estado é a chave `__busy.<handler>`; `busy = false` desliga num nó e `busy = @x` troca a condição.
+
+### Formas depreciadas
+
+Continuam funcionando. O `glacier fmt --migrate` reescreve todas (inclusive os blocos ```` ```gv ```` de um `.md`); as marcadas com **aviso** também saem no terminal e no `glacier check`:
+
+| Antiga | Atual | Aviso |
+|---|---|---|
+| `if = @x, equals = y` / `not_equals` / `one_of` / `contains` / `empty` / `not_empty` | `if = @x == "y"` / `!=` / `in [..]` / `"y" in @x` / `is empty` / `is not empty` | sim |
+| `template(if = …)` / `template(else)` | `if … { … } else { … }` | sim |
+| `template(:for_each = xs, var = x)` | `each @xs as x { … }` | sim |
+| `:for_each = xs, var = x` num nó | `each = @xs as x` | sim |
+| `hidden: true` no `.gss` | `display: none` | sim |
+| `on_click = "f:{x}"` | `on_click = f(@x)` | não |
+| `text("{t('k')}")` | `text(t("k"))` | não |
+
+A tag `foreach(items, var)` e a `elseif` continuam aceitas sem aviso; a forma canônica é o `each` e o `else if`.
+
 ---
 
 ## Widgets primitivos
@@ -818,22 +925,17 @@ entre ele e o `popover`, que é ancorado de propósito (ver a seção do
 
 ## Controle de fluxo e composição
 
-### `foreach` (`for`)
-Repete o corpo por item. Atributos: `items`, `var`.
+### `each`
+Repete por item. Forma curta (um nó): `row(each = @servicos as s, class = linha)`. Bloco: `each @servicos as s { … }`, com os atributos do laço entre parênteses depois da variável — `key`/`reorder_key` (identidade do item), `fallback` (componente desenhado quando a lista é vazia) e `on_reorder` (arrastar para reordenar). Dentro do corpo, `@s.campo` lê o item, e `@itens.0.nome` desce por índice. A tag `foreach(items, var)` (`for`) continua aceita; o atributo `:for_each = x, var = v` num nó está depreciado.
 
-### `if` / `else`
-Condicional. `if` aceita `cond`, `equals`, `not_equals`, `one_of`, `contains`, `matches`, `empty`/`not_empty`.
+### `if` / `else if` / `else`
+Condição por [expressão](#expressões). Forma curta: `if = expr` em qualquer nó, e `else` (marcador) no irmão **imediatamente seguinte**. Bloco: `if expr { … } else if expr { … } else { … }`. `else` fora de posição é erro de parse.
 
-- `one_of="a b c"` (`equals_any`) — o valor da chave é **um dos** tokens do markup.
-- `contains="rede"` (`has`) — o **simétrico**: a lista está na chave (`"geral,rede"`) e o item está no markup. É o **conjunto nomeado** — várias seções de um accordion abertas, uma seleção múltipla, um filtro por tags — sem estado por instância. Separadores: vírgula, ponto-e-vírgula ou espaço, os três ao mesmo tempo; o item também interpola (`contains="{s.id}"`).
-- `matches="{busca}"` — **busca de texto**: casa quando cada palavra do valor aparece, sem diferenciar maiúsculas, em algum lugar da condição. Agulha vazia casa sempre (a lista inteira antes de alguém digitar). `text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista sem uma linha de script; é o que o `command` usa por dentro.
-- `empty` / `not_empty` (pelados) — a chave é (ou não é) um array JSON de zero elementos.
-
-### `elseif`
-Ramo intermediário entre um `if` e o `else`. Mesmos atributos de condição do `if`.
+- `matches = @busca` — **busca de texto**: ao lado de um `if =`, casa quando cada palavra do valor aparece, sem diferenciar maiúsculas, no valor da condição. Agulha vazia casa sempre. `text("{s.nome}", if = @s.nome, matches = @busca)` filtra uma lista sem uma linha de script; é o que o `command` usa por dentro.
+- Os comparadores antigos (`equals`, `not_equals`, `one_of`/`equals_any`, `contains`/`has`, `empty`/`not_empty`) ainda são aceitos, com aviso de depreciação (a tag `elseif` também é aceita, sem aviso); ver [Formas depreciadas](#formas-depreciadas).
 
 ### `template`
-Tag única que unifica repetição e condição: com `for_each`/`items` repete como `foreach`; com `if`/`equals`/`one_of`/… condiciona como `if`. Não desenha caixa nenhuma — só emite os filhos.
+Agrupa nós sem desenhar caixa: o uso que resta é `template(slot = nome) { … }`, para mandar vários nós a um slot nomeado. Como condição ou laço (`template(if = …)`, `template(:for_each = …)`) está depreciado — use o `if`/`each` de bloco.
 
 ### `slot`
 O buraco que o conteúdo escrito **entre as tags** de um componente preenche: `groupbox("…")` renderiza esse `…` onde o template do `groupbox` escreveu `slot`.
@@ -902,7 +1004,7 @@ A mesma casca do `screen` para um `.gv` que é pedaço de tela (importado por ou
 Dentro do cabeçalho, agrupa o que a tela precisa e não aparece: `style`, `script`, `link`, `import` e `component(name = "…")`. O que estiver fora dele (ainda dentro do cabeçalho) é o layout. É opcional — com uma ou duas declarações, elas podem ficar soltas dentro do cabeçalho.
 
 ### `app` — a raiz de um app com telas
-É a **raiz do arquivo** (a única tag no topo) e descreve o aplicativo; as telas são filhas dele. Atributos: `id` (obrigatório), `single_instance`, `remember_geometry`, `antialiasing` (booleanos), `toast_period` e `reload_period` (ms), `font` (a família padrão), `application_id` (Linux) e os da **janela principal** — `size`, `min_size`, `max_size`, `fixed_size`, `resizable`, `decorations`, `icon`. O `id` dá nome ao diretório de dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`), onde a geometria lembrada e o `storage` gravam e que o markup lê como `{__data_dir}`, e é a chave da instância única. Por isso só aceita letras, dígitos, `-`, `_` e `.`. Filhos: um `resources` (declarações **globais**: `link` de tema/`.gss`/dados, `component(name)`, `import`, `dialog`, `font(src, family)` — uma fonte embutida — e a `tray`) e as `screen`. `app` e `tray` **só existem na raiz**: dentro do `resources` de uma tela são erro de parse. É lido antes do boot, e o builder Rust (`.single_instance(…)`, `.storage_dir(…)`) vence o markup onde é usado.
+É a **raiz do arquivo** (a única tag no topo) e descreve o aplicativo; as telas são filhas dele. Atributos: `id` (obrigatório), `single_instance`, `remember_geometry`, `antialiasing` (booleanos), `toast_period` e `reload_period` (ms), `font` (a família padrão), `mono_font` (a família do `font: mono` do `.gss`), `busy_buttons` (o [botão ocupado automático](#botão-ocupado-automático)), `gss_strict` (propriedade desconhecida no `.gss` vira erro), `gss_color` (`legacy`, o padrão, ou `css`: `color` é sempre a cor do conteúdo), `application_id` (Linux) e os da **janela principal** — `size`, `min_size`, `max_size`, `fixed_size`, `resizable`, `decorations`, `icon`. O `id` dá nome ao diretório de dados (`$XDG_DATA_HOME/<id>`, `%APPDATA%\<id>`, `~/Library/Application Support/<id>`), onde a geometria lembrada e o `storage` gravam e que o markup lê como `{__data_dir}`, e é a chave da instância única. Por isso só aceita letras, dígitos, `-`, `_` e `.`. Filhos: um `resources` (declarações **globais**: `link` de tema/`.gss`/dados, `component(name)`, `import`, `dialog`, `font(src, family)` — uma fonte embutida — e a `tray`) e as `screen`. `app` e `tray` **só existem na raiz**: dentro do `resources` de uma tela são erro de parse. É lido antes do boot, e o builder Rust (`.single_instance(…)`, `.storage_dir(…)`) vence o markup onde é usado.
 
 Cada `screen(name = "…")` filha leva `name` (o de `navigate_to`/`open_window`), `initial` (no máximo uma; sem nenhuma vale a primeira), `title` e `src`. Inline (corpo escrito ali), por arquivo (`src="views/ajustes.gv"`, raiz `screen`/`component` de sempre) ou **sem corpo e sem `src`** — servida por um `impl Component` que o `.main` do `main.rs` registra com esse nome. `size`/`icon`/… numa `screen` sob o `app` são erro: a janela é do app, e o tamanho de uma filha vai em `open_window("tela", { size = "420 300" })`. Os nomes de componente são do app inteiro (repetir um é erro).
 
@@ -949,20 +1051,20 @@ screen(title = Serviços) {
     }
   }
   column {
-    LinhaLog(:for_each = log, var = l, hora = @l.hora, texto = @l.texto, nivel = @l.nivel)
+    LinhaLog(each = @log as l, hora = @l.hora, texto = @l.texto, nivel = @l.nivel)
   }
 }
 ```
 
 - **A casca é a mesma de um arquivo, de propósito**: `props` e depois o layout. A única diferença é o `name` — no arquivo o nome vem do `import`; aqui ele precisa ser dito. Promover a declaração a arquivo (ou o contrário) é recortar e colar.
 - **Para que serve**: a maior parte dos componentes de uma tela é pequena e só serve àquela tela. É a mesma razão de existir um `style` inline ao lado do `link(rel = stylesheet)`.
-- **Sem `script` próprio** (não há arquivo contra o qual resolver `src`/`require`): as ações escritas dentro dele caem no `update` da **tela que o declarou**. O id do item viaja dentro da ação, como no `spinbox` — `on_click="detalhar:{s.id}"`.
+- **Sem `script` próprio** (não há arquivo contra o qual resolver `src`/`require`): as ações escritas dentro dele caem no `update` da **tela que o declarou**. O id do item viaja como argumento da ação — `on_click = detalhar(@s.id)`.
 - **Mesmo espaço de nomes** que `import`/builtins/`register`, com a mesma regra: declara se o nome está livre ou se hoje ele guarda um builtin. Um componente registrado pelo app vence.
 - Componentes locais **se compõem** entre si e convivem com `import` no mesmo `resources`.
 - Na **raiz** do arquivo, `component` é o cabeçalho e não leva atributo nenhum; no `resources`, leva só o `name` — e sem ele é erro.
 
 ### `props` / `prop`
-O contrato de um `component`: quais props ele aceita. `prop(name = label)` é obrigatória; `prop(name = cor, default = #89B4FA)` é opcional e o default entra quando quem chama omite. Passar uma prop não declarada é erro (a extensão marca no editor e completa os nomes ao digitar dentro da tag). Declarar é opcional: sem `props` nada é checado. Um `props` vazio é um contrato — "não aceito prop nenhuma". Não vale num `screen`: ninguém *usa* uma janela, ela é aberta.
+O contrato de um `component`: quais props ele aceita. `prop(name = label)` é obrigatória; `prop(name = cor, default = #89B4FA)` é opcional e o default entra quando quem chama omite. `type = string | number | bool | list | object | action | component` confere o valor (ver [Props com tipo](#props-com-tipo)). Passar uma prop não declarada é erro (a extensão marca no editor e completa os nomes ao digitar dentro da tag). Declarar é opcional: sem `props` nada é checado. Um `props` vazio é um contrato — "não aceito prop nenhuma". Não vale num `screen`: ninguém *usa* uma janela, ela é aberta.
 
 O cabeçalho não desenha nada, então engano ali vira **erro de parse** (com linha/coluna) em vez de silêncio: arquivo sem cabeçalho, cabeçalho que não envolve o arquivo inteiro (irmão do layout ou aninhado nele), atributo desconhecido, `size`/`min_size` que não seja par de números, `resizable` não booleano, widget dentro do `resources`, `resources`/`props` fora de um cabeçalho, `prop` sem `name` ou repetido.
 
@@ -1279,8 +1381,8 @@ listview(:items = servicos, :value = marcados, selected = @marcados, mode = mult
 
 | `mode` | a chave guarda | o destaque testa |
 | --- | --- | --- |
-| `single` (default) | um id (`"api"`) | `equals` |
-| `multi` | um **conjunto** (`"api,db"`) | `contains` |
+| `single` (default) | um id (`"api"`) | `@id == @valor` |
+| `multi` | um **conjunto** (`"api,db"`) | `@id in @valor` |
 
 Props: `items` (chave com o array de `{id, label, sub?}`), `value` (nome da chave), `selected` (valor atual), `mode`, `height` (default `240`), `width`, `spacing`, `padding`, `size`, `virtualize` (altura declarada da linha, para listas longas).
 
@@ -1331,7 +1433,7 @@ A fileira de abas — o `QTabBar`. Só a **barra**; para a barra **mais a págin
 
 ```gv
 tabbar(:value = aba, active = @aba, :items = abas)
-template("…", if = @aba, equals = geral)
+if @aba == "geral" { … }
 ```
 
 | prop | default | o que faz |
@@ -2125,7 +2227,7 @@ descrição (`slot`).
 
 ```gv
 alert("Backup atrasado", variant = warning, description = "O último rodou há 3 dias.")
-alert("{aviso}", variant = @aviso_tipo, on_close = fechar_aviso, if = @aviso, not_equals = "") {
+alert("{aviso}", variant = @aviso_tipo, on_close = fechar_aviso, if = @aviso) {
   button("Ver logs", on_click = ver_logs)
 }
 ```
@@ -2217,7 +2319,7 @@ form(on_submit = salvar) {
 | `label_class` / `description_class` / `error_class` | — | classes de dentro |
 
 O erro do `form` vem em `erro_<form_control>` (o `error_prefix` padrão é `erro_`,
-não `error_`) e é string: `error = @erro_nome` basta, sem `if`/`not_empty`.
+não `error_`) e é string: `error = @erro_nome` basta, sem `if`.
 
 `template(slot = aside)` põe algo à direita do rótulo. Classes da lib:
 `.field-label`, `.field-required`, `.field-description`, `.field-error`.
