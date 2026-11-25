@@ -8,7 +8,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
-## glacier-ui 0.169.0 — não publicado
+## glacier-cli 0.29.0 — 2026-11-25
+
+- Os presets (`glacier new`) saem na linguagem 0.169 e pedem `glacier-ui = "0.169"`; o
+  `AGENTS.md` deles foi reescrito para ela.
+- Extensões embutidas: Glacier View 0.33.0 e Glacier GSS 0.4.0 (ver abaixo).
+- O `.vsix` montado pela CLI volta a ter um `[Content_Types].xml` válido.
+
+## glacier-ui 0.169.0 — 2026-11-25
 
 A linguagem do `.gv` e do `.gss` (`docs/PLANO_LINGUAGEM_GV_GSS.md`; referência em
 `docs/LINGUAGEM.md`).
