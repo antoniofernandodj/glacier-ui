@@ -826,6 +826,46 @@ fn carregar(
     })
 }
 
+/// `glacier test --layout`: a variável de ambiente com o tamanho da janela.
+pub const ENV_LAYOUT: &str = "GLACIER_TEST_LAYOUT";
+/// `glacier test --layout --strict`: um nó colapsado reprova o teste.
+pub const ENV_LAYOUT_STRICT: &str = "GLACIER_TEST_LAYOUT_STRICT";
+
+/// Com `GLACIER_TEST_LAYOUT=LxA` (o `glacier test --layout`), faz o layout da
+/// tela sem janela a cada `:render()` e avisa de todo nó que ficou com largura
+/// ou altura zero tendo conteúdo — o defeito que avaliar a árvore não mostra.
+/// Com `GLACIER_TEST_LAYOUT_STRICT=1`, o aviso reprova o teste.
+fn verificar_layout(c: &mut Carregada, path: &str, viewport: Option<(f32, f32)>) -> mlua::Result<()> {
+    let Ok(spec) = std::env::var(ENV_LAYOUT) else {
+        return Ok(());
+    };
+    let (l, a) = viewport.unwrap_or_else(|| tamanho_de(&spec).unwrap_or((1280.0, 820.0)));
+    let colapsos = c
+        .ui
+        .layout_collapses(&c.name, iced::Size::new(l, a))
+        .map_err(|e| mlua::Error::runtime(e.to_string()))?;
+    if colapsos.is_empty() {
+        return Ok(());
+    }
+    let linhas: Vec<String> = colapsos.iter().map(|x| format!("  {x}")).collect();
+    let msg = format!(
+        "layout de {path} em {l}×{a}: {} nó(s) sem área\n{}\n  dica: um contêiner que agrupa controles leva `width = fill`; ver PRIMITIVAS.md, \"A armadilha do `Length::Fill`\"",
+        colapsos.len(),
+        linhas.join("\n")
+    );
+    if std::env::var(ENV_LAYOUT_STRICT).is_ok_and(|v| v == "1") {
+        return Err(mlua::Error::runtime(msg));
+    }
+    eprintln!("aviso: {msg}");
+    Ok(())
+}
+
+/// `"1280x820"` → `(1280.0, 820.0)`.
+fn tamanho_de(spec: &str) -> Option<(f32, f32)> {
+    let (l, a) = spec.split_once(['x', 'X', '×'])?;
+    Some((l.trim().parse().ok()?, a.trim().parse().ok()?))
+}
+
 /// Carrega, avalia e entrega a árvore avaliada a `f`.
 fn com_arvore<R>(
     path: &str,
@@ -835,6 +875,7 @@ fn com_arvore<R>(
 ) -> mlua::Result<R> {
     let rt = |e: crate::GlacierError| mlua::Error::runtime(e.to_string());
     let mut c = carregar(path, data, viewport).map_err(rt)?;
+    verificar_layout(&mut c, path, viewport)?;
     crate::eval::manter_identidade(|| c.ui.evaluate_into_cache(&c.name)).map_err(rt)?;
     let raiz = c
         .ui

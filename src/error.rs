@@ -241,6 +241,17 @@ pub enum GlacierError {
         prop: String,
         value: String,
     },
+    /// A avaliação da tela falhou (o erro guardado pelo `reevaluate_all`): é o
+    /// que o `render` devolve no lugar de `NotEvaluated`, com a causa.
+    EvaluationFailed { component: String, message: String },
+    /// Uma prop com `type =` recebeu, escrito no markup (literal), um valor de
+    /// outro tipo: `ativo = "talvez"` numa prop `bool`.
+    PropType {
+        component: String,
+        prop: String,
+        tipo: &'static str,
+        value: String,
+    },
 }
 
 impl fmt::Display for GlacierError {
@@ -321,6 +332,19 @@ impl fmt::Display for GlacierError {
                 } else {
                     value.clone()
                 }
+            ),
+            Self::EvaluationFailed { component, message } => {
+                write!(f, "a tela '{component}' não pôde ser avaliada: {message}")
+            }
+            Self::PropType {
+                component,
+                prop,
+                tipo,
+                value,
+            } => write!(
+                f,
+                "a prop '{prop}' de '{component}' é do tipo {tipo}, e recebeu '{value}' \
+                 (confira o valor no uso, ou o type do prop)"
             ),
             Self::NotAComponent {
                 component,

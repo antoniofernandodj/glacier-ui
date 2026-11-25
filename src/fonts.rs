@@ -75,6 +75,34 @@ pub fn register_family(nome: &str) -> Font {
     font
 }
 
+/// A fonte padrão do app (`app(font = …)` ou `GlacierDaemon::default_font`).
+/// O negrito parte dela: `bold: true` muda só o **peso**, nunca a família.
+static PADRAO: RwLock<Option<Font>> = RwLock::new(None);
+/// A mono do app (`app(mono_font = …)`): o que `font: mono` resolve. Sem ela,
+/// `mono` continua sendo a mono do sistema (`Font::MONOSPACE`).
+static MONO: RwLock<Option<Font>> = RwLock::new(None);
+
+/// Define a fonte padrão — chamado pelo daemon no boot, junto do
+/// `default_font` do iced, para o motor saber de que família o negrito parte.
+pub fn set_default(font: Font) {
+    *PADRAO.write().unwrap_or_else(|e| e.into_inner()) = Some(font);
+}
+
+/// A fonte padrão do app, ou a do iced (`Font::DEFAULT`) se ninguém definiu.
+pub fn default_font() -> Font {
+    PADRAO.read().unwrap_or_else(|e| e.into_inner()).unwrap_or(Font::DEFAULT)
+}
+
+/// Define a mono do app — o alvo de `font: mono` / `font = mono`.
+pub fn set_mono(font: Font) {
+    *MONO.write().unwrap_or_else(|e| e.into_inner()) = Some(font);
+}
+
+/// A mono do app, ou a do sistema (`Font::MONOSPACE`) se ninguém definiu.
+pub fn mono_font() -> Font {
+    MONO.read().unwrap_or_else(|e| e.into_inner()).unwrap_or(Font::MONOSPACE)
+}
+
 /// Resolve um `font="..."`/`font-family` contra o registro, **sem diferenciar
 /// caixa**.
 ///

@@ -1857,6 +1857,8 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "iced",
+ "iced_runtime",
+ "iced_tiny_skia",
  "iced_winit",
  "image",
  "include_dir",

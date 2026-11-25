@@ -83,6 +83,38 @@ pub fn desugar_literal(src: &str) -> std::result::Result<String, Diagnostic> {
 /// (`value = chave`), que é como os `.gv` eram escritos antes da marca. Existe
 /// para as ferramentas de migração; o motor usa sempre [`desugar`].
 #[allow(clippy::result_large_err)] // ver `desugar`
+/// [`desugar`] de um arquivo: o mesmo resultado, e as formas depreciadas que ele
+/// usa avisadas no `stderr` — uma linha por forma, com a primeira ocorrência e
+/// quantas mais há no arquivo (o `glacier fmt --migrate` reescreve todas).
+pub fn desugar_em(src: &str, file: &str) -> std::result::Result<String, Diagnostic> {
+    let mut p = Parser::new(src);
+    let nodes = p.file().map_err(|e| e.into_diagnostic())?;
+    let mut out = Out::default();
+    for n in &nodes {
+        out.node(n);
+    }
+    let mut vistas: Vec<(&'static str, u32, &'static str, usize)> = Vec::new();
+    for (linha, forma, msg) in &p.avisos {
+        match vistas.iter_mut().find(|v| v.0 == *forma) {
+            Some(v) => v.3 += 1,
+            None => vistas.push((forma, *linha, msg, 0)),
+        }
+    }
+    for (_, linha, msg, mais) in vistas {
+        let resto = if mais > 0 { format!(" (e mais {mais} neste arquivo)") } else { String::new() };
+        eprintln!("glacier-ui: {file}:{linha}: {msg}{resto} — `glacier fmt --migrate` reescreve");
+    }
+    Ok(out.buf)
+}
+
+/// As formas depreciadas de um `.gv`: (linha, mensagem), na ordem do arquivo. É o
+/// que o `glacier check` lista.
+pub fn formas_depreciadas(src: &str) -> std::result::Result<Vec<(u32, &'static str)>, Diagnostic> {
+    let mut p = Parser::new(src);
+    p.file().map_err(|e| e.into_diagnostic())?;
+    Ok(p.avisos.into_iter().map(|(l, _, m)| (l, m)).collect())
+}
+
 pub fn desugar_with(src: &str, strict: bool) -> std::result::Result<String, Diagnostic> {
     let mut p = Parser::new(src);
     p.strict = strict;
@@ -98,7 +130,10 @@ impl UiNode {
     /// O mesmo que [`UiNode::parse_xml_in`], para um `.gv`: dessugara e
     /// entrega ao parser de XML, citando o `.gv` (não o XML gerado) nos erros.
     pub fn parse_gv_in(src: &str, file: Option<&str>) -> Result<Self> {
-        let xml = match desugar(src) {
+        let xml = match match file {
+            Some(f) => desugar_em(src, f),
+            None => desugar(src),
+        } {
             Ok(x) => x,
             Err(d) => {
                 let d = match file {
@@ -175,6 +210,12 @@ struct Parser {
     /// Não interpola: `@nome` fica como está. Para um `.gv` que vem de **dado**
     /// (ver [`desugar_literal`]), onde um `@` é o de um e-mail, não uma ligação.
     literal: bool,
+    /// As formas depreciadas encontradas: (linha, chave da forma, mensagem).
+    /// [`desugar_em`] as imprime, uma por forma e por arquivo.
+    avisos: Vec<(u32, &'static str, &'static str)>,
+    /// As linhas em que um `:for_each` foi GERADO pelo `each = @x as v` — a forma
+    /// nova, que não pode ser avisada como a antiga que ela produz.
+    for_each_gerado: Vec<u32>,
 }
 
 /// O que pode vir dentro de um bloco: um filho — ou uma cadeia
@@ -191,6 +232,8 @@ impl Parser {
             strict: true,
             open: Vec::new(),
             literal: false,
+            avisos: Vec::new(),
+            for_each_gerado: Vec::new(),
         }
     }
 
@@ -311,7 +354,10 @@ impl Parser {
         loop {
             self.skip_ws()?;
             match self.peek() {
-                None => return Ok(out),
+                None => {
+                    check_else_positions(&out)?;
+                    return Ok(out);
+                }
                 Some('}') => return self.err("`}` sem um `{` que o abra"),
                 _ => {}
             }
@@ -338,6 +384,7 @@ impl Parser {
                 Some('}') => {
                     let end = self.line;
                     self.bump();
+                    check_else_positions(&children)?;
                     return Ok((children, end));
                 }
                 Some('"') => {
@@ -375,6 +422,8 @@ impl Parser {
                     return Ok((attrs, end));
                 }
                 Some(c) if Self::is_ident(c) || c == ':' || c == '"' => {}
+                // Expressão sem nome, primeira da lista: `text(@max ? "a" : "b")`.
+                Some('@' | '!' | '(' | '[') if attrs.is_empty() && posicional(tag).is_some() => {}
                 Some(c) => {
                     return self.err_hint(
                         format!("não esperava `{c}` na lista de atributos"),
@@ -383,6 +432,41 @@ impl Parser {
                 }
             }
             let line = self.line;
+            // Expressão sem nome, **primeira** da lista: `text(@a ? "x" : "y")`,
+            // `button(t("comum.salvar"), …)`. Vale como o texto da tag (`content`
+            // num `text`, `text` num `button`), como a string sem nome abaixo.
+            let funcao_posicional = attrs.is_empty()
+                && crate::expr::FUNCOES.iter().any(|f| {
+                    self.starts_with(f) && self.peek_at(f.chars().count()) == Some('(')
+                });
+            if let Some(nome) = posicional(tag)
+                && attrs.is_empty()
+                && (matches!(self.peek(), Some('@' | '!' | '(' | '[')) || funcao_posicional)
+            {
+                let value = match self.expression_value(nome)? {
+                    Some(v) => v,
+                    None => self.value()?,
+                };
+                attrs.push(Attr {
+                    name: nome.to_string(),
+                    value,
+                    line,
+                });
+                self.skip_ws()?;
+                match self.peek() {
+                    Some(',') => {
+                        self.bump();
+                    }
+                    Some(')') => {}
+                    _ => {
+                        return self.err_hint(
+                            "esperava `,` ou `)` depois do texto",
+                            "os demais atributos vêm depois de uma vírgula: `text(@a ? \"x\" : \"y\", class = c)`",
+                        );
+                    }
+                }
+                continue;
+            }
             // Texto sem nome, **primeiro** da lista: `b("negrito")`,
             // `a("o site", href = "…")`. Vale como `content` nas tags de texto
             // (ver `posicional`); é o que `content = "…"` diria, mais curto.
@@ -426,6 +510,83 @@ impl Parser {
                 self.bump();
             }
             let name = self.ident();
+            // `class:nome = expr` — a classe condicional: `nome` entra na lista
+            // de classes quando a expressão é verdadeira. Juntada ao `class` no
+            // fim do elemento (ver `merge_class_directives`).
+            if !bind && name == "class" && self.peek() == Some(':') {
+                self.bump();
+                let classe = self.ident();
+                if classe.is_empty() {
+                    return self.err_hint(
+                        "esperava o nome da classe depois de `class:`",
+                        "class:nav-item--active = @view == @target",
+                    );
+                }
+                self.skip_ws()?;
+                if self.peek() != Some('=') {
+                    return self.err_hint(
+                        format!("esperava `=` depois de `class:{classe}`"),
+                        "a classe condicional leva a condição: `class:nome = @expr`",
+                    );
+                }
+                self.bump();
+                self.skip_ws()?;
+                let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+                let raw = self.expression_source(&[',', ')'])?;
+                let src = raw.trim().to_string();
+                if let Err(e) = crate::expr::parse(&src) {
+                    return Err(Error {
+                        line: l0,
+                        col: c0 + e.pos as u32,
+                        msg: format!("condição inválida em `class:{classe}`: {}", e.msg),
+                        hint: Some("class:nome = @a && !@b"),
+                    });
+                }
+                attrs.push(Attr {
+                    name: format!("class:{classe}"),
+                    value: src,
+                    line,
+                });
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
+            // `each = @lista as v` — o laço na forma curta, num nó só (o par do
+            // bloco `each @lista as v { … }`). Vira o `:for_each`/`var` de sempre.
+            if !bind && name == "each" {
+                self.skip_ws()?;
+                if self.peek() != Some('=') {
+                    return self.err_hint("esperava `=` depois de `each`", "each = @lista as item");
+                }
+                self.bump();
+                self.skip_ws()?;
+                let lista = match self.operand()? {
+                    Operand::Ref(n) => n,
+                    Operand::Lit => {
+                        return self.err_hint("`each =` quer uma `@lista`", "PickerRow(each = @servicos as s, title = @s.name)");
+                    }
+                };
+                self.skip_ws()?;
+                if !self.word_is("as") {
+                    return self.err_hint("esperava `as` depois da lista", "each = @lista as item");
+                }
+                self.ident();
+                self.skip_ws()?;
+                let var = self.ident();
+                if var.is_empty() {
+                    return self.err("esperava o nome da variável depois do `as`");
+                }
+                self.for_each_gerado.push(line);
+                attrs.push(Attr { name: ":for_each".into(), value: lista, line });
+                attrs.push(Attr { name: "var".into(), value: var, line });
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
             let name = if bind { format!(":{name}") } else { name };
             self.skip_ws()?;
             // Um atributo sem `= valor` é um marcador (`else`, `component`): o
@@ -449,7 +610,14 @@ impl Parser {
             }
             self.bump();
             self.skip_ws()?;
-            let value = self.value()?;
+            let value = if let Some(v) = self.action_call(&name)? {
+                v
+            } else {
+                match self.expression_value(&name)? {
+                    Some(v) => v,
+                    None => self.value()?,
+                }
+            };
             attrs.push(Attr { name, value, line });
             self.skip_ws()?;
             match self.peek() {
@@ -533,7 +701,8 @@ impl Parser {
         self.skip_ws()?;
         if self.peek() == Some('(') {
             let (attrs, end) = self.attrs(&node.tag)?;
-            node.attrs = attrs;
+            node.attrs = merge_class_directives(attrs);
+            self.avisa_formas_antigas(&node);
             node.end_line = end;
             // `content` duas vezes (sem nome e com nome) é engano, não escolha.
             if node.attrs.iter().filter(|a| a.name == "content").count() > 1 {
@@ -580,6 +749,51 @@ impl Parser {
         }
 
         Ok(node)
+    }
+
+    /// Anota as formas que o plano da linguagem deprecia (Fase 4): cada uma tem
+    /// a forma nova equivalente, e o `glacier fmt --migrate` reescreve.
+    fn avisa_formas_antigas(&mut self, node: &Node) {
+        let gerados = &self.for_each_gerado;
+        let tem = |n: &str| {
+            node.attrs
+                .iter()
+                .any(|a| a.name == n && !(n == ":for_each" && gerados.contains(&a.line)))
+        };
+        let condicional = tem("if") || tem("else_if") || tem("else-if");
+        if node.tag == "template" && (condicional || tem("else")) {
+            self.avisos.push((
+                node.line,
+                "template-if",
+                "`template(if = …)` está depreciado — use o bloco `if cond { … } else { … }`",
+            ));
+        }
+        if node.tag == "template" && tem(":for_each") {
+            self.avisos.push((
+                node.line,
+                "template-for-each",
+                "`template(:for_each = x, var = v)` está depreciado — use o bloco `each @x as v { … }`",
+            ));
+        } else if tem(":for_each") {
+            self.avisos.push((
+                node.line,
+                "for-each-no",
+                "`:for_each = x, var = v` está depreciado — use `each = @x as v`",
+            ));
+        }
+        // `matches` (busca por palavras, sem caixa) não tem equivalente na
+        // linguagem de expressão: continua sendo a forma, e não é avisado.
+        const COMPARADORES: &[&str] = &[
+            "equals", "eq", "not_equals", "ne", "one_of", "equals_any", "contains", "has", "empty",
+            "not_empty",
+        ];
+        if condicional && node.attrs.iter().any(|a| COMPARADORES.contains(&a.name.as_str())) {
+            self.avisos.push((
+                node.line,
+                "comparador",
+                "`if = @x, equals = y` (e not_equals, one_of, contains, empty) está depreciado — use a expressão: `if = @x == \"y\"`, `if = @x in [\"a\", \"b\"]`, `if = @lista is empty`",
+            ));
+        }
     }
 
     /// Uma ligação (ver [`crate::bindings`]) tem de levar o `:`: sem ele, `value =
@@ -661,7 +875,6 @@ impl Parser {
     fn branch(&mut self, key: &str, line: u32) -> Res<Node> {
         self.skip_ws()?;
         let attrs = self.condition(key, line)?;
-        self.skip_ws()?;
         if self.peek() != Some('{') {
             return self.err("esperava `{` depois da condição");
         }
@@ -676,68 +889,182 @@ impl Parser {
         })
     }
 
-    /// `COND` da regra 8, já traduzida para os atributos do `template`.
+    /// `COND` de um `if`/`else if`: uma **expressão** (`src/expr.rs`) — `@a && !@b`,
+    /// `@n > 80`, `@tipo in ["int", "double"]`, `@lista is empty`. Vai até o `{`
+    /// que abre o bloco (fora de aspas, parênteses e colchetes; a condição pode
+    /// quebrar linha) e vira o atributo `key = "{expr}"`, que o `process_tpl`
+    /// avalia. Um erro de sintaxe é erro de parse, apontado na coluna certa.
     /// `key` é `if` ou `else_if`.
     fn condition(&mut self, key: &str, line: u32) -> Res<Vec<Attr>> {
-        let at = |name: &str, value: String| Attr {
-            name: name.into(),
-            value,
+        let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+        let raw = self.expression_source(&['{'])?;
+        let src = raw.trim();
+        if src.is_empty() {
+            return self.err_hint(
+                "esperava a condição do `if`",
+                "if @aba == \"x\" { … }  ·  if @a && !@b { … }  ·  if @lista is empty { … }",
+            );
+        }
+        if let Err(e) = crate::expr::parse(src) {
+            return Err(Error {
+                line: l0,
+                col: c0 + e.pos as u32,
+                msg: format!("condição inválida: {}", e.msg),
+                hint: Some(
+                    "a condição é uma expressão: `@a && !@b`, `@n > 80`, `@x == \"y\"`, `@t in [\"a\", \"b\"]`, `@lista is empty`",
+                ),
+            });
+        }
+        Ok(vec![Attr {
+            name: key.into(),
+            value: format!("{{{src}}}"),
             line,
-        };
-        let first = self.operand()?;
-        self.skip_inline();
-
-        // `"api" in @marcados`
-        if self.word_is("in") {
-            self.ident();
-            self.skip_inline();
-            let target = self.operand()?;
-            return Ok(vec![
-                at(key, target.as_ref_value(self)?),
-                at("contains", first.literal()),
-            ]);
-        }
-        // `@x is empty`
-        if self.word_is("is") {
-            self.ident();
-            self.skip_inline();
-            if !self.word_is("empty") {
-                return self.err("depois de `is` só existe `empty`");
-            }
-            self.ident();
-            return Ok(vec![
-                at(key, first.as_ref_value(self)?),
-                at("empty", "true".into()),
-            ]);
-        }
-        // `@x == v`, `@x != v`
-        let op = if self.starts_with("==") {
-            Some("equals")
-        } else if self.starts_with("!=") {
-            Some("not_equals")
-        } else {
-            None
-        };
-        if let Some(op) = op {
-            self.bump();
-            self.bump();
-            self.skip_inline();
-            let rhs = self.operand()?;
-            return Ok(vec![
-                at(key, first.as_ref_value(self)?),
-                at(op, rhs.literal()),
-            ]);
-        }
-        // `@x` — truthy
-        Ok(vec![at(key, first.as_ref_value(self)?)])
+        }])
     }
 
-    /// Espaço sem quebra de linha — a condição acaba no `{`, mas o `{` pode
-    /// estar na linha de baixo, então só o espaço entre operadores é "inline".
-    fn skip_inline(&mut self) {
-        while matches!(self.peek(), Some(' ' | '\t')) {
+    /// O texto-fonte de uma expressão, até o primeiro caractere de `fim` fora de
+    /// aspas, parênteses e colchetes (sem consumi-lo). Comentários `//` e `/* */`
+    /// no meio saem; a quebra de linha vira espaço.
+    fn expression_source(&mut self, fim: &[char]) -> Res<String> {
+        let mut raw = String::new();
+        let mut prof = 0i32;
+        let mut aspas: Option<char> = None;
+        loop {
+            let Some(c) = self.peek() else {
+                return self.err("a expressão acabou no fim do arquivo");
+            };
+            if let Some(q) = aspas {
+                if c == '\\' {
+                    raw.push(c);
+                    self.bump();
+                    if let Some(n) = self.bump() {
+                        raw.push(n);
+                    }
+                    continue;
+                }
+                if c == q {
+                    aspas = None;
+                }
+                raw.push(c);
+                self.bump();
+                continue;
+            }
+            if prof == 0 && fim.contains(&c) {
+                return Ok(raw);
+            }
+            if self.starts_with("//") || self.starts_with("/*") {
+                self.skip_ws()?;
+                raw.push(' ');
+                continue;
+            }
+            match c {
+                '"' | '\'' => aspas = Some(c),
+                '(' | '[' => prof += 1,
+                ')' | ']' => prof -= 1,
+                _ => {}
+            }
+            raw.push(if c == '\n' { ' ' } else { c });
             self.bump();
         }
+    }
+
+    /// Uma **ação com argumentos**: `nome(arg, arg)`, cada argumento uma
+    /// expressão. Vira a string de ação `nome({json(arg, arg)})`, que o motor
+    /// avalia como qualquer texto do template (`nome(["x",true])`) e o despacho
+    /// Luau desfaz em argumentos separados, com o tipo do JSON. `a.b(x)` é a
+    /// forma de chamada dos handlers embutidos com prefixo (`window.resize("nw")`)
+    /// e vira a forma antiga deles, `a:b:x`.
+    ///
+    /// Só quando o nome não é uma função da linguagem de expressão (`t(…)`,
+    /// `len(…)` são valores, não ações).
+    fn action_call(&mut self, name: &str) -> Res<Option<String>> {
+        if self.literal || name.starts_with(':') {
+            return Ok(None);
+        }
+        let m = self.mark();
+        let mut nome = String::new();
+        while let Some(c) = self.peek() {
+            if c.is_alphanumeric() || c == '_' || c == '.' {
+                nome.push(c);
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        let valido = !nome.is_empty()
+            && !nome.starts_with('.')
+            && !nome.ends_with('.')
+            && !nome.chars().next().is_some_and(|c| c.is_ascii_digit())
+            && !crate::expr::FUNCOES.contains(&nome.as_str());
+        if !valido || self.peek() != Some('(') {
+            self.reset(m);
+            return Ok(None);
+        }
+        let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+        self.bump(); // `(`
+        let raw = self.expression_source(&[')'])?;
+        self.bump(); // `)`
+        let args = split_args(&raw);
+        for a in &args {
+            if let Err(e) = crate::expr::parse(a) {
+                return Err(Error {
+                    line: l0,
+                    col: c0,
+                    msg: format!("argumento inválido em `{nome}(…)`: `{a}`: {}", e.msg),
+                    hint: Some(
+                        "cada argumento da ação é uma expressão: `salvar(@item.id, true)`, `abrir(\"logs\")`",
+                    ),
+                });
+            }
+        }
+        if nome.contains('.') {
+            let mut out = nome.replace('.', ":");
+            for a in &args {
+                out.push(':');
+                out.push_str(&format!("{{{a}}}"));
+            }
+            return Ok(Some(out));
+        }
+        Ok(Some(format!("{nome}({{json({})}})", args.join(", "))))
+    }
+
+    /// O valor de um atributo quando ele é uma **expressão**: começa por `@`, `!`,
+    /// `(`, `[` ou por uma função da linguagem (`t(`, `len(`…) e não é só uma
+    /// `@chave` — que continua pelo caminho de sempre (`@x` → `{x}`). Devolve
+    /// `{expr}` (avaliado pelo `process_tpl`), ou `None` para o valor comum.
+    ///
+    /// Ações (`on_*`) e ligações (`:nome`) ficam de fora: o valor delas é um nome
+    /// de handler ou de chave, não um dado.
+    fn expression_value(&mut self, name: &str) -> Res<Option<String>> {
+        if self.literal || name.starts_with(':') || name.starts_with("on_") {
+            return Ok(None);
+        }
+        let comeca_funcao = crate::expr::FUNCOES.iter().any(|f| {
+            self.starts_with(f) && self.peek_at(f.chars().count()) == Some('(')
+        });
+        if !matches!(self.peek(), Some('@' | '!' | '(' | '[')) && !comeca_funcao {
+            return Ok(None);
+        }
+        let m = self.mark();
+        let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+        let raw = self.expression_source(&[',', ')'])?;
+        let src = raw.trim();
+        // Só `@chave` (ou `@{chave}`): o valor comum, que já sabe interpolar.
+        if crate::expr::eh_caminho(src) || src.starts_with("@{") {
+            self.reset(m);
+            return Ok(None);
+        }
+        if let Err(e) = crate::expr::parse(src) {
+            return Err(Error {
+                line: l0,
+                col: c0 + e.pos as u32,
+                msg: format!("expressão inválida em `{name}`: {}", e.msg),
+                hint: Some(
+                    "um valor que começa com `@`, `!`, `(` ou `[` é uma expressão (`@a && !@b`, `@n > 0 ? \"x\" : \"y\"`); texto vai entre aspas",
+                ),
+            });
+        }
+        Ok(Some(format!("{{{src}}}")))
     }
 
     fn word_is(&self, w: &str) -> bool {
@@ -764,8 +1091,14 @@ impl Parser {
                 }
                 Ok(Operand::Ref(name))
             }
-            Some('"') => Ok(Operand::Lit(self.string(false)?.0)),
-            Some(c) if Self::is_ident(c) => Ok(Operand::Lit(self.ident())),
+            Some('"') => {
+                self.string(false)?;
+                Ok(Operand::Lit)
+            }
+            Some(c) if Self::is_ident(c) => {
+                self.ident();
+                Ok(Operand::Lit)
+            }
             _ => self.err("esperava `@chave`, uma string ou um nome"),
         }
     }
@@ -797,7 +1130,7 @@ impl Parser {
         self.skip_ws()?;
         let items = match self.operand()? {
             Operand::Ref(n) => n,
-            Operand::Lit(_) => {
+            Operand::Lit => {
                 return self.err_hint("`each` quer uma `@lista`", "each @servicos as s { … }");
             }
         };
@@ -817,6 +1150,13 @@ impl Parser {
         let mut body_attrs = Vec::new();
         if self.peek() == Some('(') {
             body_attrs = self.attrs("")?.0;
+            // `key = id`: a identidade estável do item — hoje, a chave do arrasto
+            // (`reorder_key`), que é onde o motor usa identidade por item.
+            for a in &mut body_attrs {
+                if a.name == "key" {
+                    a.name = "reorder_key".into();
+                }
+            }
             self.skip_ws()?;
         }
         if self.peek() != Some('{') {
@@ -926,31 +1266,112 @@ impl Parser {
     }
 }
 
+/// O que pode vir no lugar da lista de um `each`: uma `@chave` ou um literal
+/// (que é erro).
 enum Operand {
     Ref(String),
-    Lit(String),
+    Lit,
 }
 
-impl Operand {
-    /// O lado que é uma chave: vira `{nome}`.
-    fn as_ref_value(&self, p: &Parser) -> Res<String> {
-        match self {
-            Operand::Ref(n) => Ok(format!("{{{n}}}")),
-            Operand::Lit(_) => p.err_hint(
-                "o lado esquerdo da condição tem de ser uma `@chave`",
-                "if @aba == \"x\"  ·  if \"x\" in @lista  ·  if @lista is empty",
-            ),
-        }
-    }
 
-    /// O lado que é um valor. Uma `@chave` aqui é dado (`{nome}`), como num
-    /// atributo.
-    fn literal(&self) -> String {
-        match self {
-            Operand::Lit(s) => s.clone(),
-            Operand::Ref(n) => format!("{{{n}}}"),
+/// Os argumentos de uma chamada, pela vírgula de fora de aspas, parênteses e
+/// colchetes. Vazio → nenhum argumento.
+fn split_args(raw: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut atual = String::new();
+    let mut prof = 0i32;
+    let mut aspas: Option<char> = None;
+    for c in raw.chars() {
+        if let Some(q) = aspas {
+            if c == q {
+                aspas = None;
+            }
+            atual.push(c);
+            continue;
+        }
+        match c {
+            '"' | '\'' => aspas = Some(c),
+            '(' | '[' => prof += 1,
+            ')' | ']' => prof -= 1,
+            ',' if prof == 0 => {
+                out.push(std::mem::take(&mut atual).trim().to_string());
+                continue;
+            }
+            _ => {}
+        }
+        atual.push(c);
+    }
+    let fim = atual.trim().to_string();
+    if !fim.is_empty() || !out.is_empty() {
+        out.push(fim);
+    }
+    out
+}
+
+/// O `else` (e o `else_if`) **como atributo** vale para o irmão imediatamente
+/// anterior, que precisa ter `if =` ou `else_if =`. Antes, um nó inserido entre
+/// os dois mudava o sentido do `else` sem erro nenhum; agora a tela não
+/// carrega, e o erro diz onde está o `else` e o que veio antes dele.
+fn check_else_positions(irmaos: &[Node]) -> Res<()> {
+    let tem = |n: &Node, nomes: &[&str]| n.attrs.iter().any(|a| nomes.contains(&a.name.as_str()));
+    for (i, n) in irmaos.iter().enumerate() {
+        let e_else = tem(n, &["else"]);
+        let e_else_if = tem(n, &["else_if", "else-if"]);
+        if !e_else && !e_else_if {
+            continue;
+        }
+        let anterior = i.checked_sub(1).map(|j| &irmaos[j]);
+        if anterior.is_some_and(|a| tem(a, &["if", "else_if", "else-if"])) {
+            continue;
+        }
+        let qual = if e_else { "else" } else { "else_if" };
+        let msg = match anterior {
+            Some(a) => format!(
+                "`{qual}` precisa vir logo depois de um irmão com `if =`; o irmão anterior (linha {}) é um `{}` sem condição",
+                a.line, a.tag
+            ),
+            None => format!("`{qual}` precisa vir logo depois de um irmão com `if =`, e é o primeiro do bloco"),
+        };
+        return Err(Error {
+            line: n.line,
+            col: 1,
+            msg,
+            hint: Some(
+                "mova o `else` para logo depois do nó com `if =`, ou use um bloco: `if cond { … } else { … }`",
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Junta as classes condicionais (`class:nome = expr`) ao `class` do elemento:
+/// cada uma vira `{(expr) ? 'nome' : ''}` no fim da lista, que o motor já
+/// interpola. Sem `class` no elemento, ela é criada.
+fn merge_class_directives(attrs: Vec<Attr>) -> Vec<Attr> {
+    if !attrs.iter().any(|a| a.name.starts_with("class:")) {
+        return attrs;
+    }
+    let mut extra = String::new();
+    let mut linha = None;
+    let mut resto = Vec::with_capacity(attrs.len());
+    for a in attrs {
+        match a.name.strip_prefix("class:") {
+            Some(classe) => {
+                extra.push_str(&format!(" {{({}) ? '{classe}' : ''}}", a.value));
+                linha.get_or_insert(a.line);
+            }
+            None => resto.push(a),
         }
     }
+    match resto.iter_mut().find(|a| a.name == "class") {
+        Some(c) => c.value.push_str(&extra),
+        None => resto.push(Attr {
+            name: "class".into(),
+            value: extra.trim_start().to_string(),
+            line: linha.unwrap_or(0),
+        }),
+    }
+    resto
 }
 
 /// Prosa de um `"""`: sem espaço nas pontas, e cada sequência de espaço em branco
@@ -1020,6 +1441,26 @@ fn interpolate(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut i = 0;
     while i < cs.len() {
+        // `{ … }` é expressão (`src/expr.rs`) e fica como está: o `@` lá dentro é
+        // da linguagem de expressão, não a regra 5 (virar `{nome}` aninharia
+        // chaves). Respeita aspas, para um `'}'` num texto não fechar antes.
+        if cs[i] == '{' {
+            let mut j = i + 1;
+            let mut aspas: Option<char> = None;
+            while j < cs.len() {
+                match (aspas, cs[j]) {
+                    (None, '}') => break,
+                    (None, q @ ('"' | '\'')) => aspas = Some(q),
+                    (Some(q), c) if c == q => aspas = None,
+                    _ => {}
+                }
+                j += 1;
+            }
+            let fim = (j + 1).min(cs.len());
+            out.extend(&cs[i..fim]);
+            i = fim;
+            continue;
+        }
         if cs[i] != '@' {
             out.push(cs[i]);
             i += 1;

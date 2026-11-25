@@ -1,0 +1,48 @@
+// Props com tipo. O componente `Selo` (selo.component.gv) declara rotulo: string,
+// ativo: bool, total: number e tags: list.
+//
+//   WGPU_BACKEND=gl cargo run --example linguagem_props
+//
+// Para ver o erro de tipo, troque `ativo = true` do primeiro Selo por
+// `ativo = talvez` e rode de novo: a tela não carrega, e o terminal diz
+//   a prop 'ativo' de 'Selo' é do tipo bool, e recebeu 'talvez'
+screen(title = "Props com tipo", size = "620 520") {
+  resources {
+    link(rel = stylesheet, href = "examples/linguagem_props/app.gss")
+    link(rel = import, href = "selo.component.gv", as = Selo)
+
+    script """
+      function init()
+        ctx.mensagens = 3
+        ctx.online = true
+        ctx.etiquetas = { "infra", "web" }
+      end
+
+      -- `muda(1)` / `muda(-1)`: a ação com argumento chega como número.
+      function muda(delta)
+        ctx.mensagens = math.max(0, ctx.mensagens + delta)
+      end
+    """
+  }
+
+  column(class = tela) {
+    text("Props com tipo", class = titulo)
+    text("prop(name = ativo, type = bool, default = false)", class = codigo)
+    text("prop(name = total, type = number, default = 0)", class = codigo)
+    text("prop(name = tags,  type = list,   default = [])", class = codigo)
+
+    // Literais do tipo certo.
+    Selo(rotulo = "Novo", ativo = true, total = 12)
+    Selo(rotulo = "Rascunho")
+
+    // Valores do contexto: `mensagens` muda com os botões; acima de 9 vira "9+".
+    Selo(rotulo = "Mensagens", ativo = @online, total = @mensagens, tags = @etiquetas)
+    row(class = linha) {
+      button("−1", class = btn, on_click = muda(-1))
+      button("+1", class = btn, on_click = muda(1))
+      toggle(label = "Online", :checked = online, on_toggle = online)
+    }
+
+    text("Para ver o erro de tipo, troque ativo = true por ativo = talvez no app.gv.", class = nota)
+  }
+}

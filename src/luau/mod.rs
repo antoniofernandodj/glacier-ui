@@ -130,6 +130,10 @@ pub struct LuauComponent {
     json: Rc<RefCell<JsonState>>,
     /// Corrotinas suspensas num `fetch`, aguardando a resposta, por `id`.
     pending: RefCell<HashMap<u64, Thread>>,
+    /// As corrotinas de handler suspensas (num `fetch`, num diálogo), com o nome
+    /// do handler: enquanto uma delas vive, `__busy.<handler>` fica `true` no
+    /// contexto — o botão ocupado automático (`app(busy_buttons = true)`).
+    ocupados: RefCell<Vec<(Thread, String)>>,
     /// Streams de vida longa abertos (`sse`/`websocket`), por `id`: os handlers
     /// Lua registrados (`on_message`, …) que o motor chama a cada evento.
     streams: RefCell<HashMap<u64, StreamRegistration>>,
@@ -402,6 +406,7 @@ impl LuauComponent {
             ctx_table,
             json,
             pending: RefCell::new(HashMap::default()),
+            ocupados: RefCell::new(Vec::new()),
             streams: RefCell::new(HashMap::default()),
             timers: RefCell::new(HashMap::default()),
             progress_handlers: RefCell::new(HashMap::default()),
@@ -660,6 +665,25 @@ impl LuauComponent {
         // match, devolve `Ok(false)` — o fallback (`inner` Rust, ou o binding
         // legado sem `inner`) é decidido por [`Self::dispatch`].
         let globals = self.luau.globals();
+        // `nome([…])` — a ação com argumentos do `.gv` (`salvar(@id, true)`): o
+        // array JSON vira os argumentos, separados e com o tipo do JSON, antes do
+        // `value` de um on_change. Testado antes do `nome:sufixo`, porque um texto
+        // dentro do JSON pode ter `:`.
+        if let Some((nome, args)) = acao_com_argumentos(func)
+            && let Ok(f) = globals.get::<Function>(nome)
+        {
+            let thread = self.luau.create_thread(f)?;
+            let mut items: Vec<Value> = Vec::with_capacity(args.len() + 1);
+            for a in &args {
+                items.push(self.luau.to_value(a)?);
+            }
+            if let Some(v) = value {
+                items.push(Value::String(self.luau.create_string(v)?));
+            }
+            self.drive(thread.clone(), MultiValue::from_iter(items), ctx)?;
+            self.marca_ocupado(&thread, nome, ctx);
+            return Ok(true);
+        }
         let (f, lead) = match globals.get::<Function>(func) {
             Ok(f) => (f, None),
             Err(_) => match func.split_once(':') {
@@ -683,8 +707,42 @@ impl LuauComponent {
             items.push(Value::String(self.luau.create_string(v)?));
         }
         let args = MultiValue::from_iter(items);
-        self.drive(thread, args, ctx)?;
+        self.drive(thread.clone(), args, ctx)?;
+        self.marca_ocupado(&thread, crate::eval::nome_do_handler(func), ctx);
         Ok(true)
+    }
+
+    /// Depois de rodar um handler: se a corrotina dele ficou suspensa (esperando
+    /// um `fetch` ou a resposta de um diálogo), o handler está **ocupado** até
+    /// ela terminar — `__busy.<handler> = true` no contexto.
+    fn marca_ocupado(&self, thread: &Thread, nome: &str, ctx: &mut Context) {
+        if thread.status() != ThreadStatus::Resumable || nome.is_empty() {
+            return;
+        }
+        self.ocupados.borrow_mut().push((thread.clone(), nome.to_string()));
+        ctx.set(&format!("{}{nome}", crate::eval::BUSY_PREFIX), "true");
+    }
+
+    /// A cada retomada: as corrotinas registradas que terminaram saem da lista,
+    /// e o handler que ficou sem nenhuma volta a `__busy.<handler> = false`.
+    fn solta_ocupados(&self, ctx: &mut Context) {
+        let mut ocupados = self.ocupados.borrow_mut();
+        if ocupados.is_empty() {
+            return;
+        }
+        let mut terminados = Vec::new();
+        ocupados.retain(|(t, nome)| {
+            let vivo = t.status() == ThreadStatus::Resumable;
+            if !vivo {
+                terminados.push(nome.clone());
+            }
+            vivo
+        });
+        for nome in terminados {
+            if !ocupados.iter().any(|(_, n)| *n == nome) {
+                ctx.set(&format!("{}{nome}", crate::eval::BUSY_PREFIX), "false");
+            }
+        }
     }
 
     /// Roda um trecho Luau **dentro da VM deste componente**, com o mesmo `ctx`,
@@ -817,6 +875,7 @@ impl LuauComponent {
         loop {
             let yielded: MultiValue = thread.resume(args)?;
             self.sync_from_luau(ctx)?;
+            self.solta_ocupados(ctx);
 
             if thread.status() != ThreadStatus::Resumable {
                 return Ok(()); // corrotina terminou
@@ -3153,6 +3212,23 @@ fn extract_script(markup: &str) -> Option<String> {
     Some(markup[gt..close].to_string())
 }
 
+/// `nome([…])` → `("nome", […])`: a forma que a ação com argumentos do `.gv`
+/// (`nome(arg, arg)`) tem depois de avaliada. `None` para qualquer outra ação.
+pub(crate) fn acao_com_argumentos(func: &str) -> Option<(&str, Vec<serde_json::Value>)> {
+    let abre = func.find('(')?;
+    if !func.ends_with(')') {
+        return None;
+    }
+    let nome = &func[..abre];
+    if nome.is_empty() || !nome.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return None;
+    }
+    match serde_json::from_str::<serde_json::Value>(&func[abre + 1..func.len() - 1]).ok()? {
+        serde_json::Value::Array(a) => Some((nome, a)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3185,6 +3261,28 @@ mod tests {
         let data = drive(&comp, "incrementar", None, data);
         // Coerção de string numérica + volta a inteiro (não "1.0").
         assert_eq!(data.get("contador").map(String::as_str), Some("1"));
+    }
+
+    /// A ação com argumentos do `.gv` (`salvar(@id, true, 3)`), já avaliada para
+    /// `salvar(["x",true,3])`: cada argumento chega separado e com o tipo dele.
+    #[test]
+    fn acao_com_argumentos_chega_tipada() {
+        let comp = LuauComponent::from_source(
+            "function salvar(id, ligado, n) ctx.r = id .. '|' .. type(ligado) .. '|' .. tostring(n + 1) end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let data = drive(&comp, r#"salvar(["a:b",true,3])"#, None, HashMap::default());
+        assert_eq!(data.get("r").map(String::as_str), Some("a:b|boolean|4"));
+    }
+
+    #[test]
+    fn acao_com_argumentos_so_reconhece_array_json() {
+        assert!(acao_com_argumentos("salvar([1])").is_some());
+        assert!(acao_com_argumentos("salvar(1)").is_none());
+        assert!(acao_com_argumentos("a:b(x)").is_none());
+        assert!(acao_com_argumentos("salvar").is_none());
     }
 
     #[test]
@@ -3406,6 +3504,41 @@ mod tests {
             }
             assert_eq!(data.get("r").map(String::as_str), Some(esperado));
         }
+    }
+
+    /// Fase 6: enquanto a corrotina de `salvar` espera o `confirm`, o handler está
+    /// ocupado (`__busy.salvar = true`); quando ela termina, deixa de estar.
+    #[test]
+    fn handler_suspenso_fica_ocupado_ate_terminar() {
+        let mut comp = LuauComponent::from_source(
+            "function salvar()\n if confirm({ title='T', message='M' }) then ctx.r = 'ok' end\n end\n\
+             function rapido() ctx.x = 1 end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("salvar", None, &mut ctx);
+            match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava suspender num diálogo resumível"),
+            }
+        };
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("true"));
+        // Um handler que termina na hora nunca fica ocupado.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("rapido", None, &mut ctx);
+        }
+        assert_eq!(data.get("__busy.rapido"), None);
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(id, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        assert_eq!(data.get("r").map(String::as_str), Some("ok"));
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("false"));
     }
 
     #[test]

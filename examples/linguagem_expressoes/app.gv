@@ -1,0 +1,124 @@
+// A linguagem de expressão do `.gv` — cada bloco abaixo mostra uma forma, e os
+// botões mudam o estado para você ver a tela reagir. Ver docs/LINGUAGEM.md.
+//
+//   WGPU_BACKEND=gl cargo run --example linguagem_expressoes
+screen(title = "Expressões no .gv", size = "760 680") {
+  resources {
+    link(rel = stylesheet, href = "examples/linguagem_expressoes/app.gss")
+
+    script """
+      function init()
+        ctx.cpu = 40
+        ctx.sujo = true
+        ctx.ocupado = false
+        ctx.tipo = "int"
+        ctx.view = "logs"
+        ctx.servicos = {}
+      end
+
+      -- Ações com argumentos: `on_click = ajusta_cpu(10)` chama ajusta_cpu(10)
+      -- com um NÚMERO, e `escolhe_aba("logs")` com um texto.
+      function ajusta_cpu(delta)
+        ctx.cpu = math.max(0, math.min(100, ctx.cpu + delta))
+      end
+
+      function escolhe_aba(aba)
+        ctx.view = aba
+      end
+
+      function troca_tipo()
+        if ctx.tipo == "int" then ctx.tipo = "texto" else ctx.tipo = "int" end
+      end
+
+      function novo_servico()
+        local lista = ctx.servicos
+        table.insert(lista, { nome = "servico-" .. (#lista + 1) })
+        ctx.servicos = lista
+      end
+
+      function limpar_servicos()
+        ctx.servicos = {}
+      end
+
+      function nada() end
+    """
+  }
+
+  scrollable {
+    column(class = tela) {
+      text("Expressões no .gv", class = titulo)
+
+      // ── 1. && e ! ─────────────────────────────────────────────────────────
+      column(class = bloco) {
+        text("1. Condição com && e !", class = subtitulo)
+        text("button(\"Salvar\", if = @@sujo && !@@ocupado)", class = codigo)
+        row(class = linha) {
+          toggle(label = "Alterações não salvas", :checked = sujo, on_toggle = sujo)
+          toggle(label = "Ocupado", :checked = ocupado, on_toggle = ocupado)
+        }
+        button("Salvar", if = @sujo && !@ocupado, class = btn, on_click = nada)
+        // O `else` como atributo vale para o irmão LOGO ACIMA (senão é erro).
+        text("(nada a salvar agora)", else, class = nota)
+      }
+
+      // ── 2. comparação numérica, if / else if / else ───────────────────────
+      column(class = bloco) {
+        text("2. Comparação numérica e if / else if / else", class = subtitulo)
+        text("if @@cpu > 80 … else if @@cpu > 50 … else …", class = codigo)
+        row(class = linha) {
+          button("CPU −10", class = btn, on_click = ajusta_cpu(-10))
+          button("CPU +10", class = btn, on_click = ajusta_cpu(10))
+        }
+        // Expressão dentro de um texto: o ⚠ só aparece acima de 80.
+        text("{@cpu > 80 ? '⚠ ' : ''}CPU em @cpu%", class = valor)
+        if @cpu > 80 {
+          text("alta — acima de 80", class = alerta)
+        } else if @cpu > 50 {
+          text("média — entre 51 e 80", class = aviso)
+        } else {
+          text("baixa — até 50", class = ok)
+        }
+      }
+
+      // ── 3. in ─────────────────────────────────────────────────────────────
+      column(class = bloco) {
+        text("3. in — o valor está na lista?", class = subtitulo)
+        text("text(\"tipo inteiro\", if = @@tipo in [\"int\", \"long\"])", class = codigo)
+        row(class = linha) {
+          button("Trocar o tipo", class = btn, on_click = troca_tipo)
+          text("tipo = @tipo", class = valor)
+        }
+        text("tipo inteiro", if = @tipo in ["int", "long"], class = ok)
+        text("não é inteiro", else, class = aviso)
+      }
+
+      // ── 4. is empty, each = e len() ───────────────────────────────────────
+      column(class = bloco) {
+        text("4. is empty, each = @@lista as v e len()", class = subtitulo)
+        text("if @@servicos is empty …   ·   text(\"@@s.nome\", each = @@servicos as s)", class = codigo)
+        row(class = linha) {
+          button("Adicionar serviço", class = btn, on_click = novo_servico)
+          button("Limpar", class = btn, on_click = limpar_servicos)
+        }
+        text("{len(@servicos)} serviço(s)", class = valor)
+        if @servicos is empty {
+          text("Nenhum serviço ainda", class = nota)
+        }
+        text("• @s.nome", each = @servicos as s)
+      }
+
+      // ── 5. class:nome = expr ──────────────────────────────────────────────
+      column(class = bloco) {
+        text("5. Classe condicional: class:aba--ativa = @@view == \"…\"", class = subtitulo)
+        text("Um nó só por aba; a classe entra e sai com a condição.", class = nota)
+        row(class = linha) {
+          button("Logs", class = aba, class:aba--ativa = @view == "logs", on_click = escolhe_aba("logs"))
+          button("Eventos", class = aba, class:aba--ativa = @view == "eventos", on_click = escolhe_aba("eventos"))
+          button("Config", class = aba, class:aba--ativa = @view == "config", on_click = escolhe_aba("config"))
+        }
+        // Ternário em atributo: o texto muda sem repetir o nó.
+        text(@view in ["logs", "eventos"] ? "aba de registro" : "aba de configuração", class = valor)
+      }
+    }
+  }
+}

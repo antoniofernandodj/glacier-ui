@@ -120,13 +120,15 @@ fn marcador_sem_valor() {
         xml("prop(component, name = linha)"),
         r#"<propcomponent=""name="linha"/>"#
     );
+    // O `else` solto precisa de um irmão com `if` antes (erro de posição, ver
+    // `tests/linguagem_formas.rs`); aqui só interessa o marcador virar `else=""`.
     assert_eq!(
-        xml("template(else) { text(content = x) }"),
-        r#"<templateelse=""><textcontent="x"/></template>"#
+        xml("text(if = @x)\ntemplate(else) { text(content = x) }"),
+        r#"<textif="{x}"/><templateelse=""><textcontent="x"/></template>"#
     );
     assert_eq!(
-        xml("template(else, class = a)"),
-        r#"<templateelse=""class="a"/>"#
+        xml("text(if = @x)\ntemplate(else, class = a)"),
+        r#"<textif="{x}"/><templateelse=""class="a"/>"#
     );
 }
 

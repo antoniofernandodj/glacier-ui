@@ -558,6 +558,16 @@ impl GlacierDaemon {
         if let Some(code) = crate::luau::testing::run_from_env() {
             std::process::exit(code);
         }
+        // `glacier check` / `glacier fmt`: as ferramentas da linguagem, com o
+        // motor desta versão do app. Ver `crate::ferramentas`.
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(code) = crate::ferramentas::check_from_env() {
+            std::process::exit(code);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(code) = crate::ferramentas::fmt_from_env() {
+            std::process::exit(code);
+        }
 
         // Sem isto um `panic!` no navegador aparece como "unreachable executed",
         // sem mensagem nem linha.
@@ -699,6 +709,12 @@ impl GlacierDaemon {
             {
                 default_font = Some(crate::fonts::register_family(family));
             }
+            if let Some(family) = &app.mono_font {
+                crate::fonts::set_mono(crate::fonts::register_family(family));
+            }
+        }
+        if let Some(font) = default_font {
+            crate::fonts::set_default(font);
         }
         // `application_id` (Linux): as janelas se anunciam ao desktop com ele.
         let application_id = app_meta.as_ref().and_then(|a| a.application_id.clone());

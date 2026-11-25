@@ -93,3 +93,26 @@ janela em `css_moderno`.
 ## Fora desta fase
 
 `@keyframes` não foi feito. `@font-face` já é coberto pelo `font` no markup do `app`.
+
+## 0.169: aninhamento, `:not`/`:is`, tipografia, sombra, `@theme`
+
+Do `PLANO_LINGUAGEM_GV_GSS.md` (a referência completa está em `docs/LINGUAGEM.md`):
+
+- **Aninhamento**: `.btn { &:hover { … } &--primary { … } .icone { … } }`. `&` é o
+  seletor de fora (cada parte, se ele tem vírgula); sem `&`, descendente. Açúcar puro:
+  sai como regras planas, e um erro dentro do bloco aponta a linha dele.
+- **`:not(composto, …)`** no composto (só compostos simples dentro) e **`:is(a, b)`**,
+  que vira um seletor por argumento (`.campo:is(:hover, :focus)`).
+- **`font_weight`** (100…900, `normal`, `bold`), **`font_style: italic`**,
+  **`line_height`** (`1.4` ou `20px`). `bold` e `font_weight` mudam só o peso da
+  família da regra (antes o negrito caía na sans do sistema).
+- **`box_shadow: x y desfoque cor`** — atenção ao `TROUBLESHOOTING.md`: em drivers
+  Vulkan incompletos a sombra pode acumular.
+- **`@theme { background: var(--bg); text: …; primary: …; success: …; danger: … }`** —
+  a paleta do tema tirada dos tokens do próprio `.gss`.
+- **`letter_spacing`** é erro com motivo: o iced 0.14 não o desenha.
+- **`display: none`** é a forma; `hidden: true` está depreciado.
+- **Modo estrito** (`app(gss_strict = true)`): propriedade desconhecida é erro.
+- **Cor CSS** (`app(gss_color = css)`): `background` é fundo e `color` é conteúdo em
+  todo widget, inclusive `button`/`select`/`comboedit`/`menu`.
+

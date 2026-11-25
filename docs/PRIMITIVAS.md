@@ -228,6 +228,13 @@ deixa de medir e desenhar 290 cartões.
 
 ## A armadilha do `Length::Fill`
 
+> **Desde a 0.169**: `column`, `row`, `container` e o embrulho de fundo/borda **não
+> forçam mais `Shrink`** quando o nó não declara `width`/`height` — fica o tamanho que
+> o `iced` calcula dos filhos (`Column::push` faz `enclose`, o `container` nasce do
+> filho). Um bloco cujos filhos são todos `fill` passa a encher, em vez de sumir. O que
+> ainda sobrar das variações abaixo, o `glacier test --layout` acusa (layout sem janela,
+> `src/medida.rs`).
+
 O `container(element).width(parse_length(&node.width))` do wrap acima usa
 `parse_length(&None) == Length::Shrink` quando o nó não tem `width` — o que é
 inofensivo para um widget cujo tamanho **natural** já é `Shrink` (um `button`,
@@ -717,6 +724,12 @@ mesmo, que foi o que o `wizard` fez.
 As quatro custaram um widget que aparecia vazio ou errado **sem erro nenhum**, e
 nenhuma é específica de diálogos. Se um template seu desenha menos do que
 deveria, comece por aqui.
+
+> **Desde a 0.169** (`PLANO_LINGUAGEM_GV_GSS.md`): a 1 e a 2 não existem na forma
+> nova — `@x is empty` entende texto, lista, objeto e ausente, e `in` aceita lista
+> literal, array JSON ou texto separado por vírgula **ou** espaço. As formas antigas
+> abaixo (`empty =`, `one_of =`) seguem com o comportamento descrito, depreciadas.
+> A 3 (`value =` sem `:`) já era erro no `.gv` estrito.
 
 **1. `empty`/`not_empty` são sobre arrays JSON, não sobre strings.**
 

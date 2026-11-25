@@ -29,6 +29,23 @@ categories = ["gui"]
 # pontualmente: `cargo run --example contador` depois de comentar a linha abaixo.
 autoexamples = false
 
+# A linguagem do .gv e do .gss da 0.169 (docs/LINGUAGEM.md) — um exemplo por assunto.
+[[example]]
+name = "linguagem_expressoes"
+path = "examples/linguagem_expressoes/main.rs"
+
+[[example]]
+name = "linguagem_props"
+path = "examples/linguagem_props/main.rs"
+
+[[example]]
+name = "linguagem_ocupado"
+path = "examples/linguagem_ocupado/main.rs"
+
+[[example]]
+name = "linguagem_gss"
+path = "examples/linguagem_gss/main.rs"
+
 # [[example]]
 # name = "ciclo_vida_luau"
 # path = "examples/ciclo_vida_luau/main.rs"
@@ -242,6 +259,11 @@ accesskit_unix = { version = "0.24", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 iced = { version = "0.14", default-features = false, features = ["wgpu", "thread-pool", "linux-theme-detection", "x11", "wayland"] }
+# Layout SEM janela (`src/medida.rs`): o renderizador de software monta a árvore
+# de widgets e o `UserInterface` faz o layout, para o `glacier test --layout`
+# achar o nó que ficou com largura ou altura zero. Já vinham pelo `iced`.
+iced_tiny_skia = "0.14"
+iced_runtime = "0.14"
 mlua = { version = "0.11.6", features = ["luau", "vendored", "serialize"] }
 hyper = { version = "1.10.1", features = ["client", "http1"] }
 hyper-util = { version = "0.1.20", features = ["client", "client-legacy", "http1", "tokio"] }

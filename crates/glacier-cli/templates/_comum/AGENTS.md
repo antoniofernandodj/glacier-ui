@@ -406,8 +406,8 @@ Muitos apps de uma janela só nem navegam: guardam a tela numa chave e trocam o
 ramo com um condicional — é o que o preset `completo` faz:
 
 ```gv
-Home(if = @view, equals = home)
-Sobre(if = @view, equals = sobre)
+Home(if = @view == "home")
+Sobre(if = @view == "sobre")
 ```
 
 ### O `script` do app: estado e lógica que vivem o app inteiro
@@ -475,7 +475,7 @@ card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
 sem criar uma caixa em volta deles:
 
 ```gv
-template(if = @aba, equals = rede) {
+if @aba == "rede" {
   text("Rede", class = secao)
   textinput(:value = host, on_change = host)
 }
@@ -506,7 +506,7 @@ campo grava a busca, o `matches` esconde o que não casa:
 
 ```gv
 textinput(:value = busca, on_change = busca, placeholder = "filtrar…")
-template(:for_each = servicos, var = s) {
+each @servicos as s {
   // o nome OU a imagem: a condição é o texto onde se procura
   text("{s.nome}", if = "{s.nome} {s.imagem}", matches = @busca)
 }
@@ -617,7 +617,7 @@ screen(title = Serviços, size = "720 520", min_size = "480 360") {
     textinput(:value = busca, on_change = filtrar, placeholder = "filtrar…")
     /* Vazio e cheio são dois ramos do mesmo condicional. `empty` testa se a
          chave é um array JSON sem elementos. */
-    text("nenhum serviço encontrado", if = @visiveis, empty, class = vazio)
+    text("nenhum serviço encontrado", if = @visiveis is empty, class = vazio)
     scrollable(height = fill) {
       column(class = lista) {
         row(for_each = visiveis, var = s, class = linha) {
@@ -1609,7 +1609,7 @@ tela. O `toast()` passa sozinho e o `dialog` interrompe; o `alert` descreve uma
 escreve dentro entra sob a descrição (`slot`).
 
 ```gv
-alert("{aviso}", variant = @aviso_tipo, description = @aviso_detalhe, on_close = fechar_aviso, if = @aviso, not_equals = "") {
+alert("{aviso}", variant = @aviso_tipo, description = @aviso_detalhe, on_close = fechar_aviso, if = @aviso != "") {
   button("Ver logs", on_click = ver_logs)
 }
 ```
@@ -1862,7 +1862,7 @@ form(name = cadastro, on_submit = salvar, on_validation_error = apontar, validat
   spinbox(form_control = idade, :value = idade, rules = "gte:18", min = 14, max = 90)
   select(form_control = uf, :options = ufs, rules = required)
   checkbox(form_control = aceite, rules = accepted, label = "Aceito os termos")
-  text("{erro_nome}", class = erro, if = @erro_nome, not_empty)
+  text("{erro_nome}", class = erro, if = @erro_nome is not empty)
   button("Limpar", type = reset, on_click = limpar)
   button("Salvar", type = submit)
 }
@@ -2813,13 +2813,13 @@ parseia como array conta como vazio. Para testar uma string, use o teste truthy
 nível:
 
 ```gv
-template(if = @estado, equals = ok) {
+if @estado == "ok" {
   text("no ar", class = ok)
 }
-template(else_if = @estado, equals = lento) {
+else if @estado == "lento" {
   text("lento", class = alerta)
 }
-template(else) {
+else {
   text("fora", class = erro)
 }
 ```
@@ -2930,13 +2930,13 @@ escolher" teria de conhecer todos os candidatos e montar uma escada de
 condicionais:
 
 ```gv
-template(if = @cabecalho, equals = TituloGrande) {
+if @cabecalho == "TituloGrande" {
   TituloGrande(titulo = @titulo)
 }
-template(else_if = @cabecalho, equals = TituloCompacto) {
+else if @cabecalho == "TituloCompacto" {
   TituloCompacto(titulo = @titulo)
 }
-template(else) {
+else {
   text("?")
 }
 ```
@@ -3106,12 +3106,12 @@ Os botões do rodapé são um bloco `actions` **dentro** do `dialog`, com `butto
 comuns — o texto é o primeiro argumento, como em qualquer `button("…")`:
 
 ```gv
-dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
+dialog(name = deploy, title = t("deploy.titulo"), icon = question) {
   text("{__dialog.plano}")
   actions {
-    button("{t('comum.rejeitar')}")
-    button("{t('deploy.so_o_servico')}", on_click = deploy_so_o_servico, role = neutral)
-    button("{t('comum.aceitar')}", on_click = deploy_aceitar)
+    button(t("comum.rejeitar"))
+    button(t("deploy.so_o_servico"), on_click = deploy_so_o_servico, role = neutral)
+    button(t("comum.aceitar"), on_click = deploy_aceitar)
   }
 }
 ```
@@ -3164,12 +3164,12 @@ faz um trabalho, mostra opções e precisa da escolha **para continuar**.
 `value` do `choice` clicado — sempre `string?`:
 
 ```gv
-dialog(name = deploy, title = "{t('deploy.titulo')}", icon = question) {
+dialog(name = deploy, title = t("deploy.titulo"), icon = question) {
   text("{__dialog.plano}")
   actions {
-    button("{t('comum.rejeitar')}")                              // fecha → nil
-    choice("{t('deploy.so_o_servico')}", value = so, role = neutral)
-    choice("{t('comum.aceitar')}", value = aceitar)
+    button(t("comum.rejeitar"))                              // fecha → nil
+    choice(t("deploy.so_o_servico"), value = so, role = neutral)
+    choice(t("comum.aceitar"), value = aceitar)
   }
 }
 ```
@@ -4833,8 +4833,8 @@ valida ao enviar (ver "Validação declarada no próprio `form`"):
 form(on_submit = salvar, on_validation_error = apontar) {
   input(form_control = email, rules = "required|email", msg = "e-mail inválido")
   input(form_control = senha, secure = true, rules = "required|minlen:6", msg = "mínimo 6")
-  text("{erro_email}", class = erro, if = @erro_email, not_empty)
-  text("{erro_senha}", class = erro, if = @erro_senha, not_empty)
+  text("{erro_email}", class = erro, if = @erro_email is not empty)
+  text("{erro_senha}", class = erro, if = @erro_senha is not empty)
   button("Entrar", type = submit)
 }
 ```

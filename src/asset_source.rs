@@ -39,7 +39,7 @@ pub(crate) fn read_markup(
     if !crate::gv::eh_gv(path) {
         return Ok(content);
     }
-    crate::gv::desugar(&content).map(Cow::Owned).map_err(|d| {
+    crate::gv::desugar_em(&content, path).map(Cow::Owned).map_err(|d| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             crate::error::GlacierError::Xml(Box::new(d.in_file(path, &content))).to_string(),

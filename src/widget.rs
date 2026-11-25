@@ -417,18 +417,88 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Gradient, Length
 fn font_for(hint: Option<&str>) -> Option<Font> {
     let s = hint?;
     if igual_ci(s, "mono") || igual_ci(s, "monospace") || igual_ci(s, "code") {
-        Some(Font::MONOSPACE)
+        // A mono do app (`app(mono_font = …)`), ou a do sistema sem ela.
+        Some(crate::fonts::mono_font())
     } else if igual_ci(s, "bold") {
-        Some(Font {
-            weight: iced::font::Weight::Bold,
-            ..Default::default()
-        })
+        Some(negrito(crate::fonts::default_font()))
     } else {
         // Apelidos do motor primeiro (acima, compatibilidade); família
         // registrada depois. É o que faz `texteditor(font = "JetBrains Mono")`
         // — o `PlainTextEditor` da §2.2 — deixar de cair na fonte padrão.
         crate::fonts::resolve(s)
     }
+}
+
+/// A fonte com tudo o que o `.gss` diz dela: família (`font`), peso (`bold` ou
+/// `font_weight`, que vence) e estilo (`font_style: italic`). Só troca o que
+/// foi pedido; a família é sempre a da regra (ou a padrão do app).
+///
+/// Antes cada widget montava `Font { weight: Bold, ..Default::default() }`, que
+/// zera a **família** — o negrito caía na sans do sistema mesmo com
+/// `font: JetBrains Mono` na mesma regra, ou com outra fonte padrão no `app`.
+fn fonte_completa(hint: Option<&str>, bold: bool, peso: Option<u16>, italico: bool) -> Option<Font> {
+    if !bold && peso.is_none() && !italico {
+        return font_for(hint);
+    }
+    let mut f = font_for(hint).unwrap_or_else(crate::fonts::default_font);
+    if let Some(p) = peso {
+        f.weight = peso_iced(p);
+    } else if bold {
+        f.weight = iced::font::Weight::Bold;
+    }
+    if italico {
+        f.style = iced::font::Style::Italic;
+    }
+    Some(f)
+}
+
+/// A fonte de um nó: [`fonte_completa`] com o `font`, o `font_weight` e o
+/// `font_style` dele.
+fn fonte_de(node: &UiNode, bold: bool) -> Option<Font> {
+    fonte_completa(node.font(), bold, node.font_weight(), node.italic())
+}
+
+/// `font_weight` (100…900) no peso do iced.
+fn peso_iced(p: u16) -> iced::font::Weight {
+    use iced::font::Weight as W;
+    match p {
+        0..=150 => W::Thin,
+        151..=250 => W::ExtraLight,
+        251..=350 => W::Light,
+        351..=450 => W::Normal,
+        451..=550 => W::Medium,
+        551..=650 => W::Semibold,
+        651..=750 => W::Bold,
+        751..=850 => W::ExtraBold,
+        _ => W::Black,
+    }
+}
+
+/// `line_height` do `.gss` no `LineHeight` do iced.
+fn altura_linha(v: Option<&str>) -> Option<iced::widget::text::LineHeight> {
+    use crate::stylesheet::AlturaLinha;
+    Some(match crate::stylesheet::parse_altura_linha(v?)? {
+        AlturaLinha::Fator(f) => iced::widget::text::LineHeight::Relative(f),
+        AlturaLinha::Px(p) => iced::widget::text::LineHeight::Absolute(iced::Pixels(p)),
+    })
+}
+
+/// `box_shadow` do `.gss` na `Shadow` do iced. Ver `TROUBLESHOOTING.md`: em
+/// drivers Vulkan incompletos a sombra pode acumular — por isso ela só existe
+/// quando alguém a declara.
+fn sombra(v: Option<&str>) -> Option<iced::Shadow> {
+    let (x, y, desfoque, cor) = crate::stylesheet::parse_sombra(v?)?;
+    Some(iced::Shadow {
+        color: parse_hex_color(&cor)?,
+        offset: iced::Vector::new(x, y),
+        blur_radius: desfoque,
+    })
+}
+
+/// `font` com peso negrito, mantendo família e estilo.
+fn negrito(mut font: Font) -> Font {
+    font.weight = iced::font::Weight::Bold;
+    font
 }
 
 /// Compara sem diferenciar maiúsculas **e sem alocar**.
@@ -513,6 +583,64 @@ fn background_for(node: &UiNode) -> Option<Background> {
         .as_ref()
         .and_then(|bg| parse_hex_color(bg))
         .map(Background::Color)
+}
+
+thread_local! {
+    /// O fundo sólido opaco efetivo sob o nó que está sendo montado (pilha da
+    /// recursão do `render_node`). Ver [`fundo_redundante`].
+    static FUNDOS: std::cell::RefCell<Vec<Option<Color>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+fn fundo_atual() -> Option<Color> {
+    FUNDOS.with(|f| f.borrow().last().copied().flatten())
+}
+
+/// Empilha o fundo efetivo para os filhos e desempilha ao sair do nó (inclusive
+/// por um `return` antecipado).
+struct GuardaFundo;
+
+impl GuardaFundo {
+    fn entra(fundo: Option<Color>) -> Self {
+        FUNDOS.with(|f| f.borrow_mut().push(fundo));
+        GuardaFundo
+    }
+}
+
+impl Drop for GuardaFundo {
+    fn drop(&mut self) {
+        FUNDOS.with(|f| {
+            f.borrow_mut().pop();
+        });
+    }
+}
+
+/// O fundo deste nó se ele é uma cor sólida **opaca** (é o único caso em que
+/// cobrir o de baixo é cobrir tudo).
+fn fundo_solido(node: &UiNode) -> Option<Color> {
+    match background_for(node)? {
+        Background::Color(c) if c.a >= 1.0 => Some(c),
+        _ => None,
+    }
+}
+
+/// `true` quando pintar `bg` é repetir o fundo que já está por baixo: cor
+/// sólida opaca igual à do ancestral, sem borda, raio nem sombra (que mudariam
+/// a forma do que se vê).
+fn fundo_redundante(
+    bg: Option<Background>,
+    pai: Option<Color>,
+    raio: Option<f32>,
+    borda: Option<f32>,
+    sombra: Option<&str>,
+) -> bool {
+    let (Some(Background::Color(c)), Some(p)) = (bg, pai) else {
+        return false;
+    };
+    c.a >= 1.0
+        && c == p
+        && raio.unwrap_or(0.0) == 0.0
+        && borda.unwrap_or(0.0) == 0.0
+        && sombra.is_none()
 }
 
 /// A regra **base** de um campo de texto (`textinput`, `textarea`): o
@@ -1115,14 +1243,9 @@ fn single_line_editor<'a>(
     // `field_id` já é o do form quando ligado a um, senão o sintético.
     ed = ed.id(field_id.to_string());
 
-    if let Some(f) = font_for(node.font()) {
+    // `bold: true` na classe (o mesmo de um `text`) muda só o peso da família.
+    if let Some(f) = fonte_de(node, node.text_bold() == Some(true)) {
         ed = ed.font(f);
-    } else if node.text_bold() == Some(true) {
-        // `bold: true` na classe (o mesmo de um `text`), sem `font` explícito.
-        ed = ed.font(Font {
-            weight: iced::font::Weight::Bold,
-            ..Default::default()
-        });
     }
     // `size` da classe: o campo de uma linha também pode ser um "título
     // editável" (input disfarçado de `text`), não só um campo de 13px.
@@ -3630,12 +3753,8 @@ fn texto_de_faixa<'a>(
         .width(Length::Fill)
         .align_x(align);
     if let Some(r) = regra {
-        if r.bold == Some(true) {
-            t = t.font(Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            });
-        } else if let Some(f) = font_for(r.font.as_deref()) {
+        let italico = matches!(r.font_style.as_deref(), Some("italic" | "oblique"));
+        if let Some(f) = fonte_completa(r.font.as_deref(), r.bold == Some(true), r.font_weight, italico) {
             t = t.font(f);
         }
         if let Some(c) = r.color.as_deref().and_then(parse_hex_color) {
@@ -4393,9 +4512,9 @@ fn paragrafo<'a>(spans: &'a [crate::parser::TextSpan], e: EstiloParagrafo) -> El
             .iter()
             .enumerate()
             .map(|(i, sp)| {
-                let mut f = Font::DEFAULT;
+                let mut f = crate::fonts::default_font();
                 if sp.code {
-                    f = Font::MONOSPACE;
+                    f = crate::fonts::mono_font();
                 }
                 if sp.bold || e.negrito {
                     f.weight = iced::font::Weight::Bold;
@@ -4600,6 +4719,22 @@ pub fn render_node<'a>(
             .height(Length::Shrink)
             .into();
     }
+    // O fundo sólido que já está pintado por baixo deste nó (o do ancestral
+    // pintado mais próximo) — e, para os filhos, o deste nó se ele pinta um.
+    let fundo_pai = fundo_atual();
+    // Só os contêineres de layout põem os filhos SOBRE o próprio fundo. Um
+    // `stack` empilha camadas umas sobre as outras, e `popover`, gaveta, menu &
+    // cia. desenham numa camada por cima de outra coisa: ali o fundo de baixo
+    // não é o do pai, e omitir um fundo "igual" deixaria o painel transparente.
+    let filhos_sobre_o_fundo = matches!(
+        node.kind,
+        NodeType::Column | NodeType::Row | NodeType::Container | NodeType::Scrollable { .. }
+    );
+    let _fundo = GuardaFundo::entra(if filhos_sobre_o_fundo {
+        fundo_solido(node).or(fundo_pai)
+    } else {
+        None
+    });
     let mut element: Element<'a, EngineMessage> = match &node.kind {
         NodeType::Text {
             content,
@@ -4611,14 +4746,12 @@ pub fn render_node<'a>(
             if let Some(s) = size {
                 t = t.size(*s);
             }
-            // `bold` and `font` both influence the font; bold wins, else the hint.
-            if *bold {
-                t = t.font(Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                });
-            } else if let Some(f) = font_for(node.font()) {
+            // `bold` muda o peso da família do `font` (ou da padrão do app).
+            if let Some(f) = fonte_de(node, *bold) {
                 t = t.font(f);
+            }
+            if let Some(lh) = altura_linha(node.line_height()) {
+                t = t.line_height(lh);
             }
             if let Some(c_str) = color
                 && let Some(col) = parse_hex_color(c_str)
@@ -4672,18 +4805,12 @@ pub fn render_node<'a>(
                 .collect();
             let content: Element<'a, EngineMessage> = if visible_children.is_empty() {
                 let mut t = text(btn_text.as_str());
-                if let Some(f) = font_for(node.font()) {
+                // `bold: true` no `.gss` muda só o peso da família escolhida.
+                if let Some(f) = fonte_de(node, node.text_bold() == Some(true)) {
                     t = t.font(f);
                 }
                 if let Some(sz) = node.text_size() {
                     t = t.size(sz);
-                }
-                // `bold: true` no `.gss`; um `font` explícito já escolheu a fonte.
-                if node.text_bold() == Some(true) && node.font().is_none() {
-                    t = t.font(Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    });
                 }
                 // `textAlign` aligns the label inside the button. For a full-width
                 // button the label must fill the button's width to actually move,
@@ -5037,10 +5164,9 @@ pub fn render_node<'a>(
                             ed = ed.size(sz);
                         }
                         if f.bold {
-                            ed = ed.font(Font {
-                                weight: iced::font::Weight::Bold,
-                                ..Default::default()
-                            });
+                            ed = ed.font(negrito(
+                                font_for(node.font()).unwrap_or_else(crate::fonts::default_font),
+                            ));
                         }
                         let cor = f.color.as_deref().and_then(parse_hex_color);
                         ed = ed.scrollbar(false).padding(0).style(move |theme, status| {
@@ -6878,9 +7004,17 @@ pub fn render_node<'a>(
                 }
             }
 
-            col.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .into()
+            // Só o que o nó DECLARA: sem `width`, fica o que o `Column::push`
+            // calculou — `Fill` se algum filho é `Fill`. Forçar `Shrink` aqui era
+            // a armadilha do `Fill`: o filho que enche ficava com largura zero e
+            // o bloco sumia sem erro (ver `PRIMITIVAS.md`).
+            if node.width.is_some() {
+                col = col.width(parse_length(&node.width));
+            }
+            if node.height.is_some() {
+                col = col.height(parse_length(&node.height));
+            }
+            col.into()
         }
         NodeType::Row => {
             let mut r = row![];
@@ -6899,9 +7033,15 @@ pub fn render_node<'a>(
                 r = r.push(render_node(child, context, editors, combos, assets, view));
             }
 
-            r.width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .into()
+            // A mesma regra do `Column` acima: sem `width`, vale o que os filhos
+            // pediram (`Row::push` também faz `enclose`).
+            if node.width.is_some() {
+                r = r.width(parse_length(&node.width));
+            }
+            if node.height.is_some() {
+                r = r.height(parse_length(&node.height));
+            }
+            r.into()
         }
         // `stack` — a Onda 11 do `PLANO_WIDGETS.md`: empilha os filhos no
         // mesmo espaço, o primeiro embaixo. Ver `NodeType::Stack` para o que
@@ -6999,11 +7139,15 @@ pub fn render_node<'a>(
                 column![].into()
             };
 
-            let mut c = container(child);
-            c = c
-                .width(parse_length(&node.width))
-                .height(parse_length(&node.height))
-                .padding(parse_padding(&node.padding));
+            // `container(child)` já nasce do tamanho do filho (`Fill` se ele
+            // enche); só o que o nó declara sobrescreve.
+            let mut c = container(child).padding(parse_padding(&node.padding));
+            if node.width.is_some() {
+                c = c.width(parse_length(&node.width));
+            }
+            if node.height.is_some() {
+                c = c.height(parse_length(&node.height));
+            }
 
             if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
@@ -7014,10 +7158,16 @@ pub fn render_node<'a>(
 
             let bg_opt = background_for(node);
             let br_opt = node.border_radius;
+            let bg_opt = if fundo_redundante(bg_opt, fundo_pai, br_opt, node.border_width, node.box_shadow()) {
+                None
+            } else {
+                bg_opt
+            };
             let bw_opt = node.border_width.unwrap_or(0.0);
             let bc_opt = node.border_color().and_then(parse_hex_color);
+            let sombra_opt = sombra(node.box_shadow());
 
-            if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 {
+            if bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 || sombra_opt.is_some() {
                 c = c.style(move |_theme| container::Style {
                     background: bg_opt,
                     border: Border {
@@ -7025,6 +7175,7 @@ pub fn render_node<'a>(
                         width: bw_opt,
                         color: bc_opt.unwrap_or(Color::TRANSPARENT),
                     },
+                    shadow: sombra_opt.unwrap_or_default(),
                     ..Default::default()
                 });
             }
@@ -7127,18 +7278,12 @@ pub fn render_node<'a>(
             });
             let tamanho = node.text_size().unwrap_or(13.0);
             let padding_classe = node.padding.is_some().then(|| parse_padding(&node.padding));
-            let negrito = node.text_bold() == Some(true) && node.font().is_none();
+            let fonte = fonte_de(node, node.text_bold() == Some(true));
             let gatilho = |rotulo: &str, raio: iced::border::Radius, padding: [f32; 2]| {
                 let variante = variante.clone();
                 let mut t = text(rotulo.to_string()).size(tamanho);
-                if let Some(f) = font_for(node.font()) {
+                if let Some(f) = fonte {
                     t = t.font(f);
-                }
-                if negrito {
-                    t = t.font(Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    });
                 }
                 let b = button(t).padding(Padding::from(padding));
                 match pintado {
@@ -7279,6 +7424,14 @@ pub fn render_node<'a>(
             matches!(&node.kind, NodeType::Button { .. }) && node.gradient().is_some();
         let bg_opt = if campo || botao_gradiente { None } else { background_for(node) };
         let br_opt = if campo { None } else { node.border_radius };
+        // Fase 11 do plano da linguagem: o mesmo fundo opaco do ancestral, num nó
+        // sem borda, raio nem sombra, não muda um pixel — e custa uma caixa
+        // pintada por quadro (`PRIMITIVAS.md`, "O que custa num quadro").
+        let bg_opt = if fundo_redundante(bg_opt, fundo_pai, br_opt, node.border_width, node.box_shadow()) {
+            None
+        } else {
+            bg_opt
+        };
         let br_cantos = if campo { None } else { node.border_radius_corners() };
         let bw_opt = if campo {
             0.0
@@ -7286,15 +7439,25 @@ pub fn render_node<'a>(
             node.border_width.unwrap_or(0.0)
         };
         let bc_opt = node.border_color().and_then(parse_hex_color);
+        let sombra_opt = if campo { None } else { sombra(node.box_shadow()) };
 
         // `GLACIER_NO_PAINT` pula o embrulho inteiro: sem fundo, sem borda,
         // sem raio. É o interruptor que separa "lento por nó" de "lento por
         // área pintada" — ver `crate::perf::sem_pintura`.
-        if (bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0) && !crate::perf::sem_pintura() {
+        if (bg_opt.is_some() || br_opt.is_some() || bw_opt > 0.0 || sombra_opt.is_some())
+            && !crate::perf::sem_pintura()
+        {
+            // O embrulho herda o tamanho do elemento embrulhado (o `container`
+            // do iced nasce dele); só um `width`/`height` declarado manda. Antes
+            // ele forçava `Shrink`, e um `column` com fundo cujos filhos enchiam
+            // colapsava (a armadilha do `Fill`, `PRIMITIVAS.md`).
             let mut c = container(element);
-            c = c
-                .width(parse_length(&node.width))
-                .height(parse_length(&node.height));
+            if node.width.is_some() {
+                c = c.width(parse_length(&node.width));
+            }
+            if node.height.is_some() {
+                c = c.height(parse_length(&node.height));
+            }
 
             if let Some(ax) = parse_alignment(node.align_x()) {
                 c = c.align_x(ax);
@@ -7310,6 +7473,7 @@ pub fn render_node<'a>(
                     width: bw_opt,
                     color: bc_opt.unwrap_or(Color::TRANSPARENT),
                 },
+                shadow: sombra_opt.unwrap_or_default(),
                 ..Default::default()
             });
             element = c.into();
@@ -7417,6 +7581,13 @@ pub fn render_node<'a>(
             balao = balao.delay(atraso);
         }
         element = balao.into();
+    }
+
+    // `glacier test --layout`: embrulha cada nó num medidor que anota o tamanho
+    // que o layout lhe deu (só com a medição ligada; fora dela, um `bool`).
+    #[cfg(not(target_arch = "wasm32"))]
+    if crate::medida::ativo() {
+        element = crate::medida::Medidor::new(element, node.node_id).into();
     }
 
     element
@@ -8196,5 +8367,81 @@ mod testes_onda6 {
             caminhos,
             vec!["raiz", "raiz/src", "raiz/src/main.rs", "raiz/README.md"]
         );
+    }
+}
+
+#[cfg(test)]
+mod fonte_tests {
+    use super::*;
+
+    /// `bold` muda só o peso: a família do `font` da regra sobrevive (antes o
+    /// negrito montava `Font { weight: Bold, ..Default }` e caía na sans).
+    #[test]
+    fn negrito_mantem_a_familia_do_font() {
+        let familia = crate::fonts::register_family("Fonte Teste Negrito");
+        let f = fonte_completa(Some("Fonte Teste Negrito"), true, None, false).unwrap();
+        assert_eq!(f.family, familia.family);
+        assert_eq!(f.weight, iced::font::Weight::Bold);
+    }
+
+    /// Sem `font` na regra, o negrito parte da fonte padrão do app.
+    #[test]
+    fn negrito_sem_font_parte_da_padrao() {
+        let f = fonte_completa(None, true, None, false).unwrap();
+        assert_eq!(f.family, crate::fonts::default_font().family);
+        assert_eq!(f.weight, iced::font::Weight::Bold);
+        assert_eq!(fonte_completa(None, false, None, false), None);
+    }
+
+    /// `font_weight` vence o `bold` e `font_style: italic` muda só o estilo, os
+    /// dois sobre a família da regra.
+    #[test]
+    fn peso_e_italico_sobre_a_familia() {
+        let familia = crate::fonts::register_family("Fonte Teste Peso");
+        let f = fonte_completa(Some("Fonte Teste Peso"), true, Some(600), true).unwrap();
+        assert_eq!(f.family, familia.family);
+        assert_eq!(f.weight, iced::font::Weight::Semibold);
+        assert_eq!(f.style, iced::font::Style::Italic);
+        assert_eq!(peso_iced(100), iced::font::Weight::Thin);
+        assert_eq!(peso_iced(900), iced::font::Weight::Black);
+    }
+
+    #[test]
+    fn fundo_igual_ao_do_ancestral_e_redundante() {
+        let c = Color::from_rgb(0.1, 0.2, 0.3);
+        let bg = Some(Background::Color(c));
+        assert!(fundo_redundante(bg, Some(c), None, None, None));
+        // Raio, borda ou sombra mudam a forma: pinta.
+        assert!(!fundo_redundante(bg, Some(c), Some(4.0), None, None));
+        assert!(!fundo_redundante(bg, Some(c), None, Some(1.0), None));
+        assert!(!fundo_redundante(bg, Some(c), None, None, Some("0 2 8 #000")));
+        // Outra cor, ou sem fundo por baixo: pinta.
+        assert!(!fundo_redundante(bg, Some(Color::BLACK), None, None, None));
+        assert!(!fundo_redundante(bg, None, None, None, None));
+        // Translúcido nunca é redundante (somaria).
+        let t = Color { a: 0.5, ..c };
+        assert!(!fundo_redundante(Some(Background::Color(t)), Some(t), None, None, None));
+    }
+
+    #[test]
+    fn altura_de_linha_e_sombra() {
+        use iced::widget::text::LineHeight;
+        assert_eq!(altura_linha(Some("1.4")), Some(LineHeight::Relative(1.4)));
+        assert_eq!(altura_linha(Some("20px")), Some(LineHeight::Absolute(iced::Pixels(20.0))));
+        let s = sombra(Some("0 2 8 #00000066")).unwrap();
+        assert_eq!(s.offset, iced::Vector::new(0.0, 2.0));
+        assert_eq!(s.blur_radius, 8.0);
+        assert!(sombra(Some("0 2")).is_none());
+    }
+
+    /// `font: mono` resolve a mono do app quando ela foi declarada, e mono +
+    /// negrito continua mono.
+    #[test]
+    fn mono_e_a_mono_do_app() {
+        let mono = crate::fonts::register_family("Mono Teste App");
+        crate::fonts::set_mono(mono);
+        let f = fonte_completa(Some("mono"), true, None, false).unwrap();
+        assert_eq!(f.family, mono.family);
+        assert_eq!(f.weight, iced::font::Weight::Bold);
     }
 }

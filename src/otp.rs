@@ -341,7 +341,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, iced::Theme, iced::Renderer> for O
                         bounds: b.size(),
                         size: Pixels((self.lado * 0.5).round()),
                         line_height: iced::advanced::text::LineHeight::default(),
-                        font: iced::Font::MONOSPACE,
+                        font: crate::fonts::mono_font(),
                         align_x: iced::advanced::text::Alignment::Center,
                         align_y: iced::alignment::Vertical::Center,
                         shaping: iced::advanced::text::Shaping::Basic,

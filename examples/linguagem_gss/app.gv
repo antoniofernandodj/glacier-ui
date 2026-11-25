@@ -1,0 +1,68 @@
+// O .gss da 0.169 — tudo o que esta tela mostra mora em app.gss.
+//
+//   WGPU_BACKEND=gl cargo run --example linguagem_gss
+//
+// `gss_strict = true`: uma propriedade desconhecida no .gss é ERRO (troque um
+//   `color:` por `colr:` em app.gss e a tela não carrega, apontando a linha).
+// `gss_color = css`: `background` é o fundo e `color` a cor do conteúdo em todo
+//   widget — inclusive no `button` (no sentido antigo, o `color` dele era o fundo).
+// Sem `link(rel = theme)`: a paleta do tema vem do `@theme` do app.gss.
+app(id = linguagem_gss, gss_strict = true, gss_color = css, size = "640 720") {
+  resources {
+    link(rel = stylesheet, href = "examples/linguagem_gss/app.gss")
+  }
+
+  screen(name = principal, initial = true, title = "GSS 0.169") {
+    resources {
+      script """
+        function init() ctx.nome = "" end
+        function nada() end
+      """
+    }
+
+    column(class = tela) {
+      text("O .gss da 0.169", class = titulo)
+      text("font_weight: 300, font_style: italic e line_height: 1.6 — num parágrafo que quebra linha para a altura da linha aparecer.", class = citacao)
+      // A face 300 itálica é buscada na família da regra; a fonte padrão embutida no
+      // iced só tem regular e negrito, então o sistema completa com a família que tiver
+      // essa face (por isso este parágrafo pode sair noutra fonte). Embuta as faces com
+      // `font(src = …)` no `resources` do `app` para controlar isso.
+      text("A face itálica/300 vem da fonte do sistema se a família padrão não a tiver.", class = nota)
+
+      // Aninhamento: .btn { &--primario { … } &--perigo { … } &:hover { … } }
+      row(class = linha) {
+        button("Primário", class = "btn btn--primario", on_click = nada)
+        button("Perigo", class = "btn btn--perigo", on_click = nada)
+        button("Neutro", class = btn, on_click = nada)
+        button("Desabilitado", class = btn, on_click = nada, disabled = true)
+      }
+
+      // :is(:hover, :focus) — uma regra para os dois estados.
+      textinput(class = campo, :value = nome, on_change = nome, placeholder = "passe o mouse ou clique: :is(:hover, :focus)")
+
+      // :not(.linha--cabecalho) — o fundo listrado vale para toda linha menos o cabeçalho.
+      column(class = tabela) {
+        row(class = "tabela__linha tabela__linha--cabecalho") {
+          text("Serviço", class = tabela__celula)
+          text("Estado", class = tabela__celula)
+        }
+        row(class = tabela__linha) {
+          text("api", class = tabela__celula)
+          text("rodando", class = tabela__celula)
+        }
+        row(class = tabela__linha) {
+          text("web", class = tabela__celula)
+          text("parado", class = tabela__celula)
+        }
+      }
+
+      // box_shadow
+      container(class = cartao) {
+        column(class = cartao__corpo) {
+          text("Cartão com sombra", class = cartao__titulo)
+          text("box_shadow: 0 6 18 #00000088", class = codigo)
+        }
+      }
+    }
+  }
+}

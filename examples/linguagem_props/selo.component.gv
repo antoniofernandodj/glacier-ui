@@ -1,0 +1,21 @@
+// Um selo com contador. Cada prop declara o TIPO: quem usa o componente com um
+// literal do tipo errado (`ativo = talvez`) recebe um erro ao carregar a tela.
+component {
+  props {
+    prop(name = rotulo, type = string)
+    prop(name = ativo, type = bool, default = false)
+    prop(name = total, type = number, default = 0)
+    prop(name = tags, type = list, default = [])
+  }
+
+  row(class = selo, class:selo--ativo = @ativo) {
+    // `@ativo` sozinho: é bool, não precisa de `== "true"`.
+    text("●", class = selo__ponto, if = @ativo)
+    text("@rotulo", class = selo__rotulo)
+    // `total` é number: dá para comparar com > sem virar texto.
+    container(class = selo__total, if = @total > 0) {
+      text("{@total > 9 ? '9+' : @total}", class = selo__numero)
+    }
+    text("{len(@tags)} tag(s)", class = selo__tags, if = @tags is not empty)
+  }
+}

@@ -72,6 +72,15 @@ pub struct StyleRule {
     /// `transition: background 150ms` — ver [`crate::transition`]. Texto cru: quem
     /// o lê é o botão, na hora de montar o estilo.
     pub transition: Option<String>,
+    /// `font_weight: 600` (100…900, `normal` = 400, `bold` = 700): o peso na
+    /// família da regra. Vence o `bold` quando os dois aparecem.
+    pub font_weight: Option<u16>,
+    /// `font_style: italic` (ou `normal`).
+    pub font_style: Option<String>,
+    /// `line_height: 1.4` (múltiplo do tamanho) ou `line_height: 20px` (px).
+    pub line_height: Option<String>,
+    /// `box_shadow: 0 2 8 #00000066` — deslocamento x, y, desfoque e cor.
+    pub box_shadow: Option<String>,
     /// Valores numéricos que citam `var()` (`spacing: var(--gap)`), guardados como
     /// `(propriedade, valor)` até as variáveis existirem — ver
     /// [`StyleRule::resolve_var_refs`]. Os campos numéricos correspondentes ficam
@@ -154,6 +163,18 @@ impl StyleRule {
         }
         if other.transition.is_some() {
             self.transition = other.transition.clone();
+        }
+        if other.font_weight.is_some() {
+            self.font_weight = other.font_weight;
+        }
+        if other.font_style.is_some() {
+            self.font_style = other.font_style.clone();
+        }
+        if other.line_height.is_some() {
+            self.line_height = other.line_height.clone();
+        }
+        if other.box_shadow.is_some() {
+            self.box_shadow = other.box_shadow.clone();
         }
         // Um valor numérico concreto de `other` apaga o `var()` pendente de `self`
         // para a mesma propriedade, e um pendente de `other` apaga o concreto: vale
@@ -254,6 +275,8 @@ impl StyleRule {
         sub(&mut self.text_align);
         sub(&mut self.cursor);
         sub(&mut self.text_color);
+        sub(&mut self.line_height);
+        sub(&mut self.box_shadow);
     }
 }
 
@@ -405,7 +428,7 @@ fn calc_fator(cs: &[char], i: &mut usize) -> Option<f64> {
 /// variável (ou pelo fallback, ou string vazia se nenhum existir). Uma passada,
 /// sem recursão (uma variável não referencia outra). `var(` sem `)` é deixado
 /// como está.
-fn substitute_vars(value: &str, vars: &HashMap<String, String>) -> String {
+pub(crate) fn substitute_vars(value: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(value.len());
     let mut rest = value;
     while let Some(start) = rest.find("var(") {
@@ -663,6 +686,8 @@ pub struct Compound {
     pub ids: Vec<String>,
     /// `:first-child` & cia. — pseudo-classes que olham a posição entre os irmãos.
     pub estrutural: Vec<Estrutural>,
+    /// `:not(.a, .b)` — o nó NÃO pode casar nenhum destes compostos.
+    pub nao: Vec<Compound>,
 }
 
 impl Compound {
@@ -674,7 +699,64 @@ impl Compound {
                 .estrutural
                 .iter()
                 .all(|e| el.posicao.is_some_and(|p| e.casa(p)))
+            && !self.nao.iter().any(|n| n.matches(el))
     }
+}
+
+/// Divide uma lista de seletores pela vírgula de FORA dos parênteses — a de
+/// `:is(:hover, :focus)` e `:not(.a, .b)` é do argumento, não da lista.
+pub(crate) fn partes_do_seletor(sel: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut prof = 0i32;
+    let mut atual = String::new();
+    for c in sel.chars() {
+        match c {
+            '(' => prof += 1,
+            ')' => prof -= 1,
+            ',' if prof == 0 => {
+                out.push(std::mem::take(&mut atual).trim().to_string());
+                continue;
+            }
+            _ => {}
+        }
+        atual.push(c);
+    }
+    out.push(atual.trim().to_string());
+    out
+}
+
+/// `:is(a, b)` vira um seletor por argumento: `.btn:is(:hover, :focus)` →
+/// `.btn:hover` e `.btn:focus`. Açúcar puro — cada variante segue pelo caminho
+/// de sempre, então tudo o que o motor casa vale dentro do `:is`.
+pub(crate) fn expandir_is(sel: &str) -> Vec<String> {
+    let Some(ini) = sel.find(":is(") else {
+        return vec![sel.to_string()];
+    };
+    let resto = &sel[ini + 4..];
+    let mut prof = 1i32;
+    let mut fim = None;
+    for (i, c) in resto.char_indices() {
+        match c {
+            '(' => prof += 1,
+            ')' => {
+                prof -= 1;
+                if prof == 0 {
+                    fim = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let Some(fim) = fim else {
+        return vec![sel.to_string()];
+    };
+    let antes = &sel[..ini];
+    let depois = &resto[fim + 1..];
+    partes_do_seletor(&resto[..fim])
+        .into_iter()
+        .flat_map(|arg| expandir_is(&format!("{antes}{arg}{depois}")))
+        .collect()
 }
 
 /// O que liga um composto ao de dentro dele.
@@ -789,6 +871,11 @@ pub struct StyleSheet {
     /// na escada de especificidade pela faixa que a especificidade deles dá (ver
     /// [`resolve_classes_in`]).
     pub complex: Vec<ComplexRule>,
+    /// `@theme { background: var(--bg); text: …; primary: …; success: …;
+    /// danger: …; warning: … }` — a paleta do `iced` tirada dos tokens do
+    /// próprio `.gss`, para ela não morar em dois lugares (`theme.json` e
+    /// `:root`). Valores crus; o `var()` é resolvido por quem instala o tema.
+    pub theme: Option<HashMap<String, String>>,
 }
 
 impl StyleSheet {
@@ -1404,7 +1491,9 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
             continue;
         }
 
-        let close = after_open.find('}').ok_or_else(|| {
+        // O corpo vai até a `}` CASADA: com aninhamento (`&:hover { … }` dentro
+        // da regra), a primeira `}` fecharia o bloco de dentro.
+        let (body, remainder) = split_balanced_block(after_open).map_err(|_| {
             err(Diagnostic::new(
                 sel_line,
                 sel_col,
@@ -1412,9 +1501,26 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
             )
             .with_hint("falta a `}` que fecha este bloco"))
         })?;
-        let body = &after_open[..close];
         let body_at = brace_at + 1;
-        rest = &after_open[close + 1..];
+        rest = remainder;
+
+        // `@theme { background: var(--bg); … }` — a paleta do tema.
+        if selector == "@theme" {
+            let mut pares = HashMap::new();
+            for decl in body.split(';').map(str::trim).filter(|d| !d.is_empty()) {
+                let Some((k, v)) = decl.split_once(':') else {
+                    return Err(err(Diagnostic::new(sel_line, sel_col, format!("declaração inválida '{decl}' no @theme"))));
+                };
+                let k = k.trim();
+                if !matches!(k, "background" | "text" | "primary" | "success" | "danger" | "warning") {
+                    return Err(err(Diagnostic::new(sel_line, sel_col, format!("'{k}' não é um campo do @theme"))
+                        .with_hint("o @theme tem background, text, primary, success, danger e, opcional, warning")));
+                }
+                pares.insert(k.to_string(), v.trim().to_string());
+            }
+            sheet.theme = Some(pares);
+            continue;
+        }
 
         // `:root { --nome: valor; }` — bloco especial de design tokens (a única
         // exceção à regra "só seletor de classe"). Referenciados com `var(--nome)`.
@@ -1424,13 +1530,31 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
             continue;
         }
 
+        // Aninhamento (`.btn { &:hover { … } &--primary { … } }`): ver
+        // [`aplicar_aninhado`].
+        if body.contains('{') {
+            let mut pais = Vec::new();
+            for part in partes_do_seletor(selector) {
+                if part.is_empty() {
+                    return Err(err(Diagnostic::new(
+                        sel_line,
+                        sel_col,
+                        format!("seletor vazio em '{selector}'"),
+                    )));
+                }
+                pais.extend(expandir_is(&part));
+            }
+            aplicar_aninhado(&mut sheet, &pais, body, body_at, &ctx, &err)?;
+            continue;
+        }
+
         // Seletor por vírgula (`.a, .b { }`): cada parte recebe a MESMA regra,
         // como no CSS. Antes o seletor inteiro virava uma chave literal — uma
         // classe chamada `a, .b`, que nenhum nó jamais casa. Não dava erro nem
         // aviso: o estilo simplesmente não aparecia, e o autor ia procurar o bug
         // no XML. É a falha silenciosa mais cara que o motor tinha.
-        for part in selector.split(',') {
-            let sel = part.trim();
+        for part in partes_do_seletor(selector) {
+            let sel = part.as_str();
             if sel.is_empty() {
                 return Err(err(Diagnostic::new(
                     sel_line,
@@ -1442,7 +1566,9 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
                 )));
             }
             let rule = parse_rule_body(body, sel, body_at, &ctx)?;
-            apply_selector(&mut sheet, sel, rule, sel_line, sel_col, &err)?;
+            for variante in expandir_is(sel) {
+                apply_selector(&mut sheet, &variante, rule.clone(), sel_line, sel_col, &err)?;
+            }
         }
     }
 
@@ -1499,6 +1625,106 @@ pub fn parse_gss_in(input: &str, file: Option<&str>, line_offset: u32) -> Result
     Ok(sheet)
 }
 
+/// Uma regra com blocos dentro — o aninhamento do CSS (e do SCSS, no `&--x`):
+///
+/// ```gss
+/// .btn {
+///   padding: 8 15;
+///   &:hover     { background: var(--hover); }   /* .btn:hover */
+///   &--primary  { background: var(--green); }   /* .btn--primary (BEM) */
+///   .icone      { size: 12; }                   /* .btn .icone (descendente) */
+/// }
+/// ```
+///
+/// `&` é o seletor de fora (cada parte, se ele tem vírgula); sem `&`, o de dentro
+/// é descendente. É só açúcar: tudo sai daqui como regras planas, pelo mesmo
+/// [`apply_selector`] — o resto do motor nem sabe que houve aninhamento.
+///
+/// As posições continuam as do arquivo: os blocos de dentro viram espaços no
+/// texto das declarações (mesmo número de bytes, mesmas quebras de linha).
+fn aplicar_aninhado(
+    sheet: &mut StyleSheet,
+    pais: &[String],
+    body: &str,
+    body_at: usize,
+    ctx: &SheetCtx,
+    err: &impl Fn(Diagnostic) -> GlacierError,
+) -> Result<()> {
+    let mut decl: Vec<u8> = body.as_bytes().to_vec();
+    // (seletor, offset do seletor, corpo de dentro, offset do corpo de dentro)
+    let mut filhos: Vec<(String, usize, &str, usize)> = Vec::new();
+    let mut seg = 0usize;
+    let mut i = 0usize;
+    let bytes = body.as_bytes();
+    while i < bytes.len() {
+        match bytes[i] {
+            b';' => seg = i + 1,
+            b'{' => {
+                let (inner, _) = split_balanced_block(&body[i + 1..]).map_err(|_| {
+                    let (l, c) = ctx.at(body_at + i);
+                    err(Diagnostic::new(l, c, "bloco aninhado nunca fechado".to_string())
+                        .with_hint("falta a `}` que fecha este bloco"))
+                })?;
+                let fim = i + 1 + inner.len(); // a `}` de fechamento
+                let bruto = &body[seg..i];
+                let lead = bruto.len() - bruto.trim_start().len();
+                filhos.push((bruto.trim().to_string(), body_at + seg + lead, inner, body_at + i + 1));
+                for b in &mut decl[seg..=fim] {
+                    if *b != b'\n' {
+                        *b = b' ';
+                    }
+                }
+                i = fim + 1;
+                seg = i;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    let decl = String::from_utf8(decl).unwrap_or_default();
+
+    if !decl.trim().is_empty() {
+        for pai in pais {
+            let rule = parse_rule_body(&decl, pai, body_at, ctx)?;
+            let (l, c) = ctx.at(body_at);
+            apply_selector(sheet, pai, rule, l, c, err)?;
+        }
+    }
+
+    for (sel, sel_at, inner, inner_at) in filhos {
+        let (l, c) = ctx.at(sel_at);
+        if sel.starts_with('@') {
+            return Err(err(Diagnostic::new(l, c, format!("`{sel}` dentro de uma regra não é suportado"))
+                .with_hint("ponha a regra dentro do `@media`, e não o contrário: `@media (…) { .a { … } }`")));
+        }
+        let mut completos = Vec::new();
+        for parte in partes_do_seletor(&sel) {
+            let parte = parte.as_str();
+            if parte.is_empty() {
+                return Err(err(Diagnostic::new(l, c, format!("seletor vazio em '{sel}'"))));
+            }
+            for pai in pais {
+                let completo = if parte.contains('&') {
+                    parte.replace('&', pai)
+                } else {
+                    format!("{pai} {parte}")
+                };
+                completos.extend(expandir_is(&completo));
+            }
+        }
+        if inner.contains('{') {
+            aplicar_aninhado(sheet, &completos, inner, inner_at, ctx, err)?;
+        } else {
+            for completo in &completos {
+                let rule = parse_rule_body(inner, completo, inner_at, ctx)?;
+                apply_selector(sheet, completo, rule, l, c, err)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Encaixa `rule` no lugar certo do `sheet` conforme a *forma* do seletor.
 /// `.classe`, `#id` e `Tag` (com ou sem `:estado`) vão para os mapas simples;
 /// tudo o mais — composto (`row.p-2`), combinado (`row > text`, `column text`),
@@ -1524,6 +1750,7 @@ fn apply_selector(
     let c = &parsed.subject;
     let simples = parsed.ancestors.is_empty()
         && c.estrutural.is_empty()
+        && c.nao.is_empty()
         && c.tag.is_some() as usize + c.classes.len() + c.ids.len() == 1;
     if !simples {
         sheet.complex.push(ComplexRule {
@@ -1618,13 +1845,13 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
         if c == '+' || c == '~' {
             return Err((
                 format!("combinador de irmão '{c}' não suportado em '{selector}'"),
-                Some("os combinadores suportados são `>` (filho) e o espaço (descendente)"),
+                Some("os combinadores suportados são `>` (filho) e o espaço (descendente); para estilizar pelo vizinho, marque o nó com uma classe condicional no `.gv` (`class:depois-de-x = …`)"),
             ));
         }
         if c == '[' {
             return Err((
                 format!("seletor de atributo não suportado em '{selector}'"),
-                Some("use uma classe: `.ativo` no lugar de `[ativo]`"),
+                Some("o estilo não enxerga atributos do nó: use uma classe condicional no `.gv` (`class:ativo = @ativo`) e `.ativo` no `.gss`"),
             ));
         }
 
@@ -1633,7 +1860,7 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
             return Err((
                 format!("pseudo-estado num ancestral em '{selector}'"),
                 Some(
-                    "o `:estado` só vale no último seletor (`row > button:hover`), não num ancestral",
+                    "o `:estado` só vale no último seletor (`row > button:hover`), não num ancestral: o estado vem do próprio widget no desenho, e um contêiner não tem hover. Para reagir ao hover de um cartão, faça do cartão um `button` e estilize `.cartao:hover`",
                 ),
             ));
         }
@@ -1698,6 +1925,37 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
                             comp.estrutural.push(Estrutural::Unico);
                             continue;
                         }
+                        "not" if chars.get(i) == Some(&'(') => {
+                            let mut prof = 0i32;
+                            let mut fim = None;
+                            for (k, ch) in chars[i..].iter().enumerate() {
+                                match ch {
+                                    '(' => prof += 1,
+                                    ')' => {
+                                        prof -= 1;
+                                        if prof == 0 {
+                                            fim = Some(k);
+                                            break;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            let fim = fim.ok_or_else(|| (format!("':not(' sem ')' em '{selector}'"), None))?;
+                            let args: String = chars[i + 1..i + fim].iter().collect();
+                            for arg in partes_do_seletor(&args) {
+                                let interno = parse_selector(&arg)?;
+                                if !interno.ancestors.is_empty() || interno.state.is_some() {
+                                    return Err((
+                                        format!("':not({arg})' em '{selector}': só compostos simples dentro do :not"),
+                                        Some("`:not(.classe)`, `:not(text)`, `:not(#id)` ou `:not(:first-child)`; sem combinador nem estado"),
+                                    ));
+                                }
+                                comp.nao.push(interno.subject);
+                            }
+                            i += fim + 1;
+                            continue;
+                        }
                         "nth-child" if chars.get(i) == Some(&'(') => {
                             let fim = chars[i..].iter().position(|c| *c == ')').ok_or_else(|| {
                                 (format!("':nth-child(' sem ')' em '{selector}'"), None)
@@ -1718,7 +1976,7 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
                     if chars.get(i) == Some(&'(') {
                         return Err((
                             format!("pseudo-classe ':{nome}(…)' não suportada em '{selector}'"),
-                            Some("os suportados são :hover, :focus, :active, :disabled, :invalid, :first-child, :last-child, :only-child e :nth-child(an+b)"),
+                            Some("os suportados são :hover, :focus, :active, :disabled, :invalid, :first-child, :last-child, :only-child, :nth-child(an+b), :not(…) e :is(…)"),
                         ));
                     }
                     if state.is_some() {
@@ -1766,7 +2024,7 @@ fn parse_selector(selector: &str) -> std::result::Result<ComplexSelector, Select
     let mut spec = (0u32, 0u32, 0u32);
     for comp in std::iter::once(&subject).chain(ancestors.iter().map(|(_, c)| c)) {
         spec.0 += comp.ids.len() as u32;
-        spec.1 += comp.classes.len() as u32 + comp.estrutural.len() as u32;
+        spec.1 += comp.classes.len() as u32 + comp.estrutural.len() as u32 + comp.nao.len() as u32;
         spec.2 += comp.tag.is_some() as u32;
     }
     spec.1 += state.is_some() as u32;
@@ -1996,7 +2254,59 @@ fn parse_rule_body(
                 rule.opacity = Some(n.clamp(0.0, 1.0));
             }
             "transition" => rule.transition = Some(value),
-            "hidden" => rule.hidden = Some(value.eq_ignore_ascii_case("true") || value == "1"),
+            "font_weight" => {
+                rule.font_weight = Some(parse_peso(&value).ok_or_else(|| {
+                    ctx.err(
+                        Diagnostic::new(line, col, format!("'font_weight' em '{selector}': '{value}' não é um peso"))
+                            .with_hint("um peso é 100, 200, … 900, `normal` (400) ou `bold` (700)"),
+                    )
+                })?)
+            }
+            "font_style" => {
+                let v = value.trim().to_ascii_lowercase();
+                if !matches!(v.as_str(), "italic" | "normal" | "oblique") {
+                    return Err(ctx.err(
+                        Diagnostic::new(line, col, format!("'font_style' em '{selector}': '{value}' não é um estilo"))
+                            .with_hint("`font_style: italic` ou `font_style: normal`"),
+                    ));
+                }
+                rule.font_style = Some(v);
+            }
+            "line_height" => {
+                if !value.contains("var(") && parse_altura_linha(&value).is_none() {
+                    return Err(ctx.err(
+                        Diagnostic::new(line, col, format!("'line_height' em '{selector}': '{value}' não é uma altura de linha"))
+                            .with_hint("`line_height: 1.4` (múltiplo do tamanho do texto) ou `line_height: 20px`"),
+                    ));
+                }
+                rule.line_height = Some(value)
+            }
+            "box_shadow" => {
+                if !value.contains("var(") && parse_sombra(&value).is_none() {
+                    return Err(ctx.err(
+                        Diagnostic::new(line, col, format!("'box_shadow' em '{selector}': '{value}' não é uma sombra"))
+                            .with_hint("`box_shadow: x y desfoque cor`, como `box_shadow: 0 2 8 #00000066`"),
+                    ));
+                }
+                rule.box_shadow = Some(value)
+            }
+            // O iced 0.14 não desenha espaçamento entre letras: a propriedade
+            // existe no CSS e alguém vai escrevê-la. Erro com o motivo, em vez do
+            // "propriedade desconhecida" que só diz que ela sumiu.
+            "letter_spacing" => {
+                return Err(ctx.err(
+                    Diagnostic::new(line, col, format!("'letter_spacing' em '{selector}' não é suportado"))
+                        .with_hint("o iced 0.14 não desenha espaçamento entre letras; tire a declaração (reabrir quando o iced suportar)"),
+                ));
+            }
+            "hidden" => {
+                avisar_depreciado(
+                    ctx.file.unwrap_or("<inline>"),
+                    "hidden",
+                    "`hidden: true` está depreciado — use `display: none` (a forma do CSS)",
+                );
+                rule.hidden = Some(value.eq_ignore_ascii_case("true") || value == "1")
+            }
             "display" => rule.hidden = Some(value.eq_ignore_ascii_case("none")),
             // Propriedade desconhecida: pular com aviso, sem derrubar o arquivo
             // inteiro. Um typo (`colr:`) não deve apagar todas as regras do
@@ -2009,9 +2319,29 @@ fn parse_rule_body(
             // silêncio, sem posição, é a segunda falha silenciosa mais cara do
             // motor (a primeira era o seletor por vírgula).
             other => {
-                let suggestion = closest_property(other)
-                    .map(|p| format!(" — você quis dizer '{p}'?"))
-                    .unwrap_or_default();
+                // O CSS escreve `border-radius`; o GSS, `border_radius` (a mesma
+                // grafia dos atributos do `.gv`). O hífen é o engano mais comum de
+                // quem vem do CSS, então ganha a mensagem exata em vez do palpite.
+                let com_sublinhado = other.replace('-', "_");
+                let suggestion = if other.contains('-')
+                    && KNOWN_PROPERTIES.contains(&com_sublinhado.as_str())
+                {
+                    format!(" — o GSS escreve com sublinhado: '{com_sublinhado}'")
+                } else {
+                    closest_property(other)
+                        .map(|p| format!(" — você quis dizer '{p}'?"))
+                        .unwrap_or_default()
+                };
+                if estrito() {
+                    return Err(ctx.err(
+                        Diagnostic::new(
+                            line,
+                            col,
+                            format!("propriedade GSS desconhecida '{other}' em '{selector}'{suggestion}"),
+                        )
+                        .with_hint("modo estrito (`app(gss_strict = true)`): propriedade desconhecida é erro"),
+                    ));
+                }
                 eprintln!(
                     "glacier-ui: {}: propriedade GSS desconhecida '{}' em '{}' (ignorada){}",
                     ctx.where_at(line),
@@ -2043,6 +2373,68 @@ fn parse_rule_body(
     Ok(rule)
 }
 
+/// As tags dos widgets que pintam o próprio fundo — onde o `color` do sentido
+/// antigo do `.gss` é o FUNDO (ver a Fase 7 do `PLANO_LINGUAGEM_GV_GSS.md`).
+pub const TAGS_COM_FUNDO_PROPRIO: &[&str] = &["button", "select", "comboedit", "menu"];
+
+/// Traduz uma regra BASE escrita no sentido antigo (`color` = fundo, `text_color`
+/// = rótulo) para o sentido do CSS (`background` = fundo, `color` = rótulo).
+pub fn regra_legada_para_css(r: &mut StyleRule) {
+    if let Some(fundo) = r.color.take() {
+        r.background = Some(fundo);
+    }
+    if let Some(rotulo) = r.text_color.take() {
+        r.color = Some(rotulo);
+    }
+}
+
+/// O mesmo para uma regra de ESTADO (`:hover` & cia.): lá o fundo já era
+/// `background`; só o rótulo (`text_color`) vira `color`.
+pub fn estado_legado_para_css(r: &mut StyleRule) {
+    r.color = r.text_color.take().or(r.color.take());
+}
+
+/// Converte, num sheet inteiro, as regras de TAG dos widgets com fundo próprio
+/// (`Button { color: … }`) do sentido antigo para o do CSS. Exato porque o
+/// seletor de tag diz qual widget é; uma `.classe` não diz, e por isso ela é
+/// convertida pelo `glacier fmt --migrate`, que cruza com os `.gv`.
+pub fn cor_legada_para_css(sheet: &mut StyleSheet) {
+    for tag in TAGS_COM_FUNDO_PROPRIO {
+        if let Some(r) = sheet.tags.get_mut(*tag) {
+            regra_legada_para_css(r);
+        }
+        if let Some(st) = sheet.tag_states.get_mut(*tag) {
+            for r in st.values_mut() {
+                estado_legado_para_css(r);
+            }
+        }
+    }
+}
+
+static ESTRITO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `app(gss_strict = true)` / `glacier check --strict`: propriedade desconhecida
+/// vira ERRO de parse. Fora do modo estrito continua aviso — um typo não deve
+/// derrubar a tela inteira em produção.
+pub fn set_estrito(sim: bool) {
+    ESTRITO.store(sim, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn estrito() -> bool {
+    ESTRITO.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Um aviso de forma depreciada, uma vez por (arquivo, forma) — o mesmo `.gss`
+/// recarregado ou com 18 usos não inunda o terminal.
+fn avisar_depreciado(onde: &str, forma: &str, msg: &str) {
+    static VISTOS: std::sync::Mutex<Option<std::collections::HashSet<String>>> =
+        std::sync::Mutex::new(None);
+    let mut g = VISTOS.lock().unwrap_or_else(|e| e.into_inner());
+    if g.get_or_insert_with(Default::default).insert(format!("{onde}\0{forma}")) {
+        eprintln!("glacier-ui: {onde}: {msg} (`glacier fmt --migrate` reescreve)");
+    }
+}
+
 /// Toda propriedade que o GSS entende, na grafia canônica — a lista contra a
 /// qual um nome desconhecido é comparado para sugerir o certo.
 const KNOWN_PROPERTIES: &[&str] = &[
@@ -2050,30 +2442,73 @@ const KNOWN_PROPERTIES: &[&str] = &[
     "height",
     "padding",
     "spacing",
-    "align-x",
-    "align-y",
+    "align_x",
+    "align_y",
     "background",
-    "border-radius",
-    "border-width",
-    "border-color",
+    "border_radius",
+    "border_width",
+    "border_color",
     "fill",
     "stroke",
-    "stroke-width",
+    "stroke_width",
     "color",
     "size",
     "bold",
     "font",
+    "font_family",
     "gradient",
-    "text-align",
+    "text_align",
     "cursor",
-    "text-color",
-    "max-width",
-    "max-height",
+    "text_color",
+    "max_width",
+    "max_height",
     "hidden",
     "display",
     "opacity",
     "transition",
+    "font_weight",
+    "font_style",
+    "line_height",
+    "box_shadow",
 ];
+
+/// `font_weight`: `100`…`900` (de cem em cem), `normal` (400) ou `bold` (700).
+pub fn parse_peso(v: &str) -> Option<u16> {
+    match v.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some(400),
+        "bold" => Some(700),
+        n => n.parse::<u16>().ok().filter(|p| (100..=900).contains(p) && p % 100 == 0),
+    }
+}
+
+/// Uma altura de linha: múltiplo do tamanho do texto, ou pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AlturaLinha {
+    Fator(f32),
+    Px(f32),
+}
+
+/// `line_height: 1.4` (fator) ou `line_height: 20px` (px). Sem unidade, um número
+/// acima de 4 é lido como px (ninguém quer uma linha de 20 vezes o texto).
+pub fn parse_altura_linha(v: &str) -> Option<AlturaLinha> {
+    let t = v.trim();
+    if let Some(px) = t.strip_suffix("px") {
+        return px.trim().parse::<f32>().ok().filter(|n| *n > 0.0).map(AlturaLinha::Px);
+    }
+    let n = t.parse::<f32>().ok().filter(|n| *n > 0.0)?;
+    Some(if n > 4.0 { AlturaLinha::Px(n) } else { AlturaLinha::Fator(n) })
+}
+
+/// `box_shadow: x y desfoque cor` → `(x, y, desfoque, cor)`. A cor é o resto
+/// (hex ou nome que o motor entenda), resolvida por quem desenha.
+pub fn parse_sombra(v: &str) -> Option<(f32, f32, f32, String)> {
+    let partes: Vec<&str> = v.split_whitespace().collect();
+    if partes.len() < 4 {
+        return None;
+    }
+    let num = |s: &str| s.trim_end_matches("px").parse::<f32>().ok();
+    Some((num(partes[0])?, num(partes[1])?, num(partes[2])?.max(0.0), partes[3..].join(" ")))
+}
 
 /// A propriedade conhecida mais próxima de `name`, se houver uma perto o
 /// bastante para o palpite valer (distância de edição ≤ 2, ou ≤ 1 para nomes
@@ -2199,11 +2634,48 @@ mod diagnostic_tests {
     }
 
     // Um typo numa propriedade não derruba o arquivo, mas sugere o certo.
+    /// A lista de sugestão e o `match` do `parse_rule_body` não podem divergir:
+    /// toda propriedade sugerida tem que ser aceita. (A lista esteve em hífen —
+    /// `border-radius` — enquanto o parser só aceita `border_radius`, então o
+    /// "você quis dizer" sugeria uma grafia rejeitada.)
+    #[test]
+    fn toda_propriedade_sugerida_e_aceita_pelo_parser() {
+        for prop in KNOWN_PROPERTIES {
+            let valor = match *prop {
+                "width" | "height" => "fill",
+                "padding" | "spacing" | "border_radius" | "border_width" | "stroke_width"
+                | "size" | "max_width" | "max_height" => "4",
+                "opacity" => "0.5",
+                "bold" | "hidden" => "true",
+                "display" => "none",
+                "align_x" | "align_y" | "text_align" => "center",
+                "cursor" => "pointer",
+                "transition" => "all 150ms ease",
+                "gradient" => "#000 #fff",
+                "font" | "font_family" => "mono",
+                "font_weight" => "600",
+                "font_style" => "italic",
+                "line_height" => "1.4",
+                "box_shadow" => "0 2 8 #00000066",
+                _ => "#123456",
+            };
+            let sheet = parse_gss(&format!(".x {{ {prop}: {valor}; }}")).unwrap();
+            let regra = sheet.rules.get("x").cloned().unwrap_or_default();
+            assert_ne!(regra, StyleRule::default(), "'{prop}' é sugerida mas o parser a ignora");
+        }
+    }
+
+    #[test]
+    fn sugestao_nunca_vem_em_hifen() {
+        assert_eq!(closest_property("border_radiu"), Some("border_radius"));
+        assert!(KNOWN_PROPERTIES.iter().all(|p| !p.contains('-')));
+    }
+
     #[test]
     fn typo_de_propriedade_sugere_a_correta() {
         assert_eq!(closest_property("colr"), Some("color"));
         assert_eq!(closest_property("paddign"), Some("padding"));
-        assert_eq!(closest_property("bordr-radius"), Some("border-radius"));
+        assert_eq!(closest_property("bordr_radius"), Some("border_radius"));
         // Nada parecido → nenhum palpite (melhor calar que chutar besteira).
         assert_eq!(closest_property("banana-split"), None);
         // E segue sendo não-fatal: a outra propriedade da regra é preservada.
@@ -2767,7 +3239,9 @@ mod tests {
             ("row > > text { padding: 1; }", "'>'"),
             ("text[x] { padding: 1; }", "atributo"),
             ("text::after { padding: 1; }", "pseudo-elemento"),
-            ("text:not(.a) { padding: 1; }", "não suportada"),
+            // `:not(.a)` é suportado desde a 0.169; uma pseudo-classe funcional
+            // desconhecida continua erro.
+            ("text:has(.a) { padding: 1; }", "não suportada"),
             ("row:hover > text { padding: 1; }", "ancestral"),
             ("row .  { padding: 1; }", "classe vazio"),
             ("row @x { padding: 1; }", "inesperado"),

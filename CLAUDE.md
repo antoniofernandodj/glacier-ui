@@ -101,6 +101,33 @@ CSS**, não uma propriedade do motor, e só a forma com hífen é aceita.
 Cores nomeadas em `:root`, usadas por `var(--nome)` — nunca um hexadecimal
 repetido em cinco regras.
 
+## A linguagem: expressões, duas formas, cor (0.169+)
+
+A gramática inteira está em **`docs/LINGUAGEM.md`**; o porquê, em
+`docs/PLANO_LINGUAGEM_GV_GSS.md`. O que muda a escrita do dia a dia:
+
+- **Condição é expressão**: `if @a && !@b`, `if = @n > 0`, `@tipo in ["a", "b"]`,
+  `@lista is empty`. Não escreva `equals =`/`not_equals =`/`one_of =` (depreciados;
+  `glacier fmt --migrate` reescreve).
+- **Duas formas por conceito**, cada uma com seu papel: a curta num nó (`if =`,
+  `each = @l as v`, e `else` **logo depois** do irmão com `if =` — senão é erro) e a de
+  bloco (`if … { } else { }`, `each @l as v { }`). `template(if/:for_each)` saiu.
+- **Classe condicional** `class:x--on = expr` em vez de repetir o nó para trocar uma
+  classe; **atributo com ternário** (`src = @a ? "x" : "y"`).
+- **Ação com argumentos**: `on_click = salvar(@item.id, true)`. O `handler:arg` está
+  depreciado (fica para os embutidos: `window:drag`, `field:x`).
+- **i18n curto**: `text(t("tela.chave"))`.
+- **Props com tipo**: `prop(name = ativo, type = bool, default = false)`.
+- **`.gss`**: aninhamento com `&` (`&:hover`, `&--primario`), `:not()`, `:is()`,
+  `font_weight`, `line_height`, `box_shadow`, `@theme` (a paleta num lugar só),
+  `display: none` (não `hidden`). Propriedade em `snake_case`; variável e `@media` com
+  hífen.
+- **Cor**: em `app(gss_color = css)`, `background` é fundo e `color` é conteúdo em
+  todo widget. Sem isso vale o sentido antigo (o `color` de um `button` é o fundo).
+
+Antes de dizer que um `.gv`/`.gss` está certo: `glacier check --strict`; antes de dizer
+que uma tela desenha: `glacier test --layout`.
+
 ## O que essa convenção protege
 
 Uma propriedade de estilo que o motor não conhece é **ignorada com aviso**, não

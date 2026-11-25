@@ -59,6 +59,8 @@ fn main() -> ExitCode {
         Some("install-extensions") => instalar_extensoes(&e),
         Some("serve") => serve::serve(&e, args.collect()),
         Some("test") => serve::testar(&e, args.collect()),
+        Some("check") => serve::ferramenta(&e, serve::Ferramenta::Check, args.collect()),
+        Some("fmt") => serve::ferramenta(&e, serve::Ferramenta::Fmt, args.collect()),
         Some(outro) => {
             eprintln!("{} comando desconhecido: '{outro}'", e.vermelho("erro:"));
             eprintln!("  rode `glacier --help` para ver os comandos.");
@@ -185,6 +187,10 @@ fn ajuda(e: &Estilo) {
     glacier serve wasm            compila para o navegador e serve em http://127.0.0.1:8080
     glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
     glacier test [arquivo|pasta]  roda os testes Luau (*.test.luau em views/ e tests/)
+    glacier check [pasta]         confere .gv/.gss: formas depreciadas, classes
+                                  órfãs, fundo igual ao do tema (--strict reprova)
+    glacier fmt [pasta]           --migrate reescreve as formas depreciadas;
+                                  --migrate-color passa à cor do CSS; --check só lista
     glacier install-extensions    só instala as extensões de VS Code
     glacier presets               descreve os presets disponíveis
     glacier --version
@@ -214,6 +220,9 @@ fn ajuda(e: &Estilo) {
     -vvv                          + tempo por teste e stacktrace das falhas
     -s, --silent                  esconde os logs dos testes (print, console.*)
                                   que aparecem por padrão; combina: -svvv
+        --layout [LxA]            mede o layout sem janela a cada render e avisa
+                                  de nó com largura/altura zero (padrão 1280x820)
+        --strict                  com --layout, o nó colapsado reprova o teste
         --release                 build otimizado
     -F, --features <l>            features do projeto
     -c, --configuration <n>       configuração nomeada do glacier.jsonc

@@ -1,0 +1,78 @@
+// Botão ocupado automático.
+//
+//   WGPU_BACKEND=gl cargo run --example linguagem_ocupado
+//
+// `busy_buttons = true` no `app`: enquanto a corrotina de um handler está
+// SUSPENSA — esperando a resposta de um `confirm`, de um `fetch` —, o motor grava
+// `__busy.<handler> = true` no contexto, e todo botão cujo `on_click` aponta para
+// esse handler fica desabilitado. Quando a corrotina termina, volta a `false`.
+// Nenhum botão abaixo escreve `disabled`.
+app(id = linguagem_ocupado, busy_buttons = true, size = "620 560") {
+  resources {
+    link(rel = stylesheet, href = "examples/linguagem_ocupado/app.gss")
+  }
+
+  screen(name = principal, initial = true, title = "Botão ocupado") {
+    resources {
+      script """
+        function init()
+          ctx.salvos = 0
+          ctx.resultado = "—"
+        end
+
+        -- Suspende no `confirm` até o usuário responder: enquanto o diálogo está
+        -- aberto, `salvar` está ocupado e os dois botões "Salvar" ficam cinza.
+        function salvar()
+          if confirm({ title = "Salvar", message = "Gravar as alterações?" }) then
+            ctx.salvos = ctx.salvos + 1
+          end
+        end
+
+        -- Suspende no `fetch` (precisa de rede): a URL responde depois de 3 s.
+        function baixar(segundos)
+          ctx.resultado = "esperando…"
+          local r = fetch("https://httpbin.org/delay/" .. segundos)
+          ctx.resultado = r.ok and ("HTTP " .. r.status) or ("falhou: " .. tostring(r.error))
+        end
+
+        -- Termina na hora: nunca fica ocupado.
+        function contar()
+          ctx.salvos = ctx.salvos + 1
+        end
+      """
+    }
+
+    column(class = tela) {
+      text("Botão ocupado automático", class = titulo)
+      text("app(busy_buttons = true): nenhum botão aqui escreve disabled.", class = nota)
+
+      column(class = bloco) {
+        text("1. Handler suspenso num diálogo", class = subtitulo)
+        text("Clique em Salvar e, com o diálogo aberto, veja os dois botões Salvar desabilitados.", class = nota)
+        row(class = linha) {
+          button("Salvar", class = btn, on_click = salvar)
+          button("Salvar (outra cópia)", class = btn, on_click = salvar)
+          // `busy = false`: este botão chama o mesmo handler e NUNCA desabilita.
+          button("Salvar (busy = false)", class = btn, on_click = salvar, busy = false)
+        }
+        text("salvos: @salvos", class = valor)
+        text("__busy.salvar = {__busy.salvar|false}", class = codigo)
+      }
+
+      column(class = bloco) {
+        text("2. Handler suspenso num fetch (precisa de rede)", class = subtitulo)
+        row(class = linha) {
+          button("Baixar (3 s)", class = btn, on_click = baixar(3))
+          text("@resultado", class = valor)
+        }
+        text("__busy.baixar = {__busy.baixar|false}", class = codigo)
+      }
+
+      column(class = bloco) {
+        text("3. Handler que termina na hora", class = subtitulo)
+        button("Contar", class = btn, on_click = contar)
+        text("__busy.contar = {__busy.contar|false}  (nunca fica true)", class = codigo)
+      }
+    }
+  }
+}

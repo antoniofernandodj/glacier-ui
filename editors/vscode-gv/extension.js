@@ -350,6 +350,9 @@ const DIRECTIVE_ATTRS = new Set(
     // arrastar-e-soltar da lista repetida
     "on_reorder",
     "reorder_key",
+    // botão ocupado (`busy = false`) e a identidade do item (`key`)
+    "busy",
+    "key",
   ].map((a) => a.toLowerCase())
 );
 

@@ -174,7 +174,7 @@
     "control": {
       "patterns": [
         {
-          "comment": "if / else if / else, e os operadores do condicional do motor",
+          "comment": "if / else if / else, each … as, e os operadores da linguagem de expressão (src/expr.rs)",
           "match": "(?<![\\w.])(if|else|each|as)(?![\\w-])",
           "name": "keyword.control.conditional.glacier-view"
         },
@@ -183,8 +183,25 @@
           "name": "keyword.operator.word.glacier-view"
         },
         {
-          "match": "==|!=",
+          "match": "(?<![\\w.@])(true|false|null)(?![\\w-])",
+          "name": "constant.language.glacier-view"
+        },
+        {
+          "match": "==|!=|<=|>=|(?<=\\s)[<>](?=\\s)",
           "name": "keyword.operator.comparison.glacier-view"
+        },
+        {
+          "match": "&&|\\|\\||(?<![=!<>])!(?!=)",
+          "name": "keyword.operator.logical.glacier-view"
+        },
+        {
+          "match": "(?<=\\s)\\?(?=\\s)|(?<=\\s):(?=\\s)",
+          "name": "keyword.operator.ternary.glacier-view"
+        },
+        {
+          "comment": "Funções da linguagem de expressão, fora das chaves: `t(\"k\")`, `len(@l)`.",
+          "match": "(?<![\\w.])(t|num|date|len|lower|upper|trim|json)(?=\\()",
+          "name": "support.function.glacier-view"
         }
       ]
     },
@@ -271,6 +288,24 @@
     },
     "property": {
       "patterns": [
+        {
+          "comment": "Classe condicional: `class:nome = expr` liga a classe quando a expressão é verdadeira.",
+          "match": "(?<![\\w.])(class)(:)([A-Za-z_][\\w-]*)(\\s*=)",
+          "captures": {
+            "1": {
+              "name": "entity.other.attribute-name.glacier-view"
+            },
+            "2": {
+              "name": "punctuation.separator.glacier-view"
+            },
+            "3": {
+              "name": "entity.other.attribute-name.class.glacier-view"
+            },
+            "4": {
+              "name": "punctuation.separator.key-value.glacier-view"
+            }
+          }
+        },
         {
           "comment": "Propriedade de ação (on_press, onChange, aoClicar…): o valor é o nome de um handler.",
           "match": "(?<![\\w.])(on[_-]?[A-Za-z]+|ao[A-Z][A-Za-z]*|ao_[a-z_]+)(\\s*=\\s*)([A-Za-z_]\\w*)?",
@@ -405,6 +440,16 @@
         }
       },
       "patterns": [
+        {
+          "include": "#interpolation"
+        },
+        {
+          "include": "#control"
+        },
+        {
+          "match": "\"[^\"\\n]*\"",
+          "name": "string.quoted.double.glacier-view"
+        },
         {
           "match": "'[^'\\n]*'",
           "name": "string.quoted.single.i18n-key.glacier-view"

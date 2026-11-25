@@ -111,7 +111,13 @@ impl Style {
 
     /// O [`Style::gss`] parseado. Erros citam `builtin:<nome>` como arquivo.
     pub fn sheet(&self) -> Result<StyleSheet> {
-        StyleSheet::parse_in(self.gss, Some(&format!("builtin:{}", self.name)), 1)
+        let mut sheet = StyleSheet::parse_in(self.gss, Some(&format!("builtin:{}", self.name)), 1)?;
+        // Os estilos embutidos são escritos no sentido antigo do `color` (o fundo
+        // de um `Button`); no modo CSS (`app(gss_color = css)`), traduzidos.
+        if crate::eval::cor_css() {
+            crate::stylesheet::cor_legada_para_css(&mut sheet);
+        }
+        Ok(sheet)
     }
 }
 

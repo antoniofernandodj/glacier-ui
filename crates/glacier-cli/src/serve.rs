@@ -237,6 +237,10 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     let mut features = cfg.features(&["test"]);
     let mut verbosidade: u8 = 0;
     let mut silencioso = false;
+    // `--layout [LxA]`: mede o layout sem janela a cada `:render()` (ver
+    // `luau/testing.rs::verificar_layout`); `--strict` faz o colapso reprovar.
+    let mut layout: Option<String> = None;
+    let mut estrito = false;
 
     let mut args = argv.into_iter();
     while let Some(arg) = args.next() {
@@ -247,6 +251,18 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
                     .ok_or_else(|| invalido(format!("`{arg}` precisa de um trecho do nome")))?;
             }
             "--release" => release = true,
+            "--layout" => {
+                // O tamanho é opcional: `--layout 1024x700`, ou o padrão.
+                let mut resto = args.clone();
+                layout = Some(match resto.next() {
+                    Some(t) if t.contains(['x', 'X']) && t.chars().next().is_some_and(|c| c.is_ascii_digit()) => {
+                        args.next();
+                        t
+                    }
+                    _ => "1280x820".to_string(),
+                });
+            }
+            "--strict" => estrito = true,
             "--verbose" => verbosidade = verbosidade.saturating_add(1).min(3),
             "--silent" => silencioso = true,
             "-F" | "--features" => {
@@ -309,9 +325,63 @@ pub fn testar(e: &Estilo, argv: Vec<String>) -> io::Result<()> {
     cmd.env("GLACIER_TEST", &alvo).env("GLACIER_TEST_FILTER", &filtro);
     cmd.env("GLACIER_TEST_VERBOSE", verbosidade.to_string());
     cmd.env("GLACIER_TEST_SILENT", if silencioso { "1" } else { "0" });
+    if let Some(tamanho) = &layout {
+        cmd.env("GLACIER_TEST_LAYOUT", tamanho);
+    }
+    if estrito {
+        cmd.env("GLACIER_TEST_LAYOUT_STRICT", "1");
+    }
 
     passo(e, "cargo run (modo de teste)");
     exigir_sucesso(cmd.status(), "glacier test")
+}
+
+// ── check / fmt ───────────────────────────────────────────────────────────────
+
+/// As ferramentas da linguagem que rodam dentro do app, como o `test`.
+pub enum Ferramenta {
+    Check,
+    Fmt,
+}
+
+/// `glacier check [--strict] [dir]` e `glacier fmt [--migrate] [--migrate-color]
+/// [--check] [dir]`: `cargo run` do projeto com a variável da ferramenta, para ela
+/// usar o motor da versão do app (ver `glacier_ui::ferramentas`). O diretório
+/// padrão é `views/`.
+pub fn ferramenta(e: &Estilo, qual: Ferramenta, argv: Vec<String>) -> io::Result<()> {
+    let raiz = raiz_do_projeto()?;
+    let (escolhida, argv) = config::extrair_configuracao(argv)?;
+    let cfg = carregar_config(e, escolhida.as_deref())?;
+    let features = cfg.features(&["test"]);
+    let mut dir = raiz.join("views");
+    let mut envs: Vec<(&str, String)> = Vec::new();
+    for arg in argv {
+        match (&qual, arg.as_str()) {
+            (Ferramenta::Check, "--strict") => envs.push(("GLACIER_CHECK_STRICT", "1".into())),
+            (Ferramenta::Fmt, "--migrate") => envs.push(("GLACIER_FMT_MIGRATE", "1".into())),
+            (Ferramenta::Fmt, "--migrate-color") => envs.push(("GLACIER_FMT_COLOR", "1".into())),
+            (Ferramenta::Fmt, "--check") => envs.push(("GLACIER_FMT_DRY", "1".into())),
+            (_, outro) if outro.starts_with('-') => {
+                return Err(invalido(format!("opção desconhecida: '{outro}'")));
+            }
+            (_, caminho) => dir = std::env::current_dir()?.join(caminho),
+        }
+    }
+    let (var, nome) = match qual {
+        Ferramenta::Check => ("GLACIER_CHECK", "glacier check"),
+        Ferramenta::Fmt => ("GLACIER_FMT", "glacier fmt"),
+    };
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run").arg("--quiet").current_dir(&raiz);
+    if let Some(features) = &features {
+        cmd.args(["--features", features]);
+    }
+    cmd.env(var, dir.to_string_lossy().as_ref());
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    passo(e, &format!("cargo run ({nome})"));
+    exigir_sucesso(cmd.status(), nome)
 }
 
 // ── desktop ───────────────────────────────────────────────────────────────────

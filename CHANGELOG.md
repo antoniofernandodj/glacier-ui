@@ -8,6 +8,60 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.169.0 — não publicado
+
+A linguagem do `.gv` e do `.gss` (`docs/PLANO_LINGUAGEM_GV_GSS.md`; referência em
+`docs/LINGUAGEM.md`).
+
+### Novo
+
+- **Expressões no `.gv`**: `&&`, `||`, `!`, `== != < <= > >=`, `in`, `is (not) empty`,
+  ternário, listas literais e as funções `t num date len lower upper trim json` — na
+  condição de um `if`, em qualquer atributo (`disabled = @ocupado || !@valido`) e dentro de
+  `{…}` num texto.
+- **Classe condicional** `class:nome = expr` e **atributo com expressão**
+  (`src = @max ? "a.svg" : "b.svg"`).
+- **Ação com argumentos** `on_click = salvar(@id, true)`: chegam separados e tipados ao
+  handler Luau. `window.resize("nw")` para os embutidos.
+- **i18n curto** `text(t("chave"))`.
+- **Props tipados** `prop(name = x, type = bool | number | string | list | object | action | component)`.
+- **Laço curto** `Componente(each = @lista as v)`; `key =` no `each` (identidade do item no arrasto).
+- **Botão ocupado automático** `app(busy_buttons = true)` (chave `__busy.<handler>`); `busy =` por nó.
+- **`.gss`**: aninhamento com `&`, `:not()`, `:is()`, `font_weight`, `font_style`,
+  `line_height`, `box_shadow`, `@theme`, `display: none`, modo estrito
+  (`app(gss_strict = true)`), semântica de cor do CSS (`app(gss_color = css)`).
+- **`app(mono_font = "…")`**: o que `font: mono` resolve.
+- **Ferramentas**: `glacier check [--strict]`, `glacier fmt --migrate | --migrate-color | --check`,
+  `glacier test --layout [LxA] [--strict]` (layout sem janela, `src/medida.rs`).
+- Um fundo opaco igual ao do ancestral (sem borda, raio nem sombra) não é pintado de novo.
+
+### Corrigido
+
+- **`bold: true` mantém a família da regra** (e a padrão do app): antes caía na sans do sistema.
+- **`if =` na raiz única de um componente** era ignorado (o componente aparecia sempre).
+- **A armadilha do `Fill`**: `column`/`row`/`container` sem `width` não forçam mais `Shrink`
+  sobre filhos `fill` — o bloco enche em vez de sumir.
+- A sugestão de propriedade desconhecida no `.gss` saía com hífen (`border-radius`), grafia
+  que o parser rejeita.
+
+### Quebras (comportamento)
+
+- **Verdade**: `if @x`, `hidden = @x` e `disabled = @x` tratam **todo texto não vazio** como
+  verdadeiro (antes só `true`/`1`/`yes`/`on`). Falsos: vazio, `false`, `0`, `no`/`não`, `off`,
+  `null`, `[]`, `{}`. Quem escrevia `if @mensagem != ""` continua certo.
+- **`else` como atributo** precisa vir logo depois do irmão com `if =`/`else_if =`: antes um
+  nó no meio mudava o sentido em silêncio; agora é erro de parse.
+- **Contêiner sem `width` com filho `fill` passa a encher** (ver Corrigido). Uma tela que
+  dependia do colapso muda de layout.
+- `{…}` dentro de um texto agora é expressão: um `@x` dentro das chaves é do `{…}`, não vira
+  `{x}` aninhado.
+
+### Depreciado (avisa no `stderr`; `glacier fmt --migrate` reescreve)
+
+`equals`/`not_equals`/`one_of`/`contains`/`empty`/`not_empty` ao lado de `if =` (o `matches` fica: não tem equivalente),
+`template(if/else/:for_each)`, `:for_each = x, var = v` num nó, `"{t('…')}"` sozinho,
+`on_x = handler:arg`, `hidden:` no `.gss`.
+
 ## glacier-ui 0.168.3 — 2026-11-23
 
 Correção, sem mudança de API:

@@ -70,7 +70,7 @@ pub(crate) fn figura<'a>(
 }
 
 pub(crate) fn bloco_codigo<'a>(codigo: String, tamanho: f32) -> Element<'a, EngineMessage> {
-    container(text(codigo).font(Font::MONOSPACE).size(tamanho * 0.9))
+    container(text(codigo).font(crate::fonts::mono_font()).size(tamanho * 0.9))
         .padding(10)
         .width(Length::Fill)
         .style(|_| container::Style {
@@ -132,7 +132,7 @@ impl<'a, 'b> Montador<'a, 'b> {
     }
 
     fn texto(&mut self, conteudo: String, mono: bool) {
-        let mut f = if mono { Font::MONOSPACE } else { Font::DEFAULT };
+        let mut f = if mono { crate::fonts::mono_font() } else { crate::fonts::default_font() };
         let mut tam = self.tamanho;
         if let Some(n) = self.titulo {
             f.weight = font::Weight::Bold;

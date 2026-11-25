@@ -1,0 +1,108 @@
+/* Os tokens: a fonte única da paleta. */
+:root {
+  --fundo: #1E1F22;
+  --caixa: #2B2D31;
+  --borda: #3F4147;
+  --texto: #DBDEE1;
+  --fraco: #949BA4;
+  --azul: #5865F2;
+  --azul-claro: #7983F5;
+  --verde: #3BA55D;
+  --vermelho: #C4302F;
+  --vermelho-claro: #D63E3C;
+}
+
+/* @theme: a paleta do tema do iced sai daqui — sem theme.json repetindo as cores. */
+@theme {
+  background: var(--fundo);
+  text: var(--texto);
+  primary: var(--azul);
+  success: var(--verde);
+  danger: var(--vermelho);
+}
+
+.tela   { padding: 24; spacing: 18; width: fill; }
+.linha  { spacing: 10; }
+.codigo { size: 12; font: mono; color: var(--fraco); }
+.nota   { size: 12; color: var(--fraco); }
+
+/* Tipografia. */
+.titulo {
+  size: 24;
+  font_weight: 700;
+}
+.citacao {
+  width: fill;
+  size: 15;
+  font_weight: 300;
+  font_style: italic;
+  line_height: 1.6;
+  color: var(--fraco);
+}
+
+/* Aninhamento com `&`: o estado e as variações moram dentro do bloco. Com
+   gss_color = css, `background` é o fundo do botão e `color` o rótulo. */
+.btn {
+  background: var(--caixa);
+  color: var(--texto);
+  padding: 8 16;
+  border_radius: 6;
+  transition: all 150ms ease-out;
+
+  &:hover    { background: var(--borda); }
+  &:disabled { color: var(--fraco); }
+
+  &--primario {
+    background: var(--azul);
+    color: #FFFFFF;
+    &:hover { background: var(--azul-claro); }
+  }
+  &--perigo {
+    background: var(--vermelho);
+    color: #FFFFFF;
+    &:hover { background: var(--vermelho-claro); }
+  }
+}
+
+/* :is(…) — uma regra para os dois estados (antes, duas regras iguais). */
+.campo {
+  width: fill;
+  padding: 8 10;
+  background: var(--caixa);
+  border_width: 1;
+  border_color: var(--borda);
+  border_radius: 6;
+}
+.campo:is(:hover, :focus) {
+  border_color: var(--azul);
+}
+
+/* :not(…) — fundo em toda linha menos o cabeçalho. */
+.tabela {
+  width: fill;
+  spacing: 2;
+}
+.tabela__linha {
+  width: fill;
+  padding: 8 12;
+  spacing: 12;
+}
+.tabela__linha:not(.tabela__linha--cabecalho) {
+  background: var(--caixa);
+}
+.tabela__linha--cabecalho > .tabela__celula {
+  font_weight: 700;
+  color: var(--fraco);
+}
+.tabela__celula { width: fill; }
+
+/* box_shadow: deslocamento x, y, desfoque e cor. */
+.cartao {
+  width: fill;
+  padding: 18;
+  background: var(--caixa);
+  border_radius: 10;
+  box_shadow: 0 6 18 #00000088;
+}
+.cartao__corpo  { spacing: 6; }
+.cartao__titulo { size: 16; font_weight: 700; }

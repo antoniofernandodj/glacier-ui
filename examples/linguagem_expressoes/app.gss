@@ -1,0 +1,47 @@
+:root {
+  --fundo: #1E1F22;
+  --caixa: #2B2D31;
+  --texto: #DBDEE1;
+  --fraco: #949BA4;
+  --azul: #5865F2;
+  --verde: #3BA55D;
+  --amarelo: #E0A526;
+  --vermelho: #ED4245;
+}
+
+.tela      { padding: 24; spacing: 16; width: fill; background: var(--fundo); }
+.titulo    { size: 22; bold: true; }
+.subtitulo { size: 15; bold: true; }
+.nota      { size: 13; color: var(--fraco); }
+.codigo    { size: 12; font: mono; color: var(--fraco); }
+.valor     { size: 16; }
+.ok        { color: var(--verde); }
+.aviso     { color: var(--amarelo); }
+.alerta    { color: var(--vermelho); bold: true; }
+
+.bloco {
+  width: fill;
+  padding: 14;
+  spacing: 10;
+  background: var(--caixa);
+  border_radius: 8;
+}
+.linha { spacing: 12; align_y: center; }
+
+.btn {
+  color: var(--azul);
+  text_color: #FFFFFF;
+  padding: 6 14;
+  border_radius: 5;
+}
+
+.aba {
+  color: var(--fundo);
+  text_color: var(--fraco);
+  padding: 6 16;
+  border_radius: 5;
+}
+.aba--ativa {
+  color: var(--azul);
+  text_color: #FFFFFF;
+}

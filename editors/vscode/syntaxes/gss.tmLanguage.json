@@ -3,6 +3,9 @@
   "name": "Glacier Stylesheet",
   "scopeName": "source.gss",
   "patterns": [
+    { "comment": ":is(…) e :not(…)", "match": ":(is|not)(?=\\()", "name": "entity.other.attribute-name.pseudo-class.gss" },
+    { "comment": "`&` — o seletor de fora numa regra aninhada (`&:hover`, `&--primario`).", "match": "&", "name": "entity.name.tag.nesting.gss" },
+    { "comment": "`@theme { background: …; }` — a paleta do tema tirada do próprio .gss.", "match": "@theme\\b", "name": "keyword.control.at-rule.theme.gss" },
     { "include": "#comments" },
     { "include": "#at-media" },
     { "include": "#root-block" },
@@ -158,7 +161,7 @@
       "patterns": [
         { "include": "#comments" },
         {
-          "match": "\\b(width|height|padding|spacing|align_x|align_y|background|border_radius|border_width|border_color|stroke|stroke_width|fill|color|size|bold|font|font_family|gradient|text_align|cursor|text_color|max_width|max_height|opacity|transition|hidden|display)\\b(?=\\s*:)",
+          "match": "\\b(width|height|padding|spacing|align_x|align_y|background|border_radius|border_width|border_color|stroke|stroke_width|fill|color|size|bold|font|font_family|gradient|text_align|cursor|text_color|max_width|max_height|opacity|transition|hidden|display|font_weight|font_style|line_height|box_shadow)\\b(?=\\s*:)",
           "name": "support.type.property-name.gss"
         },
         {

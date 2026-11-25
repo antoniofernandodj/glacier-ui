@@ -92,6 +92,20 @@ pub struct AppMeta {
     /// `font = "JetBrains Mono"`: a família da fonte padrão de todas as janelas
     /// (uma das declaradas com `font(...)` no `resources`, ou uma do sistema).
     pub font: Option<String>,
+    /// `mono_font = "JetBrains Mono"`: a família que `font: mono` (`.gss`) e
+    /// `font = mono` (markup) resolvem. Sem ele, `mono` é a mono do sistema.
+    pub mono_font: Option<String>,
+    /// `gss_strict = true`: propriedade desconhecida num `.gss` é ERRO (a tela
+    /// não carrega), não aviso. Ver `crate::stylesheet::set_estrito`.
+    pub gss_strict: bool,
+    /// `busy_buttons = true`: todo botão fica desabilitado enquanto o handler
+    /// do próprio `on_click` está rodando (a corrotina dele suspensa num
+    /// `fetch`/diálogo). Ver `crate::eval::ocupado`.
+    pub busy_buttons: bool,
+    /// `gss_color = css`: `background` é o fundo e `color` a cor do conteúdo em
+    /// todo widget. `legacy` (o padrão, por enquanto): o `color` de `button`,
+    /// `select`, `comboedit` e `menu` é o fundo. Ver `crate::eval::set_cor_css`.
+    pub gss_color_css: bool,
     /// `application_id = "meu-app"`: o `application_id` (Wayland/X11) das
     /// janelas, que o desktop usa para casar a janela com o `.desktop`. Só
     /// existe no Linux; nas outras plataformas é ignorado.
@@ -297,6 +311,66 @@ pub struct PropDecl {
     /// `GlacierError::NotAComponent`), e a extensão do VS Code sabe que o valor
     /// daquele atributo leva a um componente.
     pub component: bool,
+    /// `prop(name = ativo, type = bool)` — o tipo do valor. `None` = qualquer um
+    /// (o comportamento de antes). Ver [`TipoProp`].
+    pub tipo: Option<TipoProp>,
+}
+
+/// O tipo de uma prop (`type =` no `prop`). Um valor **literal** do tipo errado no
+/// uso do componente é erro; um que vem do contexto avisa uma vez (é dado de
+/// tempo de execução, e derrubar a tela por ele seria pior).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TipoProp {
+    Texto,
+    Numero,
+    Bool,
+    Lista,
+    Objeto,
+    Acao,
+    Componente,
+}
+
+impl TipoProp {
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s.trim() {
+            "string" | "text" | "texto" => Self::Texto,
+            "number" | "numero" | "número" => Self::Numero,
+            "bool" | "boolean" => Self::Bool,
+            "list" | "lista" | "array" => Self::Lista,
+            "object" | "objeto" => Self::Objeto,
+            "action" | "acao" | "ação" => Self::Acao,
+            "component" | "componente" => Self::Componente,
+            _ => return None,
+        })
+    }
+
+    pub fn nome(self) -> &'static str {
+        match self {
+            Self::Texto => "string",
+            Self::Numero => "number",
+            Self::Bool => "bool",
+            Self::Lista => "list",
+            Self::Objeto => "object",
+            Self::Acao => "action",
+            Self::Componente => "component",
+        }
+    }
+
+    /// O valor (já interpolado) é deste tipo? Vazio vale para todos — é o "não
+    /// passou nada" de uma prop opcional.
+    pub fn aceita(self, v: &str) -> bool {
+        let t = v.trim();
+        if t.is_empty() {
+            return true;
+        }
+        match self {
+            Self::Texto | Self::Acao | Self::Componente => true,
+            Self::Numero => t.parse::<f64>().is_ok_and(f64::is_finite),
+            Self::Bool => matches!(t, "true" | "false" | "1" | "0"),
+            Self::Lista => matches!(serde_json::from_str::<serde_json::Value>(t), Ok(serde_json::Value::Array(_))),
+            Self::Objeto => matches!(serde_json::from_str::<serde_json::Value>(t), Ok(serde_json::Value::Object(_))),
+        }
+    }
 }
 
 /// Os atributos que o `screen` aceita, um grupo por campo do [`ScreenMeta`].
@@ -338,6 +412,10 @@ const APP_ANTIALIASING_ATTRS: &[&str] = &["antialiasing"];
 const APP_TOAST_PERIOD_ATTRS: &[&str] = &["toast_period"];
 const APP_RELOAD_PERIOD_ATTRS: &[&str] = &["reload_period"];
 const APP_FONT_ATTRS: &[&str] = &["font"];
+const APP_MONO_FONT_ATTRS: &[&str] = &["mono_font"];
+const APP_GSS_STRICT_ATTRS: &[&str] = &["gss_strict"];
+const APP_BUSY_BUTTONS_ATTRS: &[&str] = &["busy_buttons"];
+const APP_GSS_COLOR_ATTRS: &[&str] = &["gss_color"];
 const APP_APPLICATION_ID_ATTRS: &[&str] = &["application_id"];
 const APP_ATTR_GROUPS: &[&[&str]] = &[
     APP_ID_ATTRS,
@@ -347,6 +425,10 @@ const APP_ATTR_GROUPS: &[&[&str]] = &[
     APP_TOAST_PERIOD_ATTRS,
     APP_RELOAD_PERIOD_ATTRS,
     APP_FONT_ATTRS,
+    APP_MONO_FONT_ATTRS,
+    APP_GSS_STRICT_ATTRS,
+    APP_BUSY_BUTTONS_ATTRS,
+    APP_GSS_COLOR_ATTRS,
     APP_APPLICATION_ID_ATTRS,
 ];
 const FONT_SRC_ATTRS: &[&str] = &["src"];
@@ -413,7 +495,9 @@ pub(crate) const DIRECTIVE_ATTRS: &[&str] = &[
     "for_each", "foreach", "each", "repeat", "var", // destino num slot nomeado do componente
     "slot",
     // arrastar-e-soltar da lista repetida
-    "on_reorder", "reorder_key", ];
+    "on_reorder", "reorder_key",
+    // botão ocupado (`busy = false` no uso de um componente não é prop)
+    "busy", ];
 
 /// O atributo que passa um objeto **inteiro** no lugar de um atributo por campo
 /// (`ServiceCard(:for-each = "r.cards", var = c, spread = @c)`). Como as
@@ -457,7 +541,9 @@ const PROP_DEFAULT_ATTRS: &[&str] = &["default"];
 /// O marcador sem valor de [`PropDecl::component`]. Chega aqui como
 /// `component=""`, reescrito por `eval::normalize_bare_directives`.
 const PROP_COMPONENT_ATTRS: &[&str] = &["component"];
-const PROP_ATTR_GROUPS: &[&[&str]] = &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS, PROP_COMPONENT_ATTRS];
+const PROP_TYPE_ATTRS: &[&str] = &["type"];
+const PROP_ATTR_GROUPS: &[&[&str]] =
+    &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS, PROP_COMPONENT_ATTRS, PROP_TYPE_ATTRS];
 
 /// O único atributo de um `component(name = "…")` declarado no `resources` —
 /// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
@@ -944,9 +1030,15 @@ fn validate_props(header: Node) -> Option<Diagnostic> {
                             format!("atributo '{name}' desconhecido no prop"),
                         )
                         .with_hint(
-                            "um prop aceita name, default e o marcador component (apelidos: \
+                            "um prop aceita name, default, type e o marcador component (apelidos: \
                              nome, padrao, componente); sem default a prop é obrigatória",
                         ),
+                    );
+                }
+                if PROP_TYPE_ATTRS.contains(&name) && TipoProp::parse(attr.value()).is_none() {
+                    return Some(
+                        diagnostic_at_attr(decl, attr, format!("tipo '{}' desconhecido no prop", attr.value()))
+                            .with_hint("os tipos são string, number, bool, list, object, action e component"),
                     );
                 }
                 // `component` é marcador: escrito com valor, quase sempre é
@@ -1108,6 +1200,8 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
             );
         };
         let bool_attr = std::ptr::eq(*group, APP_SINGLE_INSTANCE_ATTRS)
+            || std::ptr::eq(*group, APP_GSS_STRICT_ATTRS)
+            || std::ptr::eq(*group, APP_BUSY_BUTTONS_ATTRS)
             || std::ptr::eq(*group, APP_REMEMBER_GEOMETRY_ATTRS)
             || std::ptr::eq(*group, APP_ANTIALIASING_ATTRS);
         let periodo = std::ptr::eq(*group, APP_TOAST_PERIOD_ATTRS)
@@ -1116,7 +1210,12 @@ fn validate_app(decl: Node) -> Option<Diagnostic> {
             Some("um booleano é `true`/`false` (ou `1`/`0`, `sim`/`nao`)")
         } else if periodo && !attr.value().trim().parse::<u64>().is_ok_and(|n| n > 0) {
             Some("um período é um número inteiro de milissegundos, maior que zero (`250`)")
+        } else if std::ptr::eq(*group, APP_GSS_COLOR_ATTRS)
+            && !matches!(attr.value().trim(), "css" | "legacy")
+        {
+            Some("`gss_color` é `css` (background = fundo, color = conteúdo) ou `legacy` (o `color` de um button é o fundo)")
         } else if (std::ptr::eq(*group, APP_FONT_ATTRS)
+            || std::ptr::eq(*group, APP_MONO_FONT_ATTRS)
             || std::ptr::eq(*group, APP_APPLICATION_ID_ATTRS))
             && attr.value().trim().is_empty()
         {
@@ -3975,6 +4074,10 @@ pub struct Interact {
     pub aria_label: Option<String>,
     /// `aria_hidden="true"`: decorativo, fora da árvore de acessibilidade.
     pub aria_hidden: bool,
+    /// `busy = false` desliga, NESTE nó, o botão ocupado automático do
+    /// `app(busy_buttons = true)`; `busy = @chave` usa outra condição. Ver
+    /// `crate::eval::ocupado`.
+    pub busy: Option<String>,
 }
 
 /// Overlays de estilo por pseudo-estado, resolvidos em `eval.rs`.
@@ -4053,6 +4156,14 @@ pub struct Look {
     /// `transition: background 150ms` do `.gss` (texto cru): o botão o lê para animar
     /// a troca entre os estados (repouso, hover, pressionado). Ver `crate::transition`.
     pub transition: Option<String>,
+    /// `font_weight` do `.gss` (100…900). Ver [`crate::stylesheet::parse_peso`].
+    pub font_weight: Option<u16>,
+    /// `font_style: italic`.
+    pub italic: bool,
+    /// `line_height` do `.gss`, cru. Ver [`crate::stylesheet::parse_altura_linha`].
+    pub line_height: Option<String>,
+    /// `box_shadow` do `.gss`, cru. Ver [`crate::stylesheet::parse_sombra`].
+    pub box_shadow: Option<String>,
 }
 
 /// O texto de um [`NodeType::TextArea`] selecionável — ver o campo `fixo`.
@@ -4761,8 +4872,28 @@ impl UiNode {
         self.look.get_or_insert_with(Default::default).text_align = v;
     }
     /// Ver [`Look::transition`].
+    pub fn busy_attr(&self) -> Option<&str> {
+        self.interact.as_ref()?.busy.as_deref()
+    }
+    /// Ver [`Look::transition`].
     pub fn transition(&self) -> Option<&str> {
         self.look.as_ref()?.transition.as_deref()
+    }
+    /// Ver [`Look::font_weight`].
+    pub fn font_weight(&self) -> Option<u16> {
+        self.look.as_ref()?.font_weight
+    }
+    /// Ver [`Look::italic`].
+    pub fn italic(&self) -> bool {
+        self.look.as_ref().is_some_and(|l| l.italic)
+    }
+    /// Ver [`Look::line_height`].
+    pub fn line_height(&self) -> Option<&str> {
+        self.look.as_ref()?.line_height.as_deref()
+    }
+    /// Ver [`Look::box_shadow`].
+    pub fn box_shadow(&self) -> Option<&str> {
+        self.look.as_ref()?.box_shadow.as_deref()
     }
     /// Ver [`Look::text_color`].
     pub fn text_color(&self) -> Option<&str> {
@@ -5125,6 +5256,7 @@ impl UiNode {
         let role = Self::get_attr(&node, &["role"]);
         let aria_label = Self::get_attr(&node, &["aria_label"]);
         let aria_hidden = Self::get_attr_bool(&node, &["aria_hidden"]);
+        let busy = Self::get_attr(&node, &["busy"]);
         let max_width = Self::get_attr_num(
             &node,
             &["max_width"],
@@ -6866,10 +6998,13 @@ impl UiNode {
                     node.children()
                         .filter(Node::is_element)
                         .filter_map(|p| {
+                            let tipo = Self::get_attr(&p, PROP_TYPE_ATTRS).and_then(|t| TipoProp::parse(&t));
                             Some(PropDecl {
                                 name: Self::get_attr(&p, PROP_NAME_ATTRS)?,
                                 default: Self::get_attr(&p, PROP_DEFAULT_ATTRS),
-                                component: PROP_COMPONENT_ATTRS.iter().any(|a| p.has_attribute(*a)),
+                                component: PROP_COMPONENT_ATTRS.iter().any(|a| p.has_attribute(*a))
+                                    || tipo == Some(TipoProp::Componente),
+                                tipo,
                             })
                         })
                         .collect(),
@@ -7039,6 +7174,10 @@ impl UiNode {
                 slot_name,
                 border_radius_corners,
                 transition: None,
+                font_weight: None,
+                italic: false,
+                line_height: None,
+                box_shadow: None,
             }),
             interact: caixa(Interact {
                 on_press,
@@ -7051,6 +7190,7 @@ impl UiNode {
                 role,
                 aria_label,
                 aria_hidden,
+                busy,
             }),
             pseudo: None,
             cond: caixa(Cond {
@@ -7131,6 +7271,18 @@ impl UiNode {
             reload_period: Self::get_attr(node, APP_RELOAD_PERIOD_ATTRS)
                 .and_then(|v| v.trim().parse().ok()),
             font: Self::get_attr(node, APP_FONT_ATTRS)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            gss_color_css: Self::get_attr(node, APP_GSS_COLOR_ATTRS).is_some_and(|v| v.trim() == "css"),
+            busy_buttons: Self::get_attr(node, APP_BUSY_BUTTONS_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value)
+                .unwrap_or(false),
+            gss_strict: Self::get_attr(node, APP_GSS_STRICT_ATTRS)
+                .as_deref()
+                .and_then(parse_bool_value)
+                .unwrap_or(false),
+            mono_font: Self::get_attr(node, APP_MONO_FONT_ATTRS)
                 .map(|v| v.trim().to_string())
                 .filter(|v| !v.is_empty()),
             application_id: Self::get_attr(node, APP_APPLICATION_ID_ATTRS)
@@ -7335,7 +7487,7 @@ impl UiNode {
                 }
                 return Err(GlacierError::Xml(Box::new(d)));
             }
-            1 => roots.pop().expect("len checked"),
+            1 => raiz_unica(roots.pop().expect("len checked")),
             _ => empty_node(NodeType::Fragment, roots),
         };
         root.children.to_mut().extend(decls);
@@ -7792,6 +7944,23 @@ fn declara_componentes(
 /// Um corpo sem layout nenhum sai como `Fragment` vazio — não desenha nada, mas
 /// não quebra; quem transforma esse caso em erro posicionado é o
 /// `validate_define`, que roda antes e enxerga o arquivo do autor.
+/// A raiz única de um template. Se ela carrega uma diretiva de fluxo (`if =`,
+/// `else_if =`, `else`, `:for_each`), vai dentro de um `Fragment`: é na
+/// expansão dos FILHOS que as diretivas são lidas, e a raiz avaliada direto
+/// perdia a dela — `column(if = @aba == "logs")` sozinho num componente
+/// aparecia sempre, sem erro nenhum (G14 do `PLANO_LINGUAGEM_GV_GSS.md`).
+fn raiz_unica(raiz: UiNode) -> UiNode {
+    let tem_diretiva = raiz.if_cond().is_some()
+        || raiz.else_if_cond().is_some()
+        || raiz.is_else
+        || raiz.for_each().is_some();
+    if tem_diretiva {
+        empty_node(NodeType::Fragment, vec![raiz])
+    } else {
+        raiz
+    }
+}
+
 pub(crate) fn corpo_de_componente(filhos: Vec<UiNode>) -> UiNode {
     let mut decls = Vec::new();
     let mut roots = Vec::new();
@@ -7806,7 +7975,7 @@ pub(crate) fn corpo_de_componente(filhos: Vec<UiNode>) -> UiNode {
         }
     }
     let mut raiz = match roots.len() {
-        1 => roots.pop().expect("len checked"),
+        1 => raiz_unica(roots.pop().expect("len checked")),
         _ => empty_node(NodeType::Fragment, roots),
     };
     raiz.children.to_mut().extend(decls);

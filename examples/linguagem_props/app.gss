@@ -1,0 +1,30 @@
+.tela   { padding: 24; spacing: 14; width: fill; height: fill; background: #1E1F22; }
+.titulo { size: 22; bold: true; }
+.codigo { size: 12; font: mono; color: #949BA4; }
+.nota   { size: 13; color: #949BA4; }
+.linha  { spacing: 10; align_y: center; }
+
+.btn {
+  color: #5865F2;
+  text_color: #FFFFFF;
+  padding: 6 14;
+  border_radius: 5;
+}
+
+.selo {
+  padding: 8 14;
+  spacing: 10;
+  align_y: center;
+  background: #2B2D31;
+  border_radius: 16;
+}
+.selo--ativo   { background: #1F3A2B; }
+.selo__ponto   { color: #3BA55D; }
+.selo__rotulo  { size: 15; }
+.selo__total {
+  padding: 1 8;
+  background: #ED4245;
+  border_radius: 10;
+}
+.selo__numero  { size: 12; bold: true; color: #FFFFFF; }
+.selo__tags    { size: 12; color: #949BA4; }

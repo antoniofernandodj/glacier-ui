@@ -124,6 +124,11 @@ mod smooth_scroll;
 pub mod spinner;
 pub mod style;
 pub mod stylesheet;
+pub mod expr;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod medida;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod ferramentas;
 pub mod textarea;
 mod timer;
 pub mod toasts;
@@ -316,6 +321,12 @@ pub struct GlacierUI {
     system_appearance: widget::SystemAppearance,
     /// Path of the loaded theme file, kept for hot-reload.
     theme_path: Option<String>,
+    /// O `.gss` cujo `@theme` deu o tema, se algum deu: ele vence um
+    /// `link(rel = theme)`, carregado antes ou depois.
+    theme_from_gss: Option<String>,
+    /// O erro da última avaliação de cada tela que falhou — para o `render`
+    /// mostrar a causa em vez de "não avaliado". Ver `reevaluate_all`.
+    erros_de_avaliacao: HashMap<String, String>,
     /// Estilos declarados pelo app com `<link rel="style" as="nome"
     /// href="x.gss">`, por nome. A ação `style:<nome>` e o `set_style(nome)` do
     /// Luau procuram aqui antes dos builtin (ver [`style`]).
@@ -736,6 +747,8 @@ impl GlacierUI {
             custom_theme: None,
             system_appearance: widget::SystemAppearance::Unknown,
             theme_path: None,
+            theme_from_gss: None,
+            erros_de_avaliacao: HashMap::new(),
             app_styles: HashMap::default(),
             data_sources: Vec::new(),
             editors: HashMap::default(),
@@ -918,6 +931,37 @@ impl GlacierUI {
             .ok_or_else(|| GlacierError::UnknownComponent(name.to_string()))
     }
 
+    /// Faz o layout de `name` numa janela de `tamanho`, **sem abrir janela**, e
+    /// devolve os nós que ficaram com largura ou altura zero tendo conteúdo — o
+    /// defeito que avaliar a árvore não mostra (um `column` que some da tela).
+    /// É o que o `glacier test --layout` chama. Ver [`crate::medida`].
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn layout_collapses(
+        &mut self,
+        name: &str,
+        tamanho: iced::Size,
+    ) -> Result<Vec<crate::medida::Colapso>> {
+        // Reavalia com a identidade (classe e id) no nó avaliado, para o
+        // relatório dizer `column.form` e não só `column`.
+        crate::eval::manter_identidade(|| self.evaluate_into_cache(name))?;
+        let arvore = self
+            .evaluated_templates
+            .get(name)
+            .ok_or_else(|| GlacierError::UnknownComponent(name.to_string()))?;
+        let mut erro = None;
+        let colapsos = crate::medida::colapsos(arvore, tamanho, || match self.render(name) {
+            Ok(e) => e,
+            Err(e) => {
+                erro = Some(e);
+                iced::widget::Space::new().into()
+            }
+        });
+        match erro {
+            Some(e) => Err(e),
+            None => Ok(colapsos),
+        }
+    }
+
     /// Mantém `name` avaliado a cada reavaliação, mesmo não sendo a tela atual —
     /// para o app raro que renderiza mais de um template ao mesmo tempo (ex.: um
     /// painel lateral que vive fora da tela). Sem isto, só a tela ativa é
@@ -1054,6 +1098,22 @@ impl GlacierUI {
         // `parse_in`: o arquivo é a fonte, então a linha do erro é a linha dele
         // (offset 1) e o caminho vai no diagnóstico.
         let sheet = stylesheet::StyleSheet::parse_in(&content, Some(path), 1)?;
+
+        // `@theme { … }`: a paleta sai dos tokens deste `.gss` — um lugar só.
+        if let Some(pares) = &sheet.theme {
+            let tokens: HashMap<String, String> = pares
+                .iter()
+                .map(|(k, v)| (format!("--{k}"), stylesheet::substitute_vars(v, &sheet.variables)))
+                .collect();
+            let theme = theme_from_tokens("app", &tokens, path)?;
+            if let Some(json) = &self.theme_path {
+                eprintln!(
+                    "glacier-ui: {path}: o @theme substitui o tema de {json} — declare a paleta num lugar só"
+                );
+            }
+            self.custom_theme = Some(theme);
+            self.theme_from_gss = Some(path.to_string());
+        }
 
         let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
 
@@ -1338,6 +1398,11 @@ impl GlacierUI {
         let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
 
         self.app_window = Some(manifest.app.window.clone());
+        // Antes das declarações globais: os `.gss` delas já são lidos no modo
+        // pedido pelo `app`.
+        stylesheet::set_estrito(manifest.app.gss_strict);
+        eval::set_busy_buttons(manifest.app.busy_buttons);
+        eval::set_cor_css(manifest.app.gss_color_css);
 
         // As declarações globais (links, estilos, componentes, diálogos): o
         // mesmo caminho de um template, com o arquivo do manifesto de âncora.
@@ -3870,8 +3935,16 @@ impl GlacierUI {
 
         let mod_time = self.assets.modified(path).unwrap_or_else(SystemTime::now);
         self.file_mod_times.insert(theme_key(path), mod_time);
-        self.custom_theme = Some(theme);
         self.theme_path = Some(path.to_string());
+        // Um `@theme` num `.gss` já deu a paleta: ele vence (ver
+        // `load_global_stylesheet_file`), e a duplicata é avisada.
+        if let Some(gss) = &self.theme_from_gss {
+            eprintln!(
+                "glacier-ui: {path}: ignorado — o @theme de {gss} já define o tema; declare a paleta num lugar só"
+            );
+            return Ok(());
+        }
+        self.custom_theme = Some(theme);
         Ok(())
     }
 
@@ -4473,7 +4546,23 @@ impl GlacierUI {
             {
                 continue;
             }
-            self.evaluate_into_cache(name)?;
+            // Guarda o erro antes de propagá-lo: a maioria dos chamadores descarta
+            // o `Result` (`let _ = self.reevaluate_all()`), e sem isto a janela só
+            // dizia "registrado mas não avaliado" — sem a causa (uma prop com tipo
+            // errado, uma prop obrigatória faltando…). O `render` o mostra.
+            match self.evaluate_into_cache(name) {
+                Ok(()) => {
+                    self.erros_de_avaliacao.remove(name);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if self.erros_de_avaliacao.get(name) != Some(&msg) {
+                        eprintln!("glacier-ui: a tela '{name}' não pôde ser avaliada: {msg}");
+                    }
+                    self.erros_de_avaliacao.insert(name.clone(), msg);
+                    return Err(e);
+                }
+            }
         }
 
         // Árvores de templates que saíram de uso (mudou a tela) não devem ficar
@@ -4826,7 +4915,12 @@ impl GlacierUI {
                 // Distingue "nome errado" de "template fora de uso": são causas
                 // diferentes, com saídas diferentes, e confundi-las é o que faz um
                 // erro de framework virar meia hora de depuração.
-                if self.inputs.has_template(component_name) {
+                if let Some(msg) = self.erros_de_avaliacao.get(component_name) {
+                    GlacierError::EvaluationFailed {
+                        component: component_name.to_string(),
+                        message: msg.clone(),
+                    }
+                } else if self.inputs.has_template(component_name) {
                     GlacierError::NotEvaluated(component_name.to_string())
                 } else {
                     GlacierError::UnknownComponent(component_name.to_string())

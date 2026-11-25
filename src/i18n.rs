@@ -526,6 +526,39 @@ impl Arg {
     }
 }
 
+/// `t`/`num`/`date` com os argumentos **já avaliados** — o caminho das chamadas
+/// dentro de uma expressão (`src/expr.rs`), onde cada argumento é uma expressão
+/// (`t("k", n = @total + "")`), e não mais só um literal ou nome de chave.
+/// `leitura` só é usada para a locale ativa.
+pub fn chama(
+    fn_nome: &str,
+    pos: &[String],
+    nomeados: &[(String, String)],
+    leitura: &mut dyn FnMut(&str) -> Option<String>,
+) -> Option<String> {
+    let loc = leitura(CHAVE_LOCALE)
+        .filter(|l| !l.trim().is_empty())
+        .or_else(active)
+        .or_else(default_locale)
+        .unwrap_or_else(|| "en".to_string());
+    let primeiro = pos.first().cloned().unwrap_or_default();
+    match fn_nome {
+        "t" => {
+            let args: HashMap<String, String> = nomeados.iter().cloned().collect();
+            Some(translate(&loc, &primeiro, &args))
+        }
+        "num" => {
+            let casas = pos.get(1).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            Some(match primeiro.trim().parse::<f64>() {
+                Ok(x) => formata_numero(&loc, x, casas),
+                Err(_) => primeiro,
+            })
+        }
+        "date" => Some(formata_data(&loc, &primeiro).unwrap_or(primeiro)),
+        _ => None,
+    }
+}
+
 /// Se `expr` (o texto entre `{` e `}`) é uma chamada `t(...)`, `num(...)` ou
 /// `date(...)`, avalia-a. `leitura` consulta o contexto — e, por ser o
 /// [`crate::eval::EvalCtx::get`], registra a dependência. `None` = não é uma chamada.

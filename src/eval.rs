@@ -1150,50 +1150,34 @@ fn anotar_ausente(chave: &str, com_padrao: bool) {
 /// O `process_template` de verdade, sobre o [`EvalCtx`] (o público acima é a
 /// casca para quem só tem um `HashMap` em mãos).
 fn process_tpl(template: &str, context: &EvalCtx) -> String {
+    // Caminho mais quente do motor: sem `{`, o texto é literal.
+    if !template.contains('{') {
+        return template.to_string();
+    }
     let mut result = String::new();
     let mut chars = template.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '{' {
             let mut key = String::new();
             let mut closed = false;
+            // A chave fecha no primeiro `}` FORA de aspas: uma expressão pode
+            // conter `'}'` num texto (`{@a ? '}' : ''}`).
+            let mut aspas: Option<char> = None;
             while let Some(&nc) = chars.peek() {
-                if nc == '}' {
+                if aspas.is_none() && nc == '}' {
                     chars.next(); // Consume '}'
                     closed = true;
                     break;
-                } else {
-                    key.push(chars.next().unwrap());
                 }
+                match (aspas, nc) {
+                    (None, '"' | '\'') => aspas = Some(nc),
+                    (Some(q), _) if q == nc => aspas = None,
+                    _ => {}
+                }
+                key.push(chars.next().unwrap());
             }
             if closed {
-                // Inline default: `{key|default}` uses `default` (the text after
-                // the first `|`) when `key` is absent from the context. Without a
-                // `|` the behavior is unchanged: a missing key resolves to empty.
-                // This is what lets a component default its own props per instance
-                // without seeding — or polluting — the global context.
-                // `{t("chave")}`, `{num(x, 2)}`, `{date(x)}`: chamadas do i18n. A
-                // locale ativa é lida do contexto (`__locale`) por `context.get`,
-                // então a dependência fica registrada e a troca de idioma
-                // reavalia a subárvore.
-                if let Some(traduzido) =
-                    crate::i18n::avalia_chamada(&key, &mut |k| context.get(k).map(|v| v.to_string()))
-                {
-                    result.push_str(&traduzido);
-                    continue;
-                }
-                let (lookup, default) = match key.split_once('|') {
-                    Some((k, d)) => (k.trim(), Some(d.trim())),
-                    None => (key.trim(), None),
-                };
-                if let Some(val) = context.get(lookup) {
-                    result.push_str(&val);
-                } else {
-                    anotar_ausente(lookup, default.is_some());
-                    if let Some(d) = default {
-                        result.push_str(d);
-                    }
-                }
-                // else: unknown key with no default -> empty (unchanged).
+                interpola_chave(&key, context, &mut result);
             } else {
                 result.push('{');
                 result.push_str(&key);
@@ -1205,12 +1189,149 @@ fn process_tpl(template: &str, context: &EvalCtx) -> String {
     result
 }
 
-/// Whether a (already-interpolated) string should be considered true.
-fn is_truthy(s: &str) -> bool {
-    matches!(
-        s.trim().to_ascii_lowercase().as_str(),
-        "true" | "1" | "yes" | "on"
+/// O que vai entre `{` e `}` num texto do template:
+///
+/// - `{chave}` / `{@chave}` — o valor da chave (caminho rápido, sem parser);
+/// - `{chave|padrão}` — o padrão quando a chave está ausente (o texto depois do
+///   primeiro `|`). É o que deixa um componente ter padrão por instância sem
+///   semear — nem poluir — o contexto global;
+/// - qualquer outra coisa é uma **expressão** (`src/expr.rs`): `{@n > 80 ? '⚠' :
+///   ''}`, `{t('chave', n = @total)}`, `{num(x, 2)}`. As chamadas do i18n são
+///   expressões também; a locale ativa é lida do contexto (`__locale`), então a
+///   dependência fica registrada e a troca de idioma reavalia a subárvore.
+///
+/// Toda leitura passa por `context.get`, o que registra a dependência.
+fn interpola_chave(key: &str, context: &EvalCtx, result: &mut String) {
+    let k = key.trim();
+    if crate::expr::eh_caminho(k) {
+        let lookup = k.strip_prefix('@').unwrap_or(k);
+        match context.get(lookup) {
+            Some(val) => result.push_str(&val),
+            None => anotar_ausente(lookup, false),
+        }
+        return;
+    }
+    match crate::expr::parse_cached(k) {
+        Ok(expr) => {
+            if let crate::expr::Expr::Padrao(chave, padrao) = &*expr {
+                match context.get(chave) {
+                    Some(val) => result.push_str(&val),
+                    None => {
+                        anotar_ausente(chave, true);
+                        result.push_str(padrao);
+                    }
+                }
+                return;
+            }
+            let mut ler = |k: &str| context.get(k).map(|v| v.into_owned());
+            let valor = crate::expr::avalia(&expr, &mut ler);
+            result.push_str(&valor.texto());
+        }
+        Err(erro) => {
+            // Não é nome nem expressão válida: o comportamento de sempre (uma
+            // chave com esse nome, que quase nunca existe → vazio), com um aviso
+            // único por texto — antes isso sumia calado.
+            avisar_expressao_invalida(k, &erro);
+            if let Some(val) = context.get(k) {
+                result.push_str(&val);
+            }
+        }
+    }
+}
+
+fn avisar_expressao_invalida(texto: &str, erro: &crate::expr::ErroExpr) {
+    thread_local! {
+        static AVISADOS: std::cell::RefCell<std::collections::HashSet<String>> =
+            std::cell::RefCell::new(std::collections::HashSet::new());
+    }
+    AVISADOS.with(|a| {
+        if a.borrow_mut().insert(texto.to_string()) {
+            eprintln!("glacier-ui: expressão inválida em `{{{texto}}}`: {erro}");
+        }
+    });
+}
+
+/// O aviso de prop com valor do tipo errado vindo do contexto: um por
+/// (componente, prop), para uma lista de cem linhas não inundar o terminal.
+fn avisar_tipo_de_prop(componente: &str, prop: &str, tipo: &str, valor: &str) {
+    static VISTOS: std::sync::Mutex<Option<std::collections::HashSet<String>>> =
+        std::sync::Mutex::new(None);
+    let mut g = VISTOS.lock().unwrap_or_else(|e| e.into_inner());
+    if g.get_or_insert_with(Default::default).insert(format!("{componente}\0{prop}")) {
+        eprintln!(
+            "glacier-ui: a prop '{prop}' de '{componente}' é do tipo {tipo} e recebeu '{valor}' do contexto"
+        );
+    }
+}
+
+static COR_CSS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `app(gss_color = css)`: `background` é o fundo e `color` a cor do conteúdo em
+/// todo widget (ver a Fase 7 do `PLANO_LINGUAGEM_GV_GSS.md`). Desligado é o
+/// sentido antigo (`legacy`), em que o `color` de um `button` pinta o fundo.
+pub fn set_cor_css(sim: bool) {
+    COR_CSS.store(sim, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// O modo de cor CSS está ligado?
+pub fn cor_css() -> bool {
+    COR_CSS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static BUSY_BUTTONS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Liga/desliga o botão ocupado automático — o `app(busy_buttons = true)`.
+pub fn set_busy_buttons(sim: bool) {
+    BUSY_BUTTONS.store(sim, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// O prefixo das chaves de ocupação que o runtime Luau grava enquanto a
+/// corrotina de um handler está suspensa: `__busy.<handler>`.
+pub const BUSY_PREFIX: &str = "__busy.";
+
+/// O nome do handler de uma ação: o que vem antes de `(` (forma de chamada) ou
+/// de `:` (forma antiga), sem o prefixo de dono (`Comp::`).
+pub fn nome_do_handler(acao: &str) -> &str {
+    let a = acao.rsplit_once("::").map_or(acao, |(_, h)| h);
+    let fim = a.find(['(', ':']).unwrap_or(a.len());
+    &a[..fim]
+}
+
+/// `Some(true)` se o nó deve ficar desabilitado por ocupação: `busy = @x`
+/// explícito manda; sem ele, com `busy_buttons` ligado, o handler do `on_click`
+/// do botão estar rodando. `None` = nada a dizer (fica o `disabled` normal).
+fn ocupado(node: &UiNode, context: &EvalCtx) -> Option<bool> {
+    if let Some(b) = node.busy_attr() {
+        let v = process_tpl(b, context);
+        return Some(is_truthy(&v));
+    }
+    if !BUSY_BUTTONS.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+    let NodeType::Button { on_click: Some(acao), .. } = &node.kind else {
+        return None;
+    };
+    let acao = process_tpl(acao, context);
+    let nome = nome_do_handler(&acao);
+    if nome.is_empty() {
+        return None;
+    }
+    Some(
+        context
+            .get(&format!("{BUSY_PREFIX}{nome}"))
+            .is_some_and(|v| is_truthy(&v)),
     )
+}
+
+/// Whether a (already-interpolated) string should be considered true.
+///
+/// É a regra de verdade da linguagem de expressão ([`crate::expr::texto_verdadeiro`]):
+/// falso é vazio, `false`, `0`, `no`/`não`, `off`, `null`, `[]` e `{}`; **todo o resto
+/// é verdadeiro** — inclusive um texto qualquer. Antes só `true`/`1`/`yes`/`on`
+/// eram verdadeiros, e `if @mensagem { … }` nunca casava com uma mensagem: o
+/// template tinha de escrever `@mensagem != ""`.
+fn is_truthy(s: &str) -> bool {
+    crate::expr::texto_verdadeiro(s)
 }
 
 /// Evaluate an `if` condition against the context.
@@ -2538,7 +2659,21 @@ fn eval_owned(
                     continue;
                 }
                 match &decl.default {
-                    Some(v) => layer.set(decl.name.clone(), process_tpl(v, context)),
+                    Some(v) => {
+                        let valor = process_tpl(v, context);
+                        if let Some(tipo) = decl.tipo
+                            && !v.contains('{')
+                            && !tipo.aceita(&valor)
+                        {
+                            return Err(crate::error::GlacierError::PropType {
+                                component: name.clone(),
+                                prop: decl.name.clone(),
+                                tipo: tipo.nome(),
+                                value: format!("{valor} (o default do prop)"),
+                            });
+                        }
+                        layer.set(decl.name.clone(), valor)
+                    }
                     None => {
                         return Err(crate::error::GlacierError::MissingProp {
                             component: name.clone(),
@@ -2562,7 +2697,25 @@ fn eval_owned(
             if crate::parser::SPREAD_ATTRS.contains(&key.as_str()) {
                 continue;
             }
-            layer.set(key.clone(), process_tpl(val_template, context));
+            let valor = process_tpl(val_template, context);
+            // `prop(type = …)`: literal do tipo errado é erro (engano no markup);
+            // valor vindo do contexto avisa uma vez (dado de tempo de execução).
+            if let Some(tipo) = declaradas
+                .and_then(|d| d.iter().find(|p| &p.name == key))
+                .and_then(|p| p.tipo)
+                && !tipo.aceita(&valor)
+            {
+                if !val_template.contains('{') {
+                    return Err(crate::error::GlacierError::PropType {
+                        component: name.clone(),
+                        prop: key.clone(),
+                        tipo: tipo.nome(),
+                        value: valor,
+                    });
+                }
+                avisar_tipo_de_prop(name, key, tipo.nome(), &valor);
+            }
+            layer.set(key.clone(), valor);
         }
 
         // `prop(component, name = vazio)`: o valor é o NOME de um componente.
@@ -2814,6 +2967,46 @@ fn eval_owned(
         (base, states)
     };
 
+    // Fase 7 — semântica de cor do CSS (`app(gss_color = css)`): `background` é o
+    // fundo e `color` a cor do conteúdo, em TODO widget. Quatro widgets pintam o
+    // próprio fundo e guardam a cor dele no campo `color` (o sentido antigo do
+    // `.gss`): `button`, `select`, `comboedit` e `menu`. Para eles a regra é
+    // traduzida aqui para o formato interno — o fundo da classe vira o `color`
+    // do widget, a cor da classe vira o rótulo —, e o resto do motor segue igual.
+    let css_proprio = cor_css()
+        && matches!(
+            node.kind,
+            NodeType::Button { .. } | NodeType::Select { .. } | NodeType::ComboEdit { .. } | NodeType::Menu { .. }
+        );
+    let (style, state_styles) = if css_proprio {
+        let mut base = style;
+        let fundo = base.background.take();
+        let rotulo = base.text_color.take().or(base.color.take());
+        base.color = fundo;
+        base.text_color = rotulo;
+        let mut st = state_styles;
+        for r in [&mut st.hover, &mut st.focus, &mut st.active, &mut st.disabled, &mut st.invalid] {
+            if let Some(c) = r.color.take() {
+                r.text_color.get_or_insert(c);
+            }
+        }
+        (base, st)
+    } else {
+        (style, state_styles)
+    };
+    // O fundo de um desses quatro, no modo CSS: o `background` inline, ou o da
+    // classe (já traduzido para `style.color` acima). No modo antigo, o `color`.
+    let fundo_proprio = |color: &Option<String>| -> Option<String> {
+        let inline = if css_proprio {
+            node.background.as_deref().map(|b| process_tpl(b, context))
+        } else {
+            color.as_ref().map(|c| process_tpl(c, context))
+        };
+        inline
+            .filter(|c| !c.trim().is_empty())
+            .or_else(|| style.color.clone())
+    };
+
     // Resolve a numeric attribute whose XML value was a `{...}` template (see
     // `NumAttr`): interpolate against the context and parse to f32. `None` if
     // the node had no template for `attr`, or it resolved to a non-number.
@@ -2912,11 +3105,7 @@ fn eval_owned(
                 .map(|o| namespace_action(process_tpl(o, context), owner)),
             navigate_to: navigate_to.as_ref().map(|n| process_tpl(n, context)),
             navigate_back: *navigate_back,
-            color: color
-                .as_ref()
-                .map(|c| process_tpl(c, context))
-                .filter(|c| !c.trim().is_empty())
-                .or_else(|| style.color.clone()),
+            color: fundo_proprio(color),
             button_type: *button_type,
         },
         NodeType::TextInput {
@@ -3777,11 +3966,7 @@ fn eval_owned(
             placeholder: process_tpl(placeholder, context),
             label_field: label_field.clone(),
             value_field: value_field.clone(),
-            color: color
-                .as_ref()
-                .map(|c| process_tpl(c, context))
-                .filter(|c| !c.trim().is_empty())
-                .or_else(|| style.color.clone()),
+            color: fundo_proprio(color),
         },
         NodeType::ComboEdit {
             options,
@@ -3800,11 +3985,7 @@ fn eval_owned(
             placeholder: process_tpl(placeholder, context),
             label_field: label_field.clone(),
             value_field: value_field.clone(),
-            color: color
-                .as_ref()
-                .map(|c| process_tpl(c, context))
-                .filter(|c| !c.trim().is_empty())
-                .or_else(|| style.color.clone()),
+            color: fundo_proprio(color),
         },
         NodeType::MenuBar => NodeType::MenuBar,
         NodeType::Menu {
@@ -3816,11 +3997,7 @@ fn eval_owned(
             on_click,
             color,
         } => NodeType::Menu {
-            color: color
-                .as_ref()
-                .map(|c| process_tpl(c, context))
-                .filter(|c| !c.trim().is_empty())
-                .or_else(|| style.color.clone()),
+            color: fundo_proprio(color),
             label: process_tpl(label, context),
             icon: icon.as_ref().map(|i| process_tpl(i, context)),
             disabled: *disabled,
@@ -3925,7 +4102,13 @@ fn eval_owned(
     let padding_eval = resolve(node.padding.as_deref(), &style.padding);
     let align_x_eval = resolve(node.align_x(), &style.align_x);
     let align_y_eval = resolve(node.align_y(), &style.align_y);
-    let background_eval = resolve(node.background.as_deref(), &style.background);
+    // No modo CSS, o fundo de `button`/`select`/`comboedit`/`menu` é pintado
+    // pelo próprio widget (ver `fundo_proprio`), não pelo embrulho genérico.
+    let background_eval = if css_proprio {
+        None
+    } else {
+        resolve(node.background.as_deref(), &style.background)
+    };
     let border_color_eval = resolve(node.border_color(), &style.border_color);
     let spacing_eval = num_template(NumAttr::Spacing)
         .or(node.spacing)
@@ -3954,7 +4137,19 @@ fn eval_owned(
     let on_press_eval = node.on_press().map(|s| process_tpl(s, context));
     let on_double_click_eval = node.on_double_click().map(|s| process_tpl(s, context));
     let cursor_eval = resolve(node.cursor(), &style.cursor);
-    let text_color_eval = resolve(node.text_color(), &style.text_color);
+    // No modo CSS, o `color` inline de um `button` (& cia.) é o do rótulo.
+    let text_color_eval = if css_proprio && node.text_color().is_none() {
+        let inline = match &node.kind {
+            NodeType::Button { color, .. }
+            | NodeType::Select { color, .. }
+            | NodeType::ComboEdit { color, .. }
+            | NodeType::Menu { color, .. } => color.as_deref(),
+            _ => None,
+        };
+        resolve(inline, &style.text_color)
+    } else {
+        resolve(node.text_color(), &style.text_color)
+    };
     // `x`/`y`/`anchor` (Onda 11, habilitador A): dado, não estilo — sem
     // equivalente `.classe { }`, interpolados direto como `on_press`/`tooltip`.
     let pin_x_eval = node.pin_x().map(|s| process_tpl(s, context));
@@ -3985,6 +4180,12 @@ fn eval_owned(
     // `disabled` só existe como atributo inline (sem equivalente `.classe { }`),
     // carregado direto, como `drag_handle` — mas também aceita placeholder.
     let disabled_eval = bool_template(BoolAttr::Disabled).or(node.disabled);
+    // Botão ocupado automático (`app(busy_buttons = true)`): o `on_click` cujo
+    // handler está rodando desabilita o botão, sem `disabled = @busy_x` à mão.
+    let disabled_eval = match ocupado(node, context) {
+        Some(true) => Some(true),
+        _ => disabled_eval,
+    };
     // Overlays por pseudo-estado: só embrulha num `Box` quando o `.gss`
     // realmente declarou algo para aquele estado, para não pagar uma
     // alocação por nó no caso comum (nenhum `:hover`/`:focus`/etc. no sheet).
@@ -4185,6 +4386,11 @@ fn eval_owned(
             }),
             border_radius_corners: border_radius_corners_eval,
             transition: style.transition.clone(),
+            font_weight: style.font_weight,
+            italic: style.font_style.as_deref() == Some("italic")
+                || style.font_style.as_deref() == Some("oblique"),
+            line_height: style.line_height.clone(),
+            box_shadow: style.box_shadow.clone(),
         }),
         interact: crate::parser::caixa(crate::parser::Interact {
             on_press: on_press_eval,
@@ -4197,6 +4403,7 @@ fn eval_owned(
             role: role_eval,
             aria_label: aria_label_eval,
             aria_hidden: aria_hidden_eval,
+            busy: node.busy_attr().map(|b| process_tpl(b, context)),
         }),
         pseudo: crate::parser::caixa(crate::parser::Pseudo {
             hover_style: hover_style_eval,
