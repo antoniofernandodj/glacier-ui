@@ -266,7 +266,7 @@ pub fn check_from_env() -> Option<i32> {
 /// nome): não viram a forma de chamada `nome(…)`.
 const ACOES_DO_MOTOR: &[&str] = &[
     "clipboard", "open", "window", "style", "dialog", "app", "tray", "notifications", "audio",
-    "field", "whatsthis",
+    "field", "whatsthis", "textarea_end", "textarea_top",
 ];
 
 /// Um valor de atributo como literal de expressão: `"…"` fica, `@x` fica, o resto
@@ -732,6 +732,14 @@ button("y", on_click = window:drag)"#);
         assert!(s.contains("if = @view in @target,"), "{s}");
         let (s, _) = migrar_gv("text(\"x\", if = @aba, one_of = \"a b\")\n");
         assert!(s.contains(r#"if = @aba in ["a", "b"]"#), "{s}");
+    }
+
+    #[test]
+    fn embutido_textarea_nao_vira_chamada() {
+        let src = "button(\"↓\", on_click = textarea_end:log)\nbutton(\"↑\", on_click = \"textarea_top:log\")\n";
+        let (s, n) = migrar_gv(src);
+        assert_eq!(n, 0, "{s}");
+        assert_eq!(s, src);
     }
 
     #[test]

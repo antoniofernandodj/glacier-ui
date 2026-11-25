@@ -344,6 +344,20 @@ fn acao_com_argumentos_no_gv() {
     );
     let a = acao_de(&m.evaluated("acoes_embutidas").unwrap()).unwrap();
     assert!(a.ends_with("window:resize:se"), "{a}");
+
+    // Embutido despachado em Rust pelo prefixo: a forma de chamada volta a
+    // `textarea_end:log`, e não vira a chamada JSON de um handler Luau.
+    let mut m = motor_com(
+        "acoes_textarea",
+        r#"component {
+  column {
+    button("↓", on_click = textarea_end("log"))
+  }
+}
+"#,
+    );
+    let a = acao_de(&m.evaluated("acoes_textarea").unwrap()).unwrap();
+    assert!(a.ends_with("textarea_end:log"), "{a}");
 }
 
 /// Fase 5: `t(…)` sem aspas nem chaves — posicional e em atributo — dá o mesmo

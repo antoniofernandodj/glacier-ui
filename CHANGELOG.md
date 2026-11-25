@@ -8,6 +8,19 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.169.1 · glacier-cli 0.29.1 — 2026-11-25
+
+Correções achadas migrando o rustploy-gui (73 telas):
+
+- **`textarea_end("log")` / `textarea_top("log")` não faziam nada.** Os embutidos que o motor
+  despacha em Rust pelo prefixo (`textarea_end`, `textarea_top`, `clipboard`, `open`, `audio`,
+  `whatsthis`) viravam, na forma de chamada, a ação JSON de um handler Luau que não existe.
+  Agora voltam a `nome:arg`, como `window.resize("nw")` → `window:resize:nw`.
+- **`fmt --migrate`** não reescreve mais `textarea_end:x`/`textarea_top:x` (embutidos), e
+  `one_of = @chave` vira `in @chave` em vez da lista literal `["@chave"]`, que comparava com o
+  texto `"@chave"`.
+- Extensão Glacier View 0.33.1: o link de `textarea_end("x")` vai para a referência dos embutidos.
+
 ## glacier-cli 0.29.0 — 2026-11-25
 
 - Os presets (`glacier new`) saem na linguagem 0.169 e pedem `glacier-ui = "0.169"`; o

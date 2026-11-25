@@ -25,6 +25,12 @@ use crate::parser::UiNode;
 /// A extensão do markup de blocos.
 pub const EXTENSAO: &str = "gv";
 
+/// Ações embutidas que o motor despacha em Rust pelo prefixo `nome:arg`
+/// (`src/lib.rs`, `dispatch`). Na forma de chamada (`textarea_end("log")`) elas
+/// viram `nome:arg`, e não a chamada JSON de um handler Luau.
+pub const ACOES_EMBUTIDAS_COM_PREFIXO: &[&str] =
+    &["textarea_end", "textarea_top", "clipboard", "open", "audio", "whatsthis"];
+
 /// Se `path` é um template `.gv`.
 pub fn eh_gv(path: &str) -> bool {
     std::path::Path::new(path)
@@ -1017,7 +1023,12 @@ impl Parser {
                 });
             }
         }
-        if nome.contains('.') {
+        // `a.b(x)` (embutido com prefixo, `window.resize("nw")`) e os embutidos
+        // que o motor trata em Rust pelo prefixo `nome:` (`textarea_end("log")`):
+        // os dois voltam à forma `a:b:x` que o despacho em Rust reconhece. Sem
+        // isto, `textarea_end("log")` virava a ação `textarea_end(["log"])`, que
+        // nenhum prefixo casa — e o botão não fazia nada, sem erro.
+        if nome.contains('.') || ACOES_EMBUTIDAS_COM_PREFIXO.contains(&nome.as_str()) {
             let mut out = nome.replace('.', ":");
             for a in &args {
                 out.push(':');

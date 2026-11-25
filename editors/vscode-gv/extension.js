@@ -474,8 +474,14 @@ const TRAY_ACTIONS = new Set(["tray:open", "tray:quit", "notifications:toggle"])
  * para onde o link aponta. Qualquer outro valor volta como está.
  */
 function callHead(value) {
-  const m = /^([\p{L}_][\p{L}\p{N}_.:]*)\s*\(/u.exec(value);
+  const m = /^([\p{L}_][\p{L}\p{N}_.:]*)\s*\(\s*(?:"([^"]*)"|'([^']*)')?/u.exec(value);
   if (!m) return value;
+  // Os embutidos que o motor despacha pelo prefixo (`src/gv.rs`,
+  // ACOES_EMBUTIDAS_COM_PREFIXO): `textarea_end("log")` é `textarea_end:log`.
+  const arg = m[2] ?? m[3];
+  if (arg !== undefined && ["textarea_end", "textarea_top", "clipboard", "open", "audio", "whatsthis"].includes(m[1])) {
+    return `${m[1]}:${arg}`;
+  }
   return m[1].replace(/^(window|style)\./, "$1:");
 }
 
