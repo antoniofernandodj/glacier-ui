@@ -165,7 +165,9 @@ screen(title = Contador, size = "320 240") {
    pode conter `"""`.
 8. **Comentário é `//` ou `/* … */`**, e podem citar tags à vontade — o `--` não é
    proibido em lugar nenhum.
-9. **Condicional e repetição** têm notação própria:
+9. **Condicional e repetição** têm **duas formas por conceito** — a de bloco
+   (envolve vários nós) e a curta (condiciona ou repete um nó só) —, e as duas
+   leem a **mesma expressão**:
 
    | escrita | significa |
    |---|---|
@@ -173,14 +175,17 @@ screen(title = Contador, size = "320 240") {
    | `if @aba != "x" { … }` | a chave `aba` não vale `x` |
    | `if "api" in @marcados { … }` | o conjunto contém `api` |
    | `if @marcados is empty { … }` | a lista está vazia |
-   | `if @ligado { … }` | truthy |
+   | `if @ligado && !@ocupado { … }` | combina condições (`&&`, `||`, `!`) |
    | `} else if … {` / `} else {` | os ramos seguintes |
    | `each @servicos as s { … }` | repete para cada item |
+   | `text("…", if = @erro != "")` | a forma curta: só aquele nó |
+   | `Card(each = @servicos as s, …)` | a forma curta do laço |
 
-   Os atributos do `foreach` (`fallback`, `on_reorder`) vão entre parênteses
-   depois da variável: `each @itens as item(fallback = SemItens) { … }`. Um
-   `if`/`else` não leva atributos; para `one_of`, `not_empty` e afins use o
-   `template` explícito: `template(if = @k, one_of = "a,b") { … }`.
+   Os atributos do `each` (`fallback`, `key`, `on_reorder`) vão entre parênteses
+   depois da variável: `each @itens as item(fallback = SemItens) { … }`. A
+   expressão vale também em **qualquer atributo** (`disabled = @ocupado || !@valido`)
+   e dentro de `{…}` num texto; a gramática completa está em "Condicional e
+   repetição: duas formas, uma semântica".
 10. **A convenção de escrita**: tags do motor em minúsculas, componente do app
     em `CamelCase` (`CartaoServico(nome = api)`), atributos em `snake_case`,
     estilo no `.gss`.
@@ -460,49 +465,62 @@ botão de rodapé, um menu) não pertence a tela nenhuma. Para uma lógica que s
 usa, o script dela basta. Limite de hoje: o `glacier test` não roda o script do app
 (`component()` carrega a tela); teste a lógica num módulo `require`ado.
 
-### Condicional e repetição são ATRIBUTOS
+### Condicional e repetição: duas formas, uma semântica
 
-Isto vale em **qualquer** tag, não só em `template` — e é a forma que se usa
-quando há uma tag só para condicionar:
+Cada conceito tem **duas formas**, e as duas leem a mesma expressão: a **curta**,
+num nó só (quando há uma tag para condicionar ou repetir), e a de **bloco**,
+quando envolve vários nós sem criar uma caixa em volta deles:
 
 ```gv
-text("{erro}", if = @erro, class = erro)
+// curta: um nó
+text("{erro}", if = @erro != "", class = erro)
 text("tudo certo", else, class = ok)
-card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
-```
+Card(each = @servicos as s, title = @s.nome, estado = @s.estado)
 
-`template` existe para quando o condicional precisa envolver **vários** nós
-sem criar uma caixa em volta deles:
-
-```gv
+// bloco: vários nós
 if @aba == "rede" {
   text("Rede", class = secao)
   textinput(:value = host, on_change = host)
 }
-```
-
-Para **repetir vários nós**, a tag é `foreach` — e ela aceita `fallback`, o
-componente que aparece no lugar da lista quando ela está vazia:
-
-```gv
-foreach(items = visiveis, var = s, fallback = NenhumServico) {
+each @servicos as s(fallback = NenhumServico) {
   text("{s.nome}", class = nome)
   rule
 }
 ```
 
-`template(:foreach = "…")` repete do mesmo jeito, mas lá o atributo se chama
-`foreach_fallback`: o `template` também é `if`/`else`, e um `fallback` solto
-nele leria como "senão". Os detalhes estão em "Estrutura de template".
+**A expressão** (vale no `if`/`else if` de bloco, no `if =`/`else_if =` curto e
+em qualquer atributo que não seja ação nem ligação):
 
-Comparadores disponíveis nos dois: `equals`, `not_equals`, `one_of` (lista
-separada por espaço, no atributo), `contains` (o inverso — a lista está na
-chave), `matches` (busca de texto: cada palavra do valor aparece na condição,
-sem caixa; vazio casa sempre), `empty` e `not_empty` (que testam um **array
-JSON**, não uma string).
+```text
+cond ? expr : expr        // ternário; sem o `: expr`, falso dá ""
+a || b   a && b   !a
+== != < <= > >=           // < e > só comparam número
+item in lista             // lista literal, array JSON ou texto separado por vírgula/espaço
+x is empty / is not empty // ausente, "", null, [] e {} são vazios
+@chave  "texto"  12  true  false  null  [a, b, c]  (expr)
+t num date len lower upper trim json   // as funções
+```
 
-`matches` filtra uma lista enquanto se digita sem uma linha de script — o
-campo grava a busca, o `matches` esconde o que não casa:
+```gv
+button("Salvar", disabled = @ocupado || !@valido)
+if @papel in ["admin", "editor"] { text("Painel de gestão") }
+svg(src = @maximizada ? "restaurar.svg" : "maximizar.svg")
+text("{@total > 0 ? 'com itens' : 'vazio'}")
+```
+
+**Verdade:** todo texto não vazio é verdadeiro, **exceto** `false`, `0`,
+`no`/`não`, `off`, `null`, `[]` e `{}`. `if @mensagem` já testa "tem mensagem".
+
+**O `else` curto tem lugar certo:** o irmão imediatamente anterior precisa ter
+`if =` (ou ser um `else_if`). Um nó no meio é **erro de parse**, com a linha e a
+dica — antes isso mudava o sentido em silêncio.
+
+**Classe condicional:** `class:nome = expr` liga e desliga uma classe sem
+montar string: `button(class = nav-item, class:nav-item--active = @view == "home")`.
+
+**O `matches` fica:** é a busca de texto por palavras (cada palavra do valor
+aparece no texto, sem caixa; vazio casa sempre), e a expressão não tem
+equivalente. Filtra uma lista enquanto se digita sem uma linha de script:
 
 ```gv
 textinput(:value = busca, on_change = busca, placeholder = "filtrar…")
@@ -511,8 +529,13 @@ each @servicos as s {
   text("{s.nome}", if = "{s.nome} {s.imagem}", matches = @busca)
 }
 ```
-Sem comparador nenhum, o teste é **truthy**: vazio, `"false"` e `"0"` são
-falsos — e é essa a forma de testar um texto.
+
+**Formas depreciadas** (avisam no stderr; `glacier fmt --migrate` reescreve):
+`template(if = …)`/`template(else)` e `template(:for_each = …)` (use os blocos),
+`:for_each = x, var = v` num nó (use `each = @x as v`), e os comparadores como
+atributo — `equals`, `not_equals`, `one_of`, `contains`, `empty`, `not_empty`
+(use a expressão: `==`, `!=`, `in`, `is empty`). O `for_each = x, var = v` sem
+`:` e a tag `foreach` ainda funcionam, mas a forma canônica é o `each`.
 
 ## A anatomia do projeto
 
@@ -1010,8 +1033,9 @@ screen(title = Painel, size = "1080 760", min_size = "900 640") {
 ```gv
 component {
   props {
-    prop(name = titulo)  // sem default = obrigatória
+    prop(name = titulo, type = string)  // sem default = obrigatória
     prop(name = cor, default = #89B4FA)
+    prop(name = ativo, type = bool, default = false)
   }
   container(class = cartao, background = @cor) {
     text("{titulo}")
@@ -1026,6 +1050,12 @@ vira erro na hora (é onde um `labl="…"` deixa de ser invisível), e uma
 obrigatória que faltou também. Sem `props`, nada é checado — a regra antiga
 continua valendo para quem não quer o contrato.
 
+**Props tipados.** O `type =` declara o tipo: `string`, `number`, `bool`,
+`list`, `object`, `action`, `component` (sem `type`, qualquer valor passa). Um
+literal do tipo errado no uso é **erro** (`Selo(ativo = "sim")` com
+`type = bool`); um valor vindo do contexto do tipo errado **avisa uma vez** no
+stderr.
+
 **Componente recebido por atributo.** Uma prop pode levar o **nome de outro
 componente**, e o template o desenha com `render` ou o usa de `fallback`:
 
@@ -1039,7 +1069,7 @@ component {
   }
   column {
     render(component = @cabecalho, titulo = @titulo)
-    foreach(items = @itens, var = i, fallback = @vazio) {
+    each @itens as i(fallback = @vazio) {
       text("{i.nome}")
     }
   }
@@ -1117,6 +1147,10 @@ app(id = meu-app, single_instance = true, remember_geometry = true, size = "960 
 | `font` | a família padrão de todas as janelas — uma registrada por `font` (abaixo) ou pelo builder |
 | `antialiasing` | `"false"` desliga o MSAA |
 | `reload_period` / `toast_period` | período do hot-reload e da expiração de toasts, em **milissegundos** inteiros positivos |
+| `busy_buttons` | `true`: todo `button` com `on_click` fica desabilitado enquanto o handler está suspenso (num `fetch`, num diálogo) — ver "Botão ocupado automático" |
+| `gss_strict` | `true`: propriedade desconhecida no `.gss` é **erro**, não aviso |
+| `gss_color` | `css`: `background` é o fundo e `color` a cor do conteúdo em **todo** widget; `legacy` (o padrão por enquanto) mantém o `color` de `button` como fundo |
+| `mono_font` | a família que `font: mono` resolve (sem ela, a mono do sistema) |
 
 **Fontes no markup.** `font(src = "views/assets/fonts/Inter.ttf", family = Inter)`
 no `resources` do `app` registra a fonte; o arquivo é lido pela mesma fonte
@@ -1226,7 +1260,8 @@ na tabela de cada widget:
 | `border_width` | um número |
 | `border_color` | `#rrggbb`/`#rrggbbaa` |
 | `max_width`, `max_height` | um número; o motor embrulha o nó num container que limita |
-| `hidden`, `disabled` | truthy: `"true"`/`"1"` liga; vazio, `"false"` e `"0"` desligam. Aceitam `{chave}` — é assim que se liga ao dado |
+| `hidden`, `disabled` | expressão ou truthy: todo texto não vazio liga, exceto `false`, `0`, `no`/`não`, `off`, `null`, `[]`, `{}`. `disabled = @ocupado || !@valido` vale |
+| `class:nome` | classe condicional: `class:nav-item--active = @view == "home"` liga e desliga a classe sem montar string |
 | `tooltip`, `tooltip_position`, `tooltip_delay` | texto do balão; a posição é `top`/`bottom`/`left`/`right`/`follow`; o atraso até aparecer é `"600ms"`, `"1.5s"` ou um número puro em ms (default: imediato) |
 | `whats_this` | ajuda do `QWhatsThis`. Só aparece com o **modo pegajoso** ligado (ação `whatsthis:on`/`off`/`toggle` → chave `__whatsthis`), e aí toma o lugar do `tooltip=` no hover |
 | `cursor` | `pointer`, `text`, `grab`, `grabbing`, `move`, `crosshair`, `wait`, `progress`, `help`, `not_allowed`, `none`, e as alças `resize_h`, `resize_v`, `resize_ne`, `resize_nw` (com os apelidos de bússola `n`, `s`, `e`, `w`, `ne`, `nw`, `sw`) |
@@ -1235,7 +1270,7 @@ na tabela de cada widget:
 | `virtualize` | só numa `column`/`row` dentro de `scrollable` — ver "Listas longas" |
 | `x`, `y`, `anchor` | só num filho de `stack` — ver Sobreposição |
 | `form_control` | liga o campo à `form` que o envolve; com `rules="…"`, `msg="…"`, `pattern="…"` o motor valida esse campo no envio (ver "Validação declarada no próprio `form`") |
-| `if`, `else`, `else_if`, `for_each`, `var`, `slot` | diretivas; ver "Estrutura de template" |
+| `if`, `else`, `else_if`, `each`, `slot` | diretivas; ver "Estrutura de template" (`for_each`/`var` são a forma antiga do `each`) |
 
 Cor sempre em hexadecimal — não há `rgb()`, nem nome de cor, nem `transparent`
 (o equivalente é `#00000000`).
@@ -2793,24 +2828,22 @@ tema).
 
 Estas não desenham nada — decidem o que existe.
 
-**Condicional.** Os comparadores valem em `template` **e** em qualquer tag:
+**Condicional.** A expressão (gramática em "Condicional e repetição: duas
+formas, uma semântica") vale no bloco e no atributo curto, em **qualquer** tag:
 
 | forma | testa |
 |---|---|
-| `if="{chave}"` | truthy: vazio, `"false"` e `"0"` são falsos |
-| `if="{aba}" equals="rede"` | igualdade textual |
-| `if="{estado}" not_equals="ok"` | diferença |
-| `if="{papel}" one_of="admin editor"` | pertence à lista **escrita no atributo**, separada por espaço (o atributo interpola: `one_of="{permitidos}"` também vale) |
-| `if="{tags}" contains="urgente"` | o simétrico: a lista está na **chave**, o item no atributo. Separadores aceitos: vírgula, ponto e vírgula, espaço |
-| `if="{itens}" not_empty` | a chave guarda um **array JSON** com pelo menos um elemento (e `empty` para o inverso) |
+| `if = @erro` / `if @erro { … }` | verdade: todo texto não vazio, exceto `false`, `0`, `no`/`não`, `off`, `null`, `[]`, `{}` |
+| `if = @aba == "rede"` | igualdade (número dos dois lados compara como número: `"1.0" == 1`) |
+| `if = @estado != "ok"` | diferença |
+| `if = @papel in ["admin", "editor"]` | pertence à lista (literal, array JSON da chave ou texto separado por vírgula/espaço) |
+| `if = @itens is empty` / `is not empty` | ausente, `""`, `null`, `[]` e `{}` são vazios |
+| `if = @a && !@b` | combina (`&&`, `||`, `!`, ternário) |
 | `platform="desktop"` | `desktop` ou `web` — não são nomes de sistema operacional |
 
-`empty`/`not_empty` são sobre **lista JSON**, não sobre texto: um valor que não
-parseia como array conta como vazio. Para testar uma string, use o teste truthy
-(`if="{erro}"`) ou `not_equals=""`.
-
 `else_if` e `else` encadeiam com o `if` **imediatamente anterior**, no mesmo
-nível:
+nível — no bloco e na forma curta. Na curta, um irmão sem `if =` no meio é
+**erro de parse** (antes mudava o sentido em silêncio):
 
 ```gv
 if @estado == "ok" {
@@ -2825,15 +2858,24 @@ else {
 ```
 
 Uma escada que não casa nenhum ramo não é erro — é um buraco na tela, sem aviso.
-Termine sempre com um `template(else)` quando o valor puder ser inesperado.
+Termine sempre com um `else` quando o valor puder ser inesperado.
 
-**Repetição.** `for_each` é um **atributo**, na própria tag repetida:
+As formas antigas — `template(if = …)`, os comparadores como atributo
+(`equals`, `not_equals`, `one_of`, `contains`, `empty`, `not_empty`) — estão
+**depreciadas**: avisam no stderr e o `glacier fmt --migrate` reescreve para a
+expressão. O `matches` (busca por palavras) fica.
+
+**Repetição.** O laço curto repete a própria tag; o bloco repete vários nós:
 
 ```gv
-card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
+Card(each = @servicos as s, title = @s.nome, estado = @s.estado)
+each @servicos as s(fallback = NenhumServico) {
+  text("{s.nome}", class = nome)
+  badge(badge_text = @s.estado)
+}
 ```
 
-`for_each` recebe o **nome da chave**; `var` batiza o item. Dentro do corpo:
+Dentro do corpo:
 
 | forma | quando |
 |---|---|
@@ -2841,48 +2883,29 @@ card(for_each = servicos, var = s, title = @s.nome, estado = @s.estado)
 | `{s}` | o item é um escalar (string ou número na lista) |
 | `{s.__dragging}` | `"true"` enquanto **este** item está sendo arrastado |
 
-Para repetir **vários** nós sem criar uma caixa em volta, há duas tags — a
-dedicada e o `template`:
-
-```gv
-foreach(items = servicos, var = s, fallback = NenhumServico) {
-  text("{s.nome}", class = nome)
-  badge(badge_text = @s.estado)
-}
-template(foreach = servicos, var = s, foreach_fallback = NenhumServico) {
-  text("{s.nome}", class = nome)
-}
-```
-
-**O que aparece quando a lista está vazia.** O fallback é um **nome de
+**O que aparece quando a lista está vazia.** O `fallback` é um **nome de
 componente** — declarado no `resources`, importado ou registrado — desenhado
 no lugar da lista quando a chave guarda um array vazio ou ainda não guarda array
-nenhum (a mesma leitura do `empty`). Ele entra sem props, no contexto de quem
-escreveu a repetição, e enxerga as chaves da tela: um `SemResultado` pode
-mostrar `nada casa com “{busca}”`.
-
-| onde | atributo |
-|---|---|
-| `foreach` | `fallback` |
-| `template(foreach)` | `foreach_fallback` (ou `foreach_fallback`) |
-| `for_each` num elemento | não existe — ali `fallback` seria uma prop do componente repetido |
-
-O nome no `template` é mais longo de propósito: ele também é `if`/`else`/
-`slot`, e `fallback` ali leria como "senão". Por isso `fallback` num
-`template` é **erro de parse**, e `foreach_fallback` num `template` sem
-`foreach` também.
+nenhum. Ele entra sem props, no contexto de quem escreveu a repetição, e
+enxerga as chaves da tela: um `SemResultado` pode mostrar
+`nada casa com “{busca}”`. Vai entre parênteses depois da variável do bloco
+`each`; na forma curta (`each = @x as v` num nó) não existe — ali `fallback`
+seria uma prop do componente repetido.
 
 O nome interpola (`fallback="{vazio}"`, que é como um componente repassa o que
 recebeu por prop) e é conferido **a cada avaliação**, com a lista cheia ou não:
 um typo erra na primeira vez que a tela aparece, e não no dia em que a lista
 esvazia. Vazio depois de interpolar é "sem fallback".
 
-Prefira o fallback a um `text(if = @itens, empty)` ao lado da lista quando o
+Prefira o fallback a um `text(if = @itens is empty)` ao lado da lista quando o
 "vazio" tem cara própria (título, dica, um botão): ele mora num componente, e a
 lista não precisa de condicional em volta.
 
-Para reordenar arrastando, o par é `on_reorder` (a ação) + `reorder_key` (o
-campo que identifica o item); `drag_handle` restringe o arrasto a um filho.
+Para reordenar arrastando, o par é `on_reorder` (a ação) + `key` (o campo que
+identifica o item; `reorder_key` é o nome antigo, ainda vale); `drag_handle`
+restringe o arrasto a um filho. O `:for_each = x, var = v` e o
+`template(:for_each = …)` estão depreciados — o `fmt --migrate` os reescreve
+para `each`.
 
 **Slots.**
 
@@ -3377,10 +3400,32 @@ Duas regras de árvore que não são óbvias:
 - o **conteúdo de slot** tem o **uso** como pai: em `Caixa(class = c) { text }`,
   `.c > text` casa.
 
-Fora da gramática — e **erro de parse**, não regra ignorada: os combinadores de
-irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`, `:not(…)` e as outras
-pseudo-classes funcionais. Uma lista separada por vírgula vale (`.a, .b { }`) e
-é expandida em regras independentes.
+Fora da gramática — e **erro de parse com o motivo e a alternativa**, não regra
+ignorada: os combinadores de irmão (`+`, `~`), `[atributo]`, `::pseudo-elemento`
+e `:estado` num **ancestral** (o estado vem do widget no desenho; para o vizinho
+reagir ao hover de um cartão, use classe condicional `class:x--on = …` no `.gv`,
+ou faça do cartão um `button`). Uma lista separada por vírgula vale
+(`.a, .b { }`) e é expandida em regras independentes.
+
+Mais três famílias de seletor (0.169):
+
+| forma | casa |
+|---|---|
+| `:not(.a, button)` | o composto que **não** casa nenhum dos argumentos |
+| `:is(.a, .b) > text` | qualquer um dos argumentos — o atalho da vírgula no meio do seletor |
+| `:first-child`, `:last-child`, `:only-child`, `:nth-child(an+b)` | a posição do nó entre os irmãos |
+
+E **aninhamento** com `&`, como no CSS moderno — o `&` é o seletor do bloco de
+fora:
+
+```gss
+.btn {
+  padding: 8 15;
+  &:hover    { background: var(--hover); }   /* .btn:hover */
+  &--primary { background: var(--green); }   /* .btn--primary (BEM) */
+  .icone     { size: 12; }                   /* .btn .icone */
+}
+```
 
 **A ordem de especificidade**, do mais fraco ao mais forte:
 
@@ -3402,8 +3447,10 @@ Regras de mesmo seletor **mesclam**, não se sobrescrevem: um segundo bloco
 
 ### Todas as propriedades
 
-São 21, e **só estas**. Qualquer outra é ignorada com um aviso no terminal —
-`border-bottom`, `margin`, `display: flex`, `box-shadow` não existem.
+São estas, e só estas. Qualquer outra é **ignorada com um aviso** que diz o
+arquivo, a linha e — quando o engano é hífen vs. sublinhado (`border-radius`)
+— o nome certo. Com `app(gss_strict = true)` o aviso vira **erro**.
+`border-bottom` e `margin` não existem.
 
 Numa forma de `canvas` (Onda 13), `fill` é apelido de `background`, `stroke`
 de `border_color` e `stroke_width` de `border_width` — não são propriedades
@@ -3422,23 +3469,36 @@ novas, é o mesmo campo com o nome do domínio.
 | `border_radius` | `border_radius` | número, ou 2/4 por canto: `border_radius: 0 6 6 0;` (a ordem do CSS) |
 | `border_width` | `border_width` | número |
 | `border_color` | `border_color` | cor |
-| `color` | — | cor do texto — **mas num `button` é a cor de FUNDO** |
-| `text_color` | `text_color` | cor do rótulo de um `button` (default branco) |
+| `color` | — | cor do conteúdo (texto, ícone…) — **mas, no padrão `legacy`, num `button` é a cor de FUNDO**; ver "Cor" abaixo |
+| `text_color` | `text_color` | cor do rótulo de um `button` no modo `legacy` (default branco) |
 | `size` | — | corpo da fonte (num `button`, o do rótulo) |
-| `bold` | — | `true`/`false` (num `button`, o do rótulo; um `font` explícito vence) |
-| `font` | `font_family` | nome da família carregada |
+| `bold` | — | `true`/`false` — atalho do peso 700, **mantém a família da regra** (0.169; antes caía na sans do sistema) |
+| `font_weight` | — | `100`…`900`, `normal` (400) ou `bold` (700) |
+| `font_style` | — | `italic`, `normal`, `oblique` |
+| `font` | `font_family` | nome da família carregada; `mono` resolve a do app (`app(mono_font = "…")`) ou a do sistema |
+| `line_height` | — | `1.4` (múltiplo do `size`) ou `20px` |
 | `text_align` | `text_align` | `start`, `center`, `end` |
+| `box_shadow` | — | `x y desfoque cor`: `box_shadow: 0 2 8 #00000066;` |
+| `opacity` | — | `0`–`1` ou `%` |
+| `transition` | — | `background 400ms ease-out` — ver `docs/GSS_MODERNO.md` |
+| `display` | — | `none` esconde; qualquer outro valor mostra (`hidden: true` é a forma depreciada) |
 | `cursor` | `cursor_icon` | ver a tabela de `cursor` acima |
 | `max_width` | `max_width` | número |
 | `max_height` | `max_height` | número |
-| `hidden` | — | `true`/`false`; `display: none` é apelido de `hidden: true` |
+| `hidden` | — | `true`/`false` — **depreciado**, use `display: none`/`display: flex` |
+
+`letter_spacing` é **erro com o motivo**: o iced 0.14 não desenha espaçamento
+entre letras.
 
 O motor só aceita a forma com sublinhado, a mesma dos atributos do `.gv`.
 
 ### Pseudo-estados
 
-Cinco, pendurados no **último** seletor — `.botao:hover`, `row > button:hover`.
-Num ancestral (`row:hover > text`) é erro de parse:
+Cinco de interação, pendurados no **último** seletor — `.botao:hover`,
+`row > button:hover`. Num **ancestral** (`row:hover > text`) é erro de parse,
+com a alternativa na mensagem: o estado vem do widget no desenho, e um
+contêiner não tem hover — faça do cartão um `button`, ou use classe
+condicional (`class:x--on = …`) para o vizinho reagir:
 
 ```gss
 .botao          { background: #313244; }
@@ -3478,6 +3538,23 @@ folhas ativas são juntados antes da substituição, então uma paleta declarada
 vez no `app.gss` global resolve `var()` dentro de um `style(scoped)` de
 componente.
 
+### `@theme`
+
+A paleta do motor (o que os widgets sem classe pintam) pode ser declarada no
+próprio `.gss`, sem `theme.json`:
+
+```gss
+:root  { --bg: #0A0E14; --tx: #E6EDF3; }
+@theme {
+  background: var(--bg);  text: var(--tx);
+  primary: #58A6FF;  success: #3FB950;  danger: #F85149;
+}
+```
+
+Um `@theme` **vence** um `link(rel = theme)` — que passa a ser ignorado, com
+aviso. É o caminho para uma paleta só, sem duplicar cores entre o JSON e a
+folha.
+
 ### `@media`
 
 ```gss
@@ -3499,16 +3576,39 @@ de parse, com o nome dela na mensagem.
 parse, porque o nome é uma feature de CSS, não uma propriedade do motor. É a
 única exceção à regra do sublinhado neste projeto.
 
+### Cor: `legacy` × `css`
+
+No padrão atual (`legacy`), o `color` de `button`, `select`, `comboedit` e
+`menu` é o **fundo**, e o rótulo é `text_color` — a exceção que mais surpreende.
+Com `app(gss_color = css)` vale a regra do CSS: `background` é o fundo e `color`
+é a cor do **conteúdo** (texto, ícone, traço do spinner, preenchimento do
+progressbar) em **todo** widget. Os estilos embutidos são convertidos sozinhos
+no modo `css`.
+
+`glacier fmt --migrate-color` converte um app inteiro: troca o sentido do
+`color` nas classes que só pintam botões e liga o `gss_color = css` no `app`.
+O padrão vira `css` numa versão futura — apps novos já podem nascer nele.
+
+### Modo estrito
+
+`app(gss_strict = true)`: propriedade desconhecida no `.gss` é **erro** (com a
+sugestão do nome certo), não aviso. É o equivalente, na folha, ao contrato de
+`props`. O `glacier check --strict` aplica a mesma regra no projeto inteiro,
+sem abrir janela.
+
 ### O que o `.gss` **não** faz
 
-- **Não pinta a janela.** O fundo da janela vem do `theme.json`; um
-  `background` numa `column` raiz `fill` desenha um retângulo do tamanho da
-  janela a cada quadro, por cima do que o tema já pintou.
+- **Não pinta a janela.** O fundo da janela vem do tema (`@theme` ou
+  `theme.json`); um `background` numa `column` raiz `fill` desenha um retângulo
+  do tamanho da janela a cada quadro, por cima do que o tema já pintou. (Desde
+  0.169 o motor **não repinta** um fundo opaco igual ao do ancestral sem borda,
+  raio nem sombra — a redundância mais comum já não custa; o `glacier check`
+  avisa.)
 - **Não herda.** Um `color` numa `column` não desce para os `text` dentro
   dela; a classe vai no `text`.
 - **Não tem margem.** O espaço entre irmãos é o `spacing` do pai; a margem
   interna é o `padding` do próprio nó.
-- **Não tem sombra nem borda por lado.** A borda do motor é dos quatro lados.
+- **Não tem borda por lado.** A borda do motor é dos quatro lados.
 
 ## O `theme.json`
 
@@ -3718,6 +3818,27 @@ falso que um projeto novo produz. Ele precisa ficar **sozinho na linha**: um
 comentário depois dele (`--!nolint FunctionUnused -- porque…`) é lido como parte
 do nome da regra, a diretiva deixa de valer e os avisos voltam.
 
+**Ação com argumentos.** `on_click = nome(args)` entrega os argumentos ao
+handler, separados e tipados: o literal chega com o tipo (`true` é booleano,
+`3` é número), o que vem de uma chave chega como texto:
+
+```gv
+button("Exportar", on_click = exportar(@item.key, true))
+button("CPU +10", on_click = ajusta_cpu(10))
+button("↔", on_click = window.resize("nw"))   // embutido na forma de chamada
+```
+
+```lua
+function exportar(chave: string, incluir_logs: boolean): ()
+    -- chave é o valor de item.key (texto); incluir_logs é true (booleano)
+end
+```
+
+A forma antiga `on_click = exportar:@id` (um argumento texto depois do `:`)
+está depreciada — o `glacier fmt --migrate` a reescreve. Os prefixos do motor
+(`window:drag`, `dialog:config`, `clipboard:{chave}`…) continuam valendo como
+estão.
+
 ### `init` roda no registro, não ao aparecer a tela
 
 ```lua
@@ -3821,11 +3942,35 @@ Duas regras práticas:
 - **Escreva o estado "carregando" antes da chamada** e o resultado depois. Entre
   as duas, o usuário vê a tela normalmente e pode clicar em outras coisas.
 - **Proteja contra a segunda chamada**, porque ela pode acontecer: um clique
-  duplo no botão dispara dois `fetch`. Uma flag no módulo resolve —
+  duplo no botão dispara dois `fetch`. Com `app(busy_buttons = true)` o motor
+  faz isso por você (abaixo); sem ele, uma flag no módulo resolve —
   `if State.carregando then return end`.
 
 Já `progress{}` **não** suspende: ele acompanha um trabalho que continua. Você
 abre, vai chamando `progress_set(n)` e fecha com `progress_close()`.
+
+### Botão ocupado automático
+
+Com `app(busy_buttons = true)`, todo `button` com `on_click` fica
+**desabilitado enquanto o handler do próprio clique está suspenso** — num
+`fetch`, num `confirm`, num `open_file`. O clique duplo que disparava dois
+`fetch` deixa de existir sem uma linha de script:
+
+```gv
+app(id = meu-app, busy_buttons = true) { … }
+
+button("Salvar", on_click = salvar)          // desabilita sozinho durante o salvar
+button("Baixar", on_click = baixar(@url))    // o nome do handler é o que vem antes do (
+button("Sempre ativo", on_click = salvar, busy = false)  // desliga num nó
+```
+
+- O motor grava a chave **`__busy.<handler>`** (`true`/`false`) enquanto a
+  corrotina vive — o script pode lê-la para um spinner ou um texto de estado.
+- `busy = false` desliga num nó; `busy = @x` (ou uma expressão) manda mais que
+  o automático.
+- Botões que chamam o **mesmo** handler ficam ocupados juntos — é a mesma
+  ação em curso.
+- O botão volta ao normal quando o handler termina, com sucesso ou erro.
 
 ### Módulos, e onde o estado tipado mora
 
@@ -4215,9 +4360,12 @@ chaves; sem ele, a união das chaves na ordem em que aparecem. A primeira coluna
 ### Internacionalização (i18n)
 
 No **markup**, uma chamada dentro de `{…}`: `{t("titulo")}`, `{t("ola", nome=usuario)}`,
-`{t("itens", n=contagem)}` (plural), `{num(preco, 2)}` e `{date(quando)}`. No `.gv`, dentro de uma
-string e com aspas simples por dentro: `text("{t('titulo')}")`. Nome sem aspas é uma **chave
-do contexto** (`n=contagem` lê `contagem`); com aspas ou número é literal.
+`{t("itens", n=contagem)}` (plural), `{num(preco, 2)}` e `{date(quando)}`. Quando o texto
+é **só** a tradução, a forma curta dispensa aspas e chaves: `text(t("titulo"))`,
+`button(t("svc.nome", nome = @n))`. Dentro de um texto composto, a chamada continua
+entre `{…}` com aspas simples por dentro: `text("Olá, {t('usuario')}")`. Nome sem
+aspas é uma **chave do contexto** (`n=contagem` lê `contagem`); com aspas ou número é
+literal.
 
 **O motor não traduz nada sozinho:** você escreve um JSON por idioma e ele só troca a chave
 pelo texto. `locales/pt-BR.json`: `{ "titulo": "Painel", "itens": { "one": "{n} item",
@@ -4879,6 +5027,8 @@ cancelar depois.
 ## Antes de dizer que está pronto
 
 - `make lint` passa (clippy + type-check dos `.luau`).
+- `glacier check` passa sem avisos — formas depreciadas, classes órfãs, fundo
+  redundante. `glacier fmt --migrate` reescreve o que for migração mecânica.
 - `glacier test` passa. Handler novo, teste novo em `tests/` — o do preset é o
   molde.
 - O app **abre**: `make run`. Um `.gv` com erro de sintaxe falha na carga com a linha

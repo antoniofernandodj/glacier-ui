@@ -31,7 +31,8 @@ A linguagem do `.gv` e do `.gss` (`docs/PLANO_LINGUAGEM_GV_GSS.md`; referência 
   `line_height`, `box_shadow`, `@theme`, `display: none`, modo estrito
   (`app(gss_strict = true)`), semântica de cor do CSS (`app(gss_color = css)`).
 - **`app(mono_font = "…")`**: o que `font: mono` resolve.
-- **Ferramentas**: `glacier check [--strict]`, `glacier fmt --migrate | --migrate-color | --check`,
+- **Ferramentas**: `glacier check [--strict]`, `glacier fmt --migrate | --migrate-color | --check`
+  (o `--migrate` também reescreve os blocos ` ```gv ` de `.md` — a prosa fica),
   `glacier test --layout [LxA] [--strict]` (layout sem janela, `src/medida.rs`).
 - Um fundo opaco igual ao do ancestral (sem borda, raio nem sombra) não é pintado de novo.
 

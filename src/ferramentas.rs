@@ -586,7 +586,8 @@ pub fn fmt_from_env() -> Option<i32> {
 
 /// O `glacier fmt` de um diretório: devolve os arquivos que mudaram (ou
 /// mudariam, com `seco`) e quantas trocas cada um teve. Sempre normaliza o
-/// espaço no fim das linhas e a quebra de linha final.
+/// espaço no fim das linhas e a quebra de linha final. Com `migrar`, os blocos
+/// ` ```gv ` de um `.md` também são reescritos ([`migrar_markdown`]).
 pub fn fmt(raiz: &Path, migrar: bool, cor: bool, seco: bool) -> std::io::Result<Vec<(PathBuf, usize)>> {
     let mut mudados = Vec::new();
     let gvs: Vec<(PathBuf, String)> = arquivos(raiz, &["gv"])
@@ -641,6 +642,18 @@ pub fn fmt(raiz: &Path, migrar: bool, cor: bool, seco: bool) -> std::io::Result<
                 std::fs::write(&p, &novo)?;
             }
             mudados.push((p, k));
+        }
+    }
+    if migrar {
+        for p in arquivos(raiz, &["md"]) {
+            let src = std::fs::read_to_string(&p)?;
+            let (novo, k) = migrar_markdown(&src);
+            if novo != src {
+                if !seco {
+                    std::fs::write(&p, &novo)?;
+                }
+                mudados.push((p, k));
+            }
         }
     }
     Ok(mudados)
@@ -706,6 +719,19 @@ button("y", on_click = window:drag)"#);
         assert_eq!(n, 1);
         assert!(s.contains("Antes: `if = @x, equals = y`"), "a prosa fica: {s}");
         assert!(s.contains("text(\"a\", if = @x == \"y\")"), "{s}");
+    }
+
+    #[test]
+    fn fmt_migra_os_blocos_gv_de_um_markdown() {
+        let d = std::env::temp_dir().join("glacier_fmt_markdown");
+        std::fs::create_dir_all(&d).unwrap();
+        let md = d.join("AGENTS.md");
+        std::fs::write(&md, "Prosa `equals = y` fica.\n\n```gv\ntext(\"a\", if = @x, equals = y)\n```\n").unwrap();
+        let mudados = fmt(&d, true, false, false).unwrap();
+        assert!(mudados.iter().any(|(p, k)| p == &md && *k == 1), "{mudados:?}");
+        let s = std::fs::read_to_string(&md).unwrap();
+        assert!(s.contains("Prosa `equals = y` fica."), "{s}");
+        assert!(s.contains("if = @x == \"y\""), "{s}");
     }
 
     #[test]

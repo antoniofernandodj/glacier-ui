@@ -1,0 +1,142 @@
+CONTINUE — plano da linguagem .gv/.gss (docs/PLANO_LINGUAGEM_GV_GSS.md), versão 0.169.0
+Sessão original: Claude 8960bc89-bd42-452c-815c-1e3c1219773e (cortou no limite de uso).
+Continuação: Qwen, 2026-11-25. Estado: IMPLEMENTAÇÃO COMPLETA (commit 4aed530),
+documentação EM ANDAMENTO. Nada publicado no crates.io ainda.
+
+═══════════════════════════════════════════════════════════════════
+O QUE JÁ ESTÁ PRONTO (não refazer)
+═══════════════════════════════════════════════════════════════════
+
+Código (commit 4aed530 + edits desta continuação):
+- Todas as fases do plano implementadas; testes em tests/linguagem_*.rs,
+  tests/corpus_gv.rs e nos módulos (expr, ferramentas, stylesheet, widget, luau).
+  `cargo test` completo: VERDE (rodado nesta continuação, exit 0).
+- 4 exemplos executáveis criados, registrados no Cargo.toml e VERIFICADOS EM
+  JANELA com screenshot (expressões, props tipados, botão ocupado, GSS):
+  examples/linguagem_expressoes, linguagem_props, linguagem_ocupado, linguagem_gss.
+- src/ferramentas.rs: `migrar_markdown` (migra só os blocos ```gv de .md, a prosa
+  fica) — NESTA continuação foi LIGADO ao `fmt` (com `--migrate`, .md também é
+  reescrito) + teste `fmt_migra_os_blocos_gv_de_um_markdown` (verde).
+- crates/glacier-cli/src/main.rs: help do `glacier fmt` menciona o .md.
+- CHANGELOG.md: entrada "Ferramentas" atualizada (fmt --migrate em .md).
+- src/gv.rs: `matches` FORA da lista de comparadores depreciados (decisão 13 do
+  plano — é busca por palavras, sem equivalente na expressão).
+- docs/PLANO_LINGUAGEM_GV_GSS.md: "Estado da execução" com os 13 desvios; ordem
+  dos itens 12/13 corrigida.
+- docs/LINGUAGEM.md (referência nova), docs/GSS_MODERNO.md, docs/PRIMITIVAS.md,
+  CLAUDE.md: tocados no 4aed530 (conferir contra a lista 7 abaixo).
+
+Preset AGENTS.md (crates/glacier-cli/templates/_comum/AGENTS.md) — seções JÁ
+REESCRITAS nesta continuação para a linguagem 0.169:
+- Regra 9 de "As regras" (duas formas + expressão).
+- "### Condicional e repetição: duas formas, uma semântica" (substituiu
+  "Condicional e repetição são ATRIBUTOS"): gramática da expressão, verdade nova,
+  else com erro de posição, class:nome, matches fica, formas depreciadas + fmt.
+- "### Estrutura de template": tabela de condicional por expressão, each curto e
+  de bloco, fallback, key/reorder_key, depreciações.
+- "O que vale em qualquer tag": linhas hidden/disabled (expressão), class:nome,
+  diretivas (if/else/else_if/each/slot).
+- Props tipados (type = string|number|bool|list|object|action|component) no
+  esqueleto + parágrafo próprio; exemplo foreach → each bloco.
+- Tabela do `app`: busy_buttons, gss_strict, gss_color, mono_font.
+- "### Botão ocupado automático" (depois de "O que suspende"): __busy.<handler>,
+  busy = false/@x, mesmo handler = ocupados juntos.
+- "Ação com argumentos" (depois de "A forma de um handler"): on_click = f(@x, true),
+  window.resize("nw"), forma antiga `:` depreciada.
+- i18n: forma curta text(t("chave")).
+- Seção .gss: seletores novos (:not, :is, :first-child/:last-child/:only-child/
+  :nth-child), aninhamento com &, "fora da gramática" com motivo+alternativa,
+  propriedades (aviso com posição/sugestão, gss_strict; linhas novas box_shadow,
+  opacity, transition, font_weight, font_style, line_height, display; bold mantém
+  família; font: mono = mono_font; hidden depreciado; letter_spacing é erro),
+  pseudo-estados (erro em ancestral dá alternativa), @theme, "Cor: legacy × css"
+  (+ fmt --migrate-color), "Modo estrito", "O que o .gss não faz" atualizado
+  (sombra existe; fundo redundante não repinta).
+- "Antes de dizer que está pronto": + `glacier check` / `glacier fmt --migrate`.
+
+═══════════════════════════════════════════════════════════════════
+O QUE FALTA (em ordem)
+═══════════════════════════════════════════════════════════════════
+
+1. PRESET AGENTS.md — "Armadilhas que já custaram tempo" (~linha 3800, após os
+   edits). Bullets desatualizados:
+   - "fill dentro de shrink colapsa": em 0.169 column/row/container SEM width com
+     filho fill ENCHE (não colapsa). Reescrever: o que resta é o ancestral com
+     shrink EXPLÍCITO / scrollable (conferir tests/linguagem_layout.rs e
+     docs/PRIMITIVAS.md "Quatro armadilhas" para dizer o que sobreviveu).
+   - "Uma propriedade de .gss que o motor não conhece é ignorada": agora avisa com
+     arquivo:linha + sugestão (hífen→sublinhado) e é ERRO com gss_strict; além
+     disso o exemplo cita `box-shadow`, que AGORA EXISTE (box_shadow) — trocar o
+     exemplo (border-bottom, margin continuam não existindo).
+   - "Desligar uma chave é gravar vazio… template(if)… not_equals=\"false\"":
+     reescrever na forma de expressão (if = @x / != ""), sem comparador depreciado.
+   - "empty/not_empty testam array JSON, não texto": agora `is empty` cobre
+     ausente, "", null, [] e {} — reescrever.
+2. PRESET AGENTS.md — outras menções ao colapso do fill para alinhar com o fix:
+   ~linha 1797 (width do campo vira risco), "#### Largura dos campos — a
+   armadilha de sempre" (~3410), ~4735 (make run), checklist final "Nenhum
+   width=\"fill\" dentro de um ancestral shrink" (~5040). Decidir o que continua
+   valendo (scrollable e prop de builtin continuam) e citar `glacier test --layout`.
+3. PRESET AGENTS.md — varrer formas velhas restantes na PROSA e nos exemplos:
+   grep -n "for_each\|foreach(\|template(\|equals\|one_of\|not_empty\|contains" \
+     crates/glacier-cli/templates/_comum/AGENTS.md
+   Conhecido: exemplo do app inteiro (~linha 640) tem
+   `row(for_each = visiveis, var = s, class = linha)` → `each = @visiveis as s`.
+   Manter as menções INTENCIONAIS (a seção de depreciados e a de matches).
+4. OUTROS PRESETS: crates/glacier-cli/templates/*/ — conferir .gv, AGENTS e docs
+   de cada preset por formas velhas (o _comum é compartilhado; os outros podem
+   ter telas próprias).
+5. EXTENSÃO: editors/vscode-gv/references/glacier-view.md — atualizar a referência
+   para 0.169 (expressões, class:x, each curto/bloco, props tipados, busy, novas
+   propriedades .gss, @theme, display). O WIP já tocou extension.js (+3) e
+   glacier-view.tmLanguage.json (49 linhas) — conferir se a referência bate com a
+   gramática nova e se a versão da extensão precisa de bump (padrão do repo:
+   ext 0.32.1 → 0.33.0?).
+6. README.md do glacier-ui — visão geral da linguagem nova (apontar para
+   docs/LINGUAGEM.md; features da 0.169).
+7. CONFERIR docs já tocados no 4aed530 contra o plano §10:
+   - CLAUDE.md: tabela de sigilos (6.1), forma canônica (5.1), regra de nomes
+     (8.6), semântica de cor (8.1).
+   - docs/PRIMITIVAS.md: "Quatro armadilhas" marcadas como resolvidas na 0.169,
+     com o que restou.
+   - docs/GSS_MODERNO.md: aninhamento, :is/:not, tipografia, box_shadow, @theme.
+   - docs/I18N.md: forma curta t().
+8. TESTAR: cargo test (completo) + cargo test -p glacier-cli (o preset é
+   embarcado na CLI; garantir que nada quebra com o AGENTS.md novo). Se possível,
+   `glacier new` num projeto scratch e `glacier check`/`glacier fmt --migrate` nele.
+   ATENÇÃO: nesta continuação, 3 testes do glacier-cli falharam
+   (vsix::arquivo_sem_extensao_ganha_override, vsix::content_types_declara_toda_
+   extensao_presente, serve::servidor_responde_com_tipo_certo_e_sem_cache) embora
+   o `cargo test` completo tenha dado exit 0 no início da sessão, ANTES dos edits
+   (os edits não tocaram em vsix.rs nem serve.rs — suspeita de flaky/ambiente;
+   a verificação no HEAD limpo foi interrompida). Rodar de novo no HEAD limpo:
+   `git stash -u && cargo test -p glacier-cli && git stash pop`. Se falhar limpo,
+   é pré-existente do 4aed530; investigar antes de publicar.
+   Lib (src/): 485 testes VERDES após os edits.
+9. PUBLICAÇÃO (só com o OK do dono — fluxo do AGENTS.md do rustploy, seção
+   "glacier-ui: nunca path"): versionar 0.169.0 no Cargo.toml + cabeçalho do
+   CHANGELOG ("não publicado" → data), commit completo, git push, cargo publish
+   (--dry-run antes). MOVER docs/PLANO_LINGUAGEM_GV_GSS.md para docs/arquivados/
+   só quando a fase 14 (remoção das formas velhas) fechar — ainda NÃO.
+10. RUSTPLOY (plano §14, DEPOIS da publicação e do bump no rustploy-gui/Cargo.toml):
+    - migrar o rustploy-gui com `glacier fmt --migrate` (a migração foi provada
+      numa cópia: 1725 trocas em 73 arquivos, idempotente);
+    - apagar busy.luau, busy_actions.luau, tools/busy_actions.py e os
+      `disabled = @busy_*`; ligar app(busy_buttons = true);
+    - unificar paleta (@theme), ligar gss_strict;
+    - atualizar o AGENTS.md do rustploy (agregador): "Armadilhas de template"
+      (if na raiz do componente agora VALE; fill não colapsa mais; vírgula já
+      funciona — conferir o que a seção ainda diz), "Botão que dispara requisição
+      fica travado" (o mecanismo manual sai), exigência glacier-ui ≥ 0.169 na
+      seção de i18n/testes;
+    - aceite final: corpus do rustploy-gui com ZERO formas velhas
+      (glacier check), glacier test -vvv verde, app abre.
+
+Notas de contexto:
+- A migração mecânica de ```gv blocks de .md existe (migrar_markdown) — usar
+  `glacier fmt --migrate` nos docs em vez de editar bloco a bloco.
+- Decisões do dono registradas no plano: duas formas por conceito (curta + bloco);
+  else curto com erro de posição; matches continua; gss_color=css é opt-in até o
+  rustploy migrar.
+- No agregador rustploy: tudo limpo e pushado (ponteiro rustploy-gui nos WIP
+  d1870eb/4d70834 do usuário).

@@ -189,7 +189,8 @@ fn ajuda(e: &Estilo) {
     glacier test [arquivo|pasta]  roda os testes Luau (*.test.luau em views/ e tests/)
     glacier check [pasta]         confere .gv/.gss: formas depreciadas, classes
                                   órfãs, fundo igual ao do tema (--strict reprova)
-    glacier fmt [pasta]           --migrate reescreve as formas depreciadas;
+    glacier fmt [pasta]           --migrate reescreve as formas depreciadas
+                                  (inclusive nos blocos ```gv de .md);
                                   --migrate-color passa à cor do CSS; --check só lista
     glacier install-extensions    só instala as extensões de VS Code
     glacier presets               descreve os presets disponíveis
