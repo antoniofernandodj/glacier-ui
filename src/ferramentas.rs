@@ -302,6 +302,9 @@ pub fn migrar_gv(src: &str) -> (String, usize) {
                 n += 1;
                 let (k, x, v) = (&c[1], &c[2], &c[3]);
                 match op {
+                    // `one_of = @alvo`: a lista vem da chave — `in @alvo`, não a
+                    // lista literal `["@alvo"]` (que compararia com o texto).
+                    "in" if v.trim().starts_with('@') => format!("{k} = {x} in {}", v.trim()),
                     "in" => {
                         let itens: Vec<String> = v
                             .trim_matches('"')
@@ -720,6 +723,15 @@ button("y", on_click = window:drag)"#);
         assert!(s.contains("on_click = abrir(@id)"), "{s}");
         assert!(s.contains("on_change = field:nome"), "o prefixo do motor fica: {s}");
         assert!(s.contains("on_click = window:drag"), "{s}");
+    }
+
+    #[test]
+    fn one_of_com_chave_vira_in_da_chave() {
+        let (s, n) = migrar_gv("button(\"x\", if = @view, one_of = @target, on_click = ir)\n");
+        assert_eq!(n, 1);
+        assert!(s.contains("if = @view in @target,"), "{s}");
+        let (s, _) = migrar_gv("text(\"x\", if = @aba, one_of = \"a b\")\n");
+        assert!(s.contains(r#"if = @aba in ["a", "b"]"#), "{s}");
     }
 
     #[test]
