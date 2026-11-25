@@ -78,6 +78,69 @@ pub enum Expr {
     Padrao(String, String),
     /// `nome(args, nomeado = expr)`.
     Chamada(String, Vec<Expr>, Vec<(String, Expr)>),
+    /// Texto entre aspas com `@chave` dentro (`"@tab.id"`, `"v@versao"`): os
+    /// pedaços literais e as chaves lidas, concatenados. Um texto entre aspas
+    /// interpola em todo lugar do `.gv`, e dentro de uma expressão também —
+    /// `if @atual == "@alvo"` compara com o VALOR de `alvo` (era assim antes da
+    /// 0.169, quando o `if` de bloco virava `equals = "@alvo"`). `@@` é o `@`.
+    Interp(Vec<Parte>),
+}
+
+/// Um pedaço de [`Expr::Interp`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum Parte {
+    Texto(String),
+    Chave(String),
+}
+
+/// Quebra o conteúdo de um texto entre aspas em pedaços, se ele tiver alguma
+/// `@chave`; `None` quando é só texto (o `@@` já vira `@`).
+fn interpola(s: &str) -> Result<Expr, String> {
+    let cs: Vec<char> = s.chars().collect();
+    let mut partes = Vec::new();
+    let mut txt = String::new();
+    let mut tem_chave = false;
+    let mut i = 0;
+    while i < cs.len() {
+        if cs[i] == '@' {
+            if cs.get(i + 1) == Some(&'@') {
+                txt.push('@');
+                i += 2;
+                continue;
+            }
+            // O mesmo nome de chave de `@x` fora das aspas (ver `caminho`).
+            let mut k = String::new();
+            let mut j = i + 1;
+            while j < cs.len() {
+                let c = cs[j];
+                let continua = cs.get(j + 1).is_some_and(|n| n.is_alphanumeric() || *n == '_');
+                let ok = c.is_alphanumeric() || c == '_' || ((c == '.' || c == '-') && continua && !k.is_empty());
+                if !ok {
+                    break;
+                }
+                k.push(c);
+                j += 1;
+            }
+            if !k.is_empty() && !k.starts_with(|c: char| c.is_ascii_digit()) {
+                if !txt.is_empty() {
+                    partes.push(Parte::Texto(std::mem::take(&mut txt)));
+                }
+                partes.push(Parte::Chave(k));
+                tem_chave = true;
+                i = j;
+                continue;
+            }
+        }
+        txt.push(cs[i]);
+        i += 1;
+    }
+    if !tem_chave {
+        return Err(txt);
+    }
+    if !txt.is_empty() {
+        partes.push(Parte::Texto(txt));
+    }
+    Ok(Expr::Interp(partes))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -285,6 +348,16 @@ pub fn avalia(e: &Expr, ler: &mut dyn FnMut(&str) -> Option<String>) -> Valor {
                     None => Valor::Texto(String::new()),
                 }
             }
+        }
+        Expr::Interp(partes) => {
+            let mut out = String::new();
+            for p in partes {
+                match p {
+                    Parte::Texto(t) => out.push_str(t),
+                    Parte::Chave(k) => out.push_str(&ler(k).unwrap_or_default()),
+                }
+            }
+            Valor::Texto(out)
         }
         Expr::Padrao(k, padrao) => match ler(k) {
             Some(s) => Valor::Texto(s),
@@ -595,7 +668,10 @@ impl<'s> Leitor<'s> {
                         }
                         Some(c) if c == q => {
                             self.i += 1;
-                            return Ok(Expr::Lit(Valor::Texto(s)));
+                            return Ok(match interpola(&s) {
+                                Ok(e) => e,
+                                Err(texto) => Expr::Lit(Valor::Texto(texto)),
+                            });
                         }
                         Some(c) => {
                             s.push(c);
@@ -748,6 +824,19 @@ mod tests {
         let e = parse(src).unwrap_or_else(|e| panic!("{src}: {e}"));
         let mut l = ctx(pares);
         avalia(&e, &mut l).texto().into_owned()
+    }
+
+    #[test]
+    fn texto_entre_aspas_interpola_chave() {
+        // O `TabButton` do rustploy: `if @current == "@target"` compara valores.
+        assert_eq!(ev(r#"@current == "@target""#, &[("current", "logs"), ("target", "logs")]), "true");
+        assert_eq!(ev(r#"@current == "@target""#, &[("current", "logs"), ("target", "env")]), "false");
+        assert_eq!(ev(r#"@aba == "@tab.id""#, &[("aba", "web"), ("tab.id", "web")]), "true");
+        assert_eq!(ev(r#""v@versao.""#, &[("versao", "1.2")]), "v1.2.");
+        assert_eq!(ev(r#"'@@admin'"#, &[("admin", "x")]), "@admin");
+        assert_eq!(ev(r#""sem chave""#, &[]), "sem chave");
+        assert_eq!(ev(r#""@ausente""#, &[]), "");
+        assert_eq!(ev(r#""@3""#, &[]), "@3");
     }
 
     #[test]

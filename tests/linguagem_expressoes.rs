@@ -417,3 +417,29 @@ fn botao_ocupado_automatico() {
     assert_eq!(desabilitado(&ev, "Salvar"), Some(false));
     glacier_ui::eval::set_busy_buttons(false);
 }
+
+/// 0.169.2: um texto entre aspas dentro da expressão interpola `@chave`, como em
+/// todo texto do `.gv`. O `TabButton` do rustploy (`if @current == "@target"`)
+/// funcionava na 0.168 (o bloco virava `equals = "@target"`) e, na 0.169.0,
+/// passou a comparar com o texto "@target" — a aba ativa sumia sem erro.
+#[test]
+fn texto_entre_aspas_na_condicao_le_a_chave() {
+    let mut m = motor_com(
+        "aba",
+        r#"component {
+  column {
+    if @current == "@target" {
+      text("ativa")
+    } else {
+      text("inativa")
+    }
+  }
+}
+"#,
+    );
+    m.define_data("current", "logs");
+    m.define_data("target", "logs");
+    assert_eq!(textos(&m.evaluated("aba").unwrap()), vec!["ativa".to_string()]);
+    m.define_data("target", "env");
+    assert_eq!(textos(&m.evaluated("aba").unwrap()), vec!["inativa".to_string()]);
+}

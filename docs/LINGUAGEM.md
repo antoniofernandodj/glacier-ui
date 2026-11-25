@@ -46,6 +46,8 @@ funções := t num date len lower upper trim json
 - **`is empty`**: ausente, `""`, `null`, `[]`, `{}`.
 - **`in`**: lista literal, array JSON do contexto ou texto separado por vírgula/espaço.
 - **`{chave|padrão}`**: o padrão (texto livre) quando a chave está ausente.
+- **Texto entre aspas interpola** também dentro da expressão: `if @atual == "@alvo"` compara
+  com o valor de `alvo`; `"v@versao"` junta. `@@` é o `@` literal.
 
 ### Condicional e laço — duas formas por conceito
 

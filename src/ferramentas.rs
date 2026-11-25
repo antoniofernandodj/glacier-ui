@@ -273,6 +273,18 @@ const ACOES_DO_MOTOR: &[&str] = &[
 /// ganha aspas.
 fn como_literal(v: &str) -> String {
     let v = v.trim();
+    // `"@tab.id"` / `"{tab.id}"` sozinhos entre aspas eram a chave interpolada:
+    // na expressão, a forma clara é a própria chave.
+    let dentro = v.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or("");
+    let chave = dentro
+        .strip_prefix('@')
+        .or_else(|| dentro.strip_prefix('{').and_then(|x| x.strip_suffix('}')));
+    if let Some(k) = chave
+        && !k.is_empty()
+        && k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    {
+        return format!("@{k}");
+    }
     if v.starts_with('"') || v.starts_with('@') {
         v.to_string()
     } else {
@@ -732,6 +744,14 @@ button("y", on_click = window:drag)"#);
         assert!(s.contains("if = @view in @target,"), "{s}");
         let (s, _) = migrar_gv("text(\"x\", if = @aba, one_of = \"a b\")\n");
         assert!(s.contains(r#"if = @aba in ["a", "b"]"#), "{s}");
+    }
+
+    #[test]
+    fn chave_entre_aspas_vira_a_chave() {
+        let (s, _) = migrar_gv("button(\"x\", if = @aba, equals = \"@tab.id\", on_click = ir)\n");
+        assert!(s.contains("if = @aba == @tab.id,"), "{s}");
+        let (s, _) = migrar_gv("text(\"x\", if = @aba, not_equals = \"{tab.id}\")\n");
+        assert!(s.contains("if = @aba != @tab.id"), "{s}");
     }
 
     #[test]

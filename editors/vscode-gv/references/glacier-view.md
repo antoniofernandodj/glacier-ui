@@ -63,7 +63,8 @@ expr := cond ? a : b            (sem o ": b", falso dá "")
 
 - **Falso**: ausente, `""`, `false`, `0`, `no`/`não`, `off`, `null`, `[]`, `{}`. Todo o resto é verdadeiro, inclusive um texto qualquer.
 - `==` compara texto, ou número quando os dois lados são número (`"1.0" == 1`). `<`/`>` só com número.
-- `is empty` cobre ausente, `""`, `null`, `[]` e `{}`. `in` aceita lista literal, array JSON da chave ou texto separado por vírgula/espaço.
+- `is empty` cobre ausente, `""`, `null`, `[]` e `{}`.
+- Texto entre aspas interpola `@chave` também dentro da expressão: `@atual == "@alvo"` compara com o valor de `alvo`. `@@` é o `@` literal. `in` aceita lista literal, array JSON da chave ou texto separado por vírgula/espaço.
 
 ```gv
 button("Salvar", if = @sujo && !@ocupado, on_click = salvar)

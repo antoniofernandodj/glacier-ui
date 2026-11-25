@@ -8,6 +8,14 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.169.2 — 2026-11-25
+
+- **Texto entre aspas interpola `@chave` dentro de uma expressão**, como em todo texto do
+  `.gv` (`@@` é o `@`). Na 0.169.0/0.169.1, `if @atual == "@alvo" { … }` — que funcionava na
+  0.168, porque o `if` de bloco virava `equals = "@alvo"` — passou a comparar com o texto
+  `"@alvo"`, e a aba ativa de um `TabButton` sumia sem erro. O mesmo valia para o que o
+  `fmt --migrate` gerava de `equals = "@x"`; agora ele escreve direto `== @x`.
+
 ## glacier-ui 0.169.1 · glacier-cli 0.29.1 — 2026-11-25
 
 Correções achadas migrando o rustploy-gui (73 telas):
