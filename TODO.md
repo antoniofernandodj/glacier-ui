@@ -408,3 +408,33 @@ cargo run --example linguagem_frentes   # conferir em janela (busy, submit, type
 
 Depois de verdes: `cargo test --all-features` (a suíte completa, inclusive
 `exemplos_gv`, que passa os `.gv` do repositório pelo parser).
+
+### `glacier check --tipos` → o `ctx` tipado (2026-11-27)
+
+`views/scripts/ctx.d.luau` gerado com o tipo de cada chave que a árvore conhece
+(`boolean` do que um `.luau` gravou como bool, `string` de um `prop(type = string)`,
+`table` de uma lista, `any` do que só o markup lê), com a reserva
+`[string]: any` no fim. É o que faz o `ctx` injetado pelo motor ser visível no
+editor — hoje ele é `declare ctx: { [string]: any }` no `glacier.d.luau` do preset,
+e nada nele confere nome nem tipo de chave.
+
+**Vai quebrar, e é preciso adaptar o `../rustploy` quando isto for usado lá:**
+
+- [ ] **Remover o `declare ctx` do `crates/glacier-cli/templates/_comum/views/scripts/glacier.d.luau`
+      do app** (o `check --tipos` avisa quando os dois existem): dois `declare ctx`
+      na mesma árvore de sources é erro do luau-lsp.
+- [ ] **Rodar `glacier check --tipos` uma vez e revisar o arquivo**: os ~500 scripts
+      do rustploy gravam chaves que o scanner vê com um tipo e escrevem com outro
+      (`ctx.x = "0"` numa chave que nasceu `ctx.x = 0` vira `number` contra
+      `string`). Cada divergência é um erro NO EDITOR, não em tempo de execução —
+      nada muda no app, mas a equipe passa a ver vermelho.
+- [ ] **Fechar o contrato quando o vermelho zerar**: tirar a linha
+      `[string]: any,` do `ctx.d.luau`. A partir daí, escrever numa chave que
+      nenhum `.gv`/`.luau` declara é erro de tipo — o que é justamente o fim das
+      656 chaves globais soltas, e é a quebra real desta linha de trabalho.
+- [ ] **Opcional, e é o passo seguinte da Frente 2**:** transformar o `ctx` em
+      parâmetro do handler (`function init(ctx)`), porque um valor passado por
+      parâmetro é o carregador natural do **id da instância** — o que falta para
+      "duas instâncias não se veem". Quebra todos os `.luau` de app, então precisa
+      de `app(handler_ctx = param)` + `fmt --migrate` antes de tocar no rustploy.
+- [ ] Rodar `glacier check --tipos` no CI (o arquivo gerado deve dar diff zero).

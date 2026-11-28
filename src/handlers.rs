@@ -527,6 +527,9 @@ fn sem_comentario(linha: &str) -> String {
 #[derive(Debug, Default)]
 pub struct Chaves {
     pub tipos: HashMap<String, Tipo>,
+    /// De onde a chave veio: `"ctx"` (escrita por um script), `"prop"` ou
+    /// `"estado"` (declarada pelo componente). É o comentário do `ctx.d.luau`.
+    pub origem: HashMap<String, &'static str>,
 }
 
 impl Chaves {
@@ -558,6 +561,7 @@ impl Chaves {
             };
             if let Some(t) = t {
                 self.tipos.insert(chave.to_string(), t);
+                self.origem.insert(chave.to_string(), "ctx");
             }
         }
     }
@@ -578,7 +582,8 @@ impl Chaves {
                 "list" | "lista" | "object" | "objeto" | "array" => Tipo::Tabela,
                 _ => continue,
             };
-            self.tipos.entry(n).or_insert(t);
+            self.tipos.entry(n.clone()).or_insert(t);
+            self.origem.entry(n).or_insert("prop");
         }
         // `state { aberto = false }`: o tipo é o do literal inicial.
         let re = regex::Regex::new(r"(?m)^\s*([\w.\-]+)\s*=\s*([^,\n}]+)").unwrap();
@@ -587,7 +592,8 @@ impl Chaves {
                 let n = c[1].to_string();
                 let v = c[2].trim();
                 if let Some(t) = Tipo::do_literal(v) {
-                    self.tipos.entry(n).or_insert(t);
+                    self.tipos.entry(n.clone()).or_insert(t);
+                    self.origem.insert(n, "estado");
                 }
             }
         }

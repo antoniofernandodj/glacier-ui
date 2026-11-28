@@ -29,6 +29,10 @@ pub const ENV_FMT_MIGRATE: &str = "GLACIER_FMT_MIGRATE";
 pub const ENV_FMT_COLOR: &str = "GLACIER_FMT_COLOR";
 /// `glacier fmt --check`: só diz o que mudaria, sem gravar.
 pub const ENV_FMT_DRY: &str = "GLACIER_FMT_DRY";
+/// `glacier check --tipos`: escreve o `ctx.d.luau` com o tipo de cada chave do
+/// contexto (além dos achados). `1` usa `<raiz>/scripts/ctx.d.luau`; um caminho
+/// absolute escreve ali.
+pub const ENV_CHECK_TIPOS: &str = "GLACIER_CHECK_TIPOS";
 
 /// Um achado do `check`, já no formato `arquivo:linha: mensagem`.
 #[derive(Debug, Clone, PartialEq)]
@@ -653,11 +657,142 @@ fn verificar_cor(gvs: &[PathBuf], gsss: &[PathBuf]) -> Vec<Achado> {
     out
 }
 
+/// O texto do `ctx.d.luau` da árvore: a declaração do `ctx` com o tipo de cada
+/// chave que o `check` reconhece, para o luau-lsp. É gerado, não escrito à mão.
+///
+/// A forma é um registro **com reserva** (`[string]: any`): o tipo declarado vale
+/// para a chave conhecida (`ctx.ativo = "x"` vira erro no editor quando `ativo` é
+/// bool), e o resto ainda passa. Para fechar o contrato de vez — toda chave do app
+/// declarada, nada fora dela — remova a linha da reserva: é o passo que quebra um
+/// app grande (ver o `TODO.md`, "adaptar o rustploy").
+pub fn tipos_do_ctx(pan: &Panorama) -> String {
+    use crate::handlers::Tipo;
+    let mut chaves: Vec<&String> = pan.chaves.tipos.keys().collect();
+    for k in &pan.globais {
+        if !pan.chaves.tipos.contains_key(k.as_str()) {
+            chaves.push(k);
+        }
+    }
+    chaves.sort();
+    chaves.dedup();
+
+    let cabecalho = r"--!strict
+-- GERADO POR `glacier check --tipos` — não edite à mão: a próxima geração apaga.
+--
+-- O `ctx` é injetado pelo motor; este arquivo é o que o editor sabe sobre ele.
+-- Cada chave vem de um `.luau` (`ctx.x = …`), de um `props { prop(type = …) }` ou
+-- de um `state { … }` dos `.gv` da árvore. A reserva `[string]: any`, no fim,
+-- deixa passar o que o scanner não conheceu — tirá-la é o contrato fechado.
+declare ctx: {
+";
+    let mut out = String::from(cabecalho);
+    let rotulo = |o: &str| match o {
+        "estado" => "-- estado local (`state { … }` dos componentes)",
+        "prop" => "-- props declaradas (`props { prop(type = …) }`)",
+        _ => "-- gravadas por script (`ctx.chave = …`)",
+    };
+    let mut vistas = 0usize;
+    for origem in ["ctx", "prop", "estado"] {
+        let itens: Vec<String> = chaves
+            .iter()
+            .filter(|k| pan.chaves.origem.get(k.as_str()).copied().unwrap_or("ctx") == origem)
+            .map(|k| {
+                let t = match pan.chaves.tipos.get(k.as_str()) {
+                    Some(Tipo::Bool) => "boolean",
+                    Some(Tipo::Num) => "number",
+                    Some(Tipo::Str) => "string",
+                    Some(Tipo::Tabela) => "table",
+                    Some(Tipo::Outro) | None => "any",
+                };
+                format!("    {k}: {t},\n")
+            })
+            .collect();
+        if itens.is_empty() {
+            continue;
+        }
+        vistas += itens.len();
+        out.push_str(&format!("    {}\n", rotulo(origem)));
+        for i in itens {
+            out.push_str(&i);
+        }
+    }
+    // O que o `globais` viu mas nenhum script tipou: existe, tipo desconhecido.
+    let resto: Vec<String> = chaves
+        .iter()
+        .filter(|k| !pan.chaves.tipos.contains_key(k.as_str()))
+        .map(|k| format!("    {k}: any,\n"))
+        .collect();
+    if !resto.is_empty() {
+        vistas += resto.len();
+        out.push_str("    -- lidas no markup, escritas por caminho nenhum que o scanner visse\n");
+        for i in resto {
+            out.push_str(&i);
+        }
+    }
+    out.push_str("    [string]: any,\n}\n");
+    out.push_str(&format!(
+        "\n// {} chave(s) em {} vista(s) pelo scanner da árvore.\n",
+        vistas,
+        pan.chaves.tipos.len()
+    ));
+    out
+}
+
+/// O `glacier check --tipos`: a árvore lida e o texto do `ctx.d.luau`.
+pub fn tipos(raiz: &Path) -> std::io::Result<String> {
+    Ok(tipos_do_ctx(&panorama(raiz)?))
+}
+
 /// `GLACIER_CHECK=dir` (o `glacier check`): roda o [`check`] e devolve o código
 /// de saída do processo.
 pub fn check_from_env() -> Option<i32> {
     let raiz = std::env::var(ENV_CHECK).ok()?;
     let estrito = std::env::var(ENV_CHECK_STRICT).is_ok_and(|v| v == "1");
+    // `--tipos`: escreve o `ctx.d.luau` antes de qualquer outra coisa — o tipo das
+    // chaves é o que o editor precisa, e não depende dos achados abaixo.
+    if let Some(destino) = std::env::var(ENV_CHECK_TIPOS).ok() {
+        let caminho = if destino == "1" || destino.is_empty() {
+            Path::new(&raiz).join("scripts").join("ctx.d.luau")
+        } else {
+            PathBuf::from(destino)
+        };
+        match tipos(Path::new(&raiz)) {
+            Ok(texto) => {
+                let anterior = std::fs::read_to_string(&caminho).unwrap_or_default();
+                if let Some(pai) = caminho.parent()
+                    && let Err(e) = std::fs::create_dir_all(pai)
+                {
+                    eprintln!("glacier check --tipos: {e}");
+                    return Some(2);
+                }
+                if let Err(e) = std::fs::write(&caminho, &texto) {
+                    eprintln!("glacier check --tipos: {e}");
+                    return Some(2);
+                }
+                println!(
+                    "{}: {}",
+                    caminho.display(),
+                    if anterior == texto { "já em dia" } else { "escrito" }
+                );
+                // Dois `declare ctx` numa mesma árvore de sources é erro do
+                // luau-lsp: o preset declara um em `glacier.d.luau`.
+                if let Some(irmao) = caminho.parent().map(|d| d.join("glacier.d.luau")) {
+                    if std::fs::read_to_string(&irmao)
+                        .is_ok_and(|t| t.contains("declare ctx"))
+                    {
+                        println!(
+                            "{}: tem um `declare ctx` — tire-o de lá, senão o editor vê dois",
+                            irmao.display()
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("glacier check --tipos: {e}");
+                return Some(2);
+            }
+        }
+    }
     match check(Path::new(&raiz), estrito) {
         Ok(achados) => {
             for a in &achados {
@@ -1746,5 +1881,43 @@ text("b", if = @resposta == "true")"#;
         let blocos = crate::handlers::blocos_state(src);
         assert_eq!(blocos.len(), 1, "{blocos:?}");
         assert!(blocos[0].contains("aberto = false"), "{:?}", blocos);
+    }
+
+    #[test]
+    fn o_ctx_d_luau_de_uma_arvore() {
+        use crate::handlers::{Chaves, Tipo};
+        let mut chaves = Chaves::default();
+        chaves.do_script("ctx.ativo = true\nctx.limite = 4\nctx.servicos = {}\n");
+        chaves.do_gv(
+            r#"component(name = C) {
+  props { prop(name = titulo, type = string) }
+  state { aberto = false, toques = 0 }
+}"#,
+        );
+        let pan = Panorama {
+            funcoes: Vec::new(),
+            chaves,
+            chamados: Default::default(),
+            textos: Default::default(),
+            globais: ["contagem".to_string()].into_iter().collect(),
+            componentes: Default::default(),
+            nunca_chamados: Vec::new(),
+        };
+        let t = tipos_do_ctx(&pan);
+        assert!(t.starts_with("--!strict"), "{t}");
+        assert!(t.contains("declare ctx: {"), "{t}");
+        assert!(t.contains("    ativo: boolean,"), "{t}");
+        assert!(t.contains("    limite: number,"), "{t}");
+        assert!(t.contains("    servicos: table,"), "{t}");
+        assert!(t.contains("    titulo: string,"), "{t}");
+        assert!(t.contains("    aberto: boolean,"), "{t}");
+        assert!(t.contains("    toques: number,"), "{t}");
+        // A chave vista no markup, sem tipo nenhum, entra como `any`.
+        assert!(t.contains("    contagem: any,"), "{t}");
+        // A reserva está lá — tirar é o contrato fechado (e o que quebra o app).
+        assert!(t.contains("    [string]: any,"), "{t}");
+        // Estável: a mesma árvore dá o mesmo arquivo (CI pode exigir zero diff).
+        assert_eq!(t, tipos_do_ctx(&pan));
+        assert_eq!(t, tipos_do_ctx(&pan));
     }
 }

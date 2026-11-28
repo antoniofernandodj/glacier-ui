@@ -344,7 +344,7 @@ pub enum Ferramenta {
     Fmt,
 }
 
-/// `glacier check [--strict] [dir]` e `glacier fmt [--migrate] [--migrate-color]
+/// `glacier check [--strict] [--tipos] [dir]` e `glacier fmt [--migrate] [--migrate-color]
 /// [--check] [dir]`: `cargo run` do projeto com a variável da ferramenta, para ela
 /// usar o motor da versão do app (ver `glacier_ui::ferramentas`). O diretório
 /// padrão é `views/`.
@@ -358,6 +358,7 @@ pub fn ferramenta(e: &Estilo, qual: Ferramenta, argv: Vec<String>) -> io::Result
     for arg in argv {
         match (&qual, arg.as_str()) {
             (Ferramenta::Check, "--strict") => envs.push(("GLACIER_CHECK_STRICT", "1".into())),
+            (Ferramenta::Check, "--tipos") => envs.push(("GLACIER_CHECK_TIPOS", "1".into())),
             (Ferramenta::Fmt, "--migrate") => envs.push(("GLACIER_FMT_MIGRATE", "1".into())),
             (Ferramenta::Fmt, "--migrate-color") => envs.push(("GLACIER_FMT_COLOR", "1".into())),
             (Ferramenta::Fmt, "--check") => envs.push(("GLACIER_FMT_DRY", "1".into())),

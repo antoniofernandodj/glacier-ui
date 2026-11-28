@@ -229,10 +229,8 @@ O `@theme` vence um `link(rel = theme)`, que é ignorado com aviso.
 `app(gss_strict = true)` (e `glacier check --strict`): propriedade desconhecida é erro.
 
 ## Ferramentas
-
-- `glacier check [pasta] [--strict]` — formas depreciadas, erros de parse, classes
-  usadas e não definidas (e o contrário), fundo igual ao do tema.
-- `glacier fmt [pasta] --migrate` — reescreve as formas depreciadas (idempotente);
-  `--migrate-color` passa à cor do CSS; `--check` só lista.
-- `glacier test --layout [LxA] [--strict]` — mede o layout sem janela a cada `:render()`
-  e acusa nó com largura ou altura zero.
+`glacier check --tipos` escreve `views/scripts/ctx.d.luau`: o `ctx` declarado com o
+tipo de cada chave que a árvore conhece — `boolean` do que um `.luau` gravou como
+bool, `string` de um `prop(type = string)`, `table` de uma lista, `any` do que só o
+markup lê. É o que faz o editor saber o que o motor injeta; a reserva
+`[string]: any` no fim pode ser tirada para fechar o contrato.

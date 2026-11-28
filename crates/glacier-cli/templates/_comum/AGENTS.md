@@ -5045,7 +5045,13 @@ cancelar depois.
 
 - `make lint` passa (clippy + type-check dos `.luau`).
 - `glacier check` passa sem avisos — formas depreciadas, classes órfãs, fundo
-  redundante. `glacier fmt --migrate` reescreve o que for migração mecânica.
+  redundante, **ação sem os parênteses dela** (`on_click = salvar()`) e handler do
+  template que não existe no script (com a aridade e o tipo dos argumentos).
+  `glacier fmt --migrate` reescreve o que for migração mecânica, `glacier fmt`
+  reindenta sem perder comentário.
+- `glacier check --tipos` está em dia: o `views/scripts/ctx.d.luau` gerado é o que
+  faz o `ctx` aparecer no editor com o tipo de cada chave. Rode depois de gravar
+  uma chave nova; no CI, o arquivo gerado deve dar diff zero.
 - `glacier test` passa. Handler novo, teste novo em `tests/` — o do preset é o
   molde.
 - O app **abre**: `make run`. Um `.gv` com erro de sintaxe falha na carga com a linha

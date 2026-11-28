@@ -52,6 +52,13 @@ migração da tela, e as formas antigas continuam valendo até a `feat!`.
   import)` no arquivo, `state`/prop sombreando chave global escrita em outro lugar
   (silenciável com `shadow = true`) e `text_color` num app `gss_color = css`.
 
+- **`glacier check --tipos`** escreve `views/scripts/ctx.d.luau`: o `ctx` declarado
+  com o tipo de cada chave que a árvore conhece — `boolean` do que um `.luau` gravou
+  como bool, `string` de um `prop(type = string)`, `table` de lista, `any` do que só
+  o markup lê — mais a reserva `[string]: any`. É o que torna visível no editor o
+  global que o motor injeta; a reserva tirada fecha o contrato (e reclama um app
+  grande: ver `TODO.md`, "adaptar o rustploy").
+
 **Quebras:** nenhuma nesta versão. `app(gss_color = css)`, `app(truthy = typed)`,
 o import local e a forma nua de ação viram padrão (e erro de parse) na `feat!`
 depois de migrado o `rustploy-gui` (Frente 9).

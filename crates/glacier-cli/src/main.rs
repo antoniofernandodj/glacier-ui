@@ -188,7 +188,9 @@ fn ajuda(e: &Estilo) {
     glacier serve desktop         roda o app no desktop (`cargo run` na raiz do projeto)
     glacier test [arquivo|pasta]  roda os testes Luau (*.test.luau em views/ e tests/)
     glacier check [pasta]         confere .gv/.gss: formas depreciadas, classes
-                                  órfãs, fundo igual ao do tema (--strict reprova)
+                                  órfãs, fundo igual ao do tema (--strict reprova);
+                                  --tipos escreve views/scripts/ctx.d.luau com o
+                                  tipo de cada chave do ctx para o luau-lsp
     glacier fmt [pasta]           --migrate reescreve as formas depreciadas
                                   (inclusive nos blocos ```gv de .md);
                                   --migrate-color passa à cor do CSS; --check só lista
