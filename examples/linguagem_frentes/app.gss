@@ -154,8 +154,32 @@
 }
 
 .giro {
-  size: 16;
+  size: 12;
+  bold: true;
   color: var(--azul);
+}
+
+.selo {
+  padding: 3 10;
+  border_radius: 999;
+  border_width: 1;
+  border_color: var(--borda);
+  background: var(--caixa-alta);
+
+  &--on {
+    background: #17321F;
+    border_color: var(--verde);
+  }
+}
+
+.selo__texto {
+  size: 11;
+  bold: true;
+  color: var(--fraco);
+}
+
+.selo--on > .selo__texto {
+  color: var(--verde);
 }
 
 .ponto {

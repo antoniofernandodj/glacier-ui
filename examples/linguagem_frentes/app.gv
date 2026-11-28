@@ -141,8 +141,11 @@ app(
     column(class = [tela, tela--apertada]) {
       row(class = cabecalho) {
         text("Frentes do TODO.md", class = titulo)
-        // Frente 10: uma via — o atributo recebe o valor de uma expressão.
-        badge(:text = @ativo ? "tipado" : "textual", :class.ativa = @ativo)
+        // Frente 10: uma via — o atributo recebe o valor de uma expressão, e a
+        // classe condicional decide o desenho do selo.
+        container(class = [selo], :class.selo--on = @ativo) {
+          text("{@ativo ? \"tipado\" : \"textual\"}", class = selo__texto)
+        }
       }
       text("Nenhum botão escreve disabled; nenhuma lista passa por json.encode.", class = nota)
 
@@ -175,9 +178,9 @@ app(
         text("4 · Botão ocupado no motor (sem busy.luau no app)", class = subtitulo)
         row(class = linha) {
           button("Salvar (lento)", class = btn, on_click = salvar_lento())
-          spinner(if = @__busy.salvar_lento, class = giro)
+          text("salvando…", class = giro, if = @__busy.salvar_lento)
           button("Sincronizar", class = btn, on_click = sincronizar())
-          spinner(if = @__busy.sincronizar, class = giro)
+          text("sincronizando…", class = giro, if = @__busy.sincronizar)
           // Submit de formulário: o `type = submit` é ocupado pelo `on_submit` do
           // form — o caso que o motor não cobria.
           form(on_submit = salvar_lento(), class = linha) {
