@@ -1360,6 +1360,10 @@ impl Parser {
     /// nomes, números, `@chaves` e strings, unidos por espaço.
     fn lista_de_itens(&mut self) -> Res<String> {
         let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+        // O `[` de abertura sai antes: `expression_source` conta o `]` que fecha o
+        // `[` que ele mesmo viu, e o terminador da lista nunca chegava (a varredura
+        // ia até o fim do arquivo).
+        self.bump();
         let raw = self.expression_source(&[']'])?;
         if self.peek() != Some(']') {
             return self.err("faltou o `]` na lista");

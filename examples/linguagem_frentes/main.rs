@@ -21,7 +21,7 @@
 //! publicada no crates.io.
 
 fn main() {
-    glacier_ui::GlacierDaemon::new()
+    let _ = glacier_ui::GlacierDaemon::new()
         .main_template("examples/linguagem_frentes/app.gv")
         .run();
 }

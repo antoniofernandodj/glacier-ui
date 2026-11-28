@@ -665,7 +665,7 @@ fn verificar_cor(gvs: &[PathBuf], gsss: &[PathBuf]) -> Vec<Achado> {
 /// bool), e o resto ainda passa. Para fechar o contrato de vez — toda chave do app
 /// declarada, nada fora dela — remova a linha da reserva: é o passo que quebra um
 /// app grande (ver o `TODO.md`, "adaptar o rustploy").
-pub fn tipos_do_ctx(pan: &Panorama) -> String {
+pub(crate) fn tipos_do_ctx(pan: &Panorama) -> String {
     use crate::handlers::Tipo;
     let mut chaves: Vec<&String> = pan.chaves.tipos.keys().collect();
     for k in &pan.globais {
@@ -1885,7 +1885,7 @@ text("b", if = @resposta == "true")"#;
 
     #[test]
     fn o_ctx_d_luau_de_uma_arvore() {
-        use crate::handlers::{Chaves, Tipo};
+        use crate::handlers::Chaves;
         let mut chaves = Chaves::default();
         chaves.do_script("ctx.ativo = true\nctx.limite = 4\nctx.servicos = {}\n");
         chaves.do_gv(
