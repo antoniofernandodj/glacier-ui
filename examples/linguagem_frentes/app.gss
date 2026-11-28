@@ -26,6 +26,7 @@
 
 .tela {
   width: fill;
+  height: fill;
   padding: 26;
   spacing: 14;
   background: var(--fundo);
@@ -198,7 +199,7 @@
 }
 
 .cartao {
-  width: fill;
+  width: 380;
   padding: 18;
   spacing: 8;
   background: var(--caixa);

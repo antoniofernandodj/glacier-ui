@@ -168,7 +168,7 @@ app(
           textinput(placeholder = "escreva nao no campo" , ::value = @resposta, class = campo_grande)
           button("Testar verdade", class = btn, on_click = testar_verdade())
         }
-        text("{@veredito}", class = codigo)
+        text("{@veredito}", class = codigo, width = fill)
         text("{len(@servicos)} serviço(s) na lista", class = valor, if = @servicos is not empty)
         text("a lista está vazia", class = nota, if = @servicos is empty)
       }
@@ -179,17 +179,19 @@ app(
         row(class = linha) {
           button("Salvar (lento)", class = btn, on_click = salvar_lento())
           text("salvando…", class = giro, if = @__busy.salvar_lento)
+        }
+        row(class = linha) {
           button("Sincronizar", class = btn, on_click = sincronizar())
           text("sincronizando…", class = giro, if = @__busy.sincronizar)
-          // Submit de formulário: o `type = submit` é ocupado pelo `on_submit` do
-          // form — o caso que o motor não cobria.
-          form(on_submit = salvar_lento(), class = linha) {
-            textinput(placeholder = "campo do form", ::value = @novo, class = campo)
-            button("Enviar", type = submit, class = btn)
-          }
+          // `busy = false`: o mesmo handler, sem a guarda de reentrada.
+          button("Sincronizar (busy = false)", class = btn_suave, on_click = sincronizar(), busy = false)
         }
-        // `busy = false`: o mesmo handler, sem a guarda de reentrada.
-        button("Sincronizar (busy = false)", class = btn_suave, on_click = sincronizar(), busy = false)
+        // Submit de formulário: o `type = submit` é ocupado pelo `on_submit` do
+        // form — o caso que o motor não cobria.
+        form(class = linha, on_submit = salvar_lento()) {
+          textinput(placeholder = "campo do form", ::value = @novo, class = campo)
+          button("Enviar", type = submit, class = btn)
+        }
         text("salvos: {@salvos} · último: {@ultimo}", class = valor)
         // Frente 1: `@__busy.*` é bool tipado — o template testa, não compara texto.
         text("ocupação: {@__busy.salvar_lento}", class = codigo)
@@ -231,7 +233,7 @@ app(
           row(class = item) {
             container(class = ponto, :class.ok = @s.ok, :class.ruim = !@s.ok)
             text("{@s.nome}", class = nome)
-            text("{@s.ms} ms", class = nota)
+            text("{@s.ms} ms", class = nota, width = 60)
             button("alternar", class = btn_suave, on_click = alternar(@s.id))
             button("remover", class = btn_suave, on_click = remover(@s.id))
           }
