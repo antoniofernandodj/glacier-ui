@@ -4,68 +4,53 @@
    do `glacier check` e passa pelo `glacier fmt --migrate-color`. */
 
 .tela {
-  padding: 18px;
+  padding: 18;
   background: #0d1117;
   color: #e6edf3;
 }
 
 .cabecalho {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
 }
 
 .titulo {
-  size: 22px;
+  size: 22;
   color: #7dd3fc;
 }
 
 .nota {
-  size: 12px;
+  size: 12;
   color: #8b949e;
 }
 
 .bloco {
-  gap: 8px;
-  padding: 14px;
-  margin-top: 12px;
+  padding: 14;
   background: #161b22;
-  border-width: 1px;
-  border-color: #30363d;
-  border-radius: 10px;
+  border_width: 1;
+  border_radius: 10;
 }
 
 .subtitulo {
-  size: 15px;
+  size: 15;
   color: #a5d6ff;
 }
 
 .linha,
 .grade {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .item {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  padding: 4 8px;
   background: #0b0f14;
-  border-radius: 8px;
+  border_radius: 8;
 }
 
 .valor {
-  size: 13px;
+  size: 13;
   color: #c9d1d9;
 }
 
 .codigo {
-  size: 12px;
-  font-family: mono;
+  size: 12;
   color: #9cdcfe;
 }
 
@@ -78,18 +63,18 @@
 }
 
 .largo {
-  width: 260px;
+  width: 260;
 }
 
 .campo_grande {
-  width: 240px;
+  width: 240;
 }
 
 .btn,
 .btn_suave {
-  padding: 7px 14px;
-  border-radius: 8px;
-  background: #1f6feb;
+  padding: 7 14px;
+  border_radius: 8;
+  background: #1a5fb4;
   color: #f0f6fc;
 }
 
@@ -103,14 +88,14 @@
 }
 
 .giro {
-  size: 18px;
+  size: 18;
   color: #58a6ff;
 }
 
 .ponto {
-  width: 10px;
-  height: 10px;
-  border-radius: 6px;
+  width: 10;
+  height: 10;
+  border_radius: 6;
   background: #6e7681;
 }
 
@@ -123,32 +108,26 @@
 }
 
 .cartao {
-  gap: 8px;
-  padding: 14px;
-  min-width: 280px;
+  padding: 14;
+  width: 300;
   background: #161b22;
-  border-width: 1px;
-  border-color: #30363d;
-  border-radius: 12px;
+  border_width: 1;
+  border_radius: 12;
 }
 
 .cartao--aberto {
-  border-color: #58a6ff;
 }
 
 .cartao__cabecalho {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
 }
 
 .cartao__titulo {
-  size: 15px;
+  size: 15;
   color: #e6edf3;
 }
 
 .cartao__acao {
-  size: 12px;
+  size: 12;
   color: #58a6ff;
 }
 
@@ -156,25 +135,21 @@
 .cartao__vazio,
 .cartao__contagem,
 .cartao__global {
-  size: 12px;
+  size: 12;
   color: #8b949e;
 }
 
 .cartao__pe {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
 }
 
 .cartao__btn {
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: #238636;
+  padding: 6 12px;
+  border_radius: 8;
+  background: #1a6b2c;
   color: #f0f6fc;
 }
 
 .rodape {
-  margin-top: 14px;
-  size: 12px;
+  size: 12;
   color: #6e7681;
 }

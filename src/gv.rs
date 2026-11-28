@@ -1274,7 +1274,7 @@ impl Parser {
         // texto e `@chave` é o valor da chave. Enquanto a heurística continua
         // aceitando o composto, ele é avisado — menos o conteúdo posicional
         // (`text(@ok ? "sim" : "não")`), que é expressão por definição.
-        if posicional(tag) != Some(name) {
+        if !DIRECTIVAS_DE_EXPRESSAO.contains(&name) && posicional(tag) != Some(name) {
             self.avisos.push((
                 l0,
                 "expressao-sem-dos-pontos",
@@ -1720,6 +1720,11 @@ fn tem_padrao_barra(v: &str) -> bool {
     }
     false
 }
+
+/// As diretivas cujo valor É uma expressão sem precisar do `:` (Frente 10): o
+/// `if`/`each` de bloco já são expressão, e a forma curta num nó segue igual.
+const DIRECTIVAS_DE_EXPRESSAO: &[&str] =
+    &["if", "else_if", "else-if", "each", "key", "unless", "when"];
 
 /// Os atributos que aceitam `[…]` no lugar do texto separado por espaço
 /// (Frente 10 do `TODO.md`): os pares de tamanho e a lista de classes, que é o

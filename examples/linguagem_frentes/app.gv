@@ -8,7 +8,6 @@
 
 app(
   id = linguagem_frentes,
-  title = "Frentes do TODO.md",
   size = [940, 900],
   // Frente 1: a regra de verdade é a dos tipos — texto é texto.
   truthy = typed,
@@ -196,7 +195,6 @@ app(
       // ── Frente 3 + 11: componente fechado, import local ────────────────
       row(class = grade) {
         Cartao(
-          id = "cartao-a",
           titulo = "Cartão A",
           resumo = "{@ultimo} · {@contagem} chamadas",
           // O `app:` diz que o dono da ação é desta tela, não do componente.
@@ -206,13 +204,12 @@ app(
           text("conteúdo do slot `corpo` do cartão A", slot = corpo)
         }
         Cartao(
-          id = "cartao-b",
           titulo = "Cartão B",
           resumo = "{len(@servicos)} itens",
           on_abrir = "app:abrir(\"cartao-b\")",
         )
       }
-      text("cada cartão tem `state { aberto = false }` próprio; o contador é do app (@app.contagem).", class = nota)
+      text("cada cartão declara o próprio estado em `state`; o contador é do app, lido como @{@app.contagem}.", class = nota)
 
       // ── Frente 5: keyed each ───────────────────────────────────────────
       column(class = bloco) {

@@ -8,7 +8,7 @@
 //
 // e passa o que o cartão precisa — nada aqui lê o contexto global sem dizer
 // `@app.` na frente.
-component(name = Cartao) {
+component {
   props {
     prop(name = titulo, type = string)
     prop(name = resumo, type = string, default = "")
