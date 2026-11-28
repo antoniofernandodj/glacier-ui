@@ -740,7 +740,30 @@ impl<'a> EvalCtx<'a> {
                 return (Some(v), d);
             }
         }
+        // `@app.x` — o global **explícito** (Frente 2 do `TODO.md`): não existe
+        // uma chave literal `app.x`, então o prefixo fura as camadas do
+        // componente (estado, props, item de `each`) e lê a base. Onde `@x` é o
+        // nome local sombreando o global, `@app.x` é a saída visível.
+        if let Some(global) = key.strip_prefix("app.")
+            && let Some(v) = self.base.get(global)
+        {
+            return (Some(std::borrow::Cow::Borrowed(v.as_str())), 0);
+        }
         (None, 0)
+    }
+
+    /// Registra a leitura de `key` — e a da chave global que um `@app.x` abriu.
+    fn leu(&self, key: &str, value: Option<&str>, src: u32) {
+        let Some(reads) = self.reads else { return };
+        reads.record(key, value, src);
+        if src != 0 {
+            return;
+        }
+        if let Some(global) = key.strip_prefix("app.")
+            && let Some(v) = self.base.get(global)
+        {
+            reads.record(global, Some(v.as_str()), 0);
+        }
     }
 
     /// A chave exata, sem caminho: camadas locais primeiro, base depois.
@@ -764,10 +787,25 @@ impl<'a> EvalCtx<'a> {
     /// de eu ter lembrado de anotar cada call-site.
     pub fn get(&self, key: &str) -> Option<std::borrow::Cow<'_, str>> {
         let (value, src) = self.lookup(key);
-        if let Some(reads) = self.reads {
-            reads.record(key, value.as_deref(), src);
-        }
+        self.leu(key, value.as_deref(), src);
         value
+    }
+
+    /// O valor de `key` **com o tipo** que o script gravou (Frente 1 do
+    /// `TODO.md`): a tag do [`crate::ctx_types`] só vale para a chave da base —
+    /// uma variável de `each` ou uma prop sombreada é texto, porque quem a pôs
+    /// ali nunca gravou um tipo.
+    ///
+    /// Continua sendo UMA leitura pelo caminho único de rastreamento.
+    pub(crate) fn valor(&self, key: &str) -> Option<crate::expr::Valor> {
+        let (value, src) = self.lookup(key);
+        let texto = value.map(|v| v.into_owned());
+        self.leu(key, texto.as_deref(), src);
+        let texto = texto?;
+        if src != 0 {
+            return Some(crate::expr::Valor::Texto(texto));
+        }
+        Some(refazer_pelo_tipo(self.base, key, texto))
     }
 
     /// O mesmo contexto com `layer` empilhada por cima (a camada precisa viver
@@ -1223,8 +1261,8 @@ fn interpola_chave(key: &str, context: &EvalCtx, result: &mut String) {
                 }
                 return;
             }
-            let mut ler = |k: &str| context.get(k).map(|v| v.into_owned());
-            let valor = crate::expr::avalia(&expr, &mut ler);
+            let mut ler = |k: &str| context.valor(k);
+            let valor = crate::expr::avalia_tipado(&expr, &mut ler);
             result.push_str(&valor.texto());
         }
         Err(erro) => {
@@ -1285,6 +1323,26 @@ pub fn set_busy_buttons(sim: bool) {
     BUSY_BUTTONS.store(sim, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// O `app(busy_buttons = true)` está ligado? (A guarda de reentrada do despacho
+/// Luau consulta — Frente 4 do `TODO.md`.)
+pub fn busy_buttons() -> bool {
+    BUSY_BUTTONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// `app(busy_release = toast)`: o primeiro `toast` de uma corrotina libera o
+/// handler dela, em vez de esperar a corrotina terminar (o comportamento do
+/// `busy.luau` do rustploy — Frente 4 do `TODO.md`).
+static BUSY_RELEASE_TOAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_busy_release_toast(sim: bool) {
+    BUSY_RELEASE_TOAST.store(sim, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// O botão ocupado libera no toast?
+pub fn busy_release_toast() -> bool {
+    BUSY_RELEASE_TOAST.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// O prefixo das chaves de ocupação que o runtime Luau grava enquanto a
 /// corrotina de um handler está suspensa: `__busy.<handler>`.
 pub const BUSY_PREFIX: &str = "__busy.";
@@ -1300,19 +1358,26 @@ pub fn nome_do_handler(acao: &str) -> &str {
 /// `Some(true)` se o nó deve ficar desabilitado por ocupação: `busy = @x`
 /// explícito manda; sem ele, com `busy_buttons` ligado, o handler do `on_click`
 /// do botão estar rodando. `None` = nada a dizer (fica o `disabled` normal).
+///
+/// Um `button(type = submit)` é ocupado pelo `on_submit` do `form` (Frente 4 do
+/// `TODO.md`): o `form_submit_action` já vem hidratado no nó pela expansão do
+/// form, e era exatamente o caso que o motor não cobria.
 fn ocupado(node: &UiNode, context: &EvalCtx) -> Option<bool> {
     if let Some(b) = node.busy_attr() {
-        let v = process_tpl(b, context);
-        return Some(is_truthy(&v));
+        let sim = is_truthy(&process_tpl(b, context));
+        if !sim {
+            // `busy = false` é o opt-out do nó: o botão continua clicável enquanto
+            // a ação roda, e a guarda de reentrada do despacho o deixa passar.
+            if let Some(nome) = acao_do_botao(node, context) {
+                anotar_acao_livre(&nome);
+            }
+        }
+        return Some(sim);
     }
     if !BUSY_BUTTONS.load(std::sync::atomic::Ordering::Relaxed) {
         return None;
     }
-    let NodeType::Button { on_click: Some(acao), .. } = &node.kind else {
-        return None;
-    };
-    let acao = process_tpl(acao, context);
-    let nome = nome_do_handler(&acao);
+    let nome = acao_do_botao(node, context)?;
     if nome.is_empty() {
         return None;
     }
@@ -1321,6 +1386,42 @@ fn ocupado(node: &UiNode, context: &EvalCtx) -> Option<bool> {
             .get(&format!("{BUSY_PREFIX}{nome}"))
             .is_some_and(|v| is_truthy(&v)),
     )
+}
+
+/// A ação que um clique neste nó dispara, em forma de nome de handler: o
+/// `on_click` do botão comum, o `on_submit` do form para um `type = submit`.
+fn acao_do_botao(node: &UiNode, context: &EvalCtx) -> Option<String> {
+    let NodeType::Button { on_click, button_type, .. } = &node.kind else {
+        return None;
+    };
+    let acao = match button_type {
+        Some(crate::parser::ButtonType::Submit) => node.form_submit_action(),
+        _ => on_click.as_deref(),
+    }?;
+    Some(nome_do_handler(&process_tpl(acao, context)).to_string())
+}
+
+/// Os handlers que algum nó liberou com `busy = false` — a guarda de reentrada do
+/// despacho Luau consulta e nunca remove (um `busy = false` é dito de markup, uma
+/// vez por avaliação, e vale enquanto o app viver).
+static ACOES_LIVRES: std::sync::RwLock<Option<std::collections::HashSet<String>>> =
+    std::sync::RwLock::new(None);
+
+fn anotar_acao_livre(nome: &str) {
+    if nome.is_empty() {
+        return;
+    }
+    let mut g = ACOES_LIVRES.write().unwrap_or_else(|e| e.into_inner());
+    g.get_or_insert_with(Default::default).insert(nome.to_string());
+}
+
+/// A reentrada deste handler é permitida (`busy = false` em algum nó)?
+pub fn acao_livre_para_reentrada(nome: &str) -> bool {
+    ACOES_LIVRES
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|g| g.contains(nome))
 }
 
 /// Whether a (already-interpolated) string should be considered true.
@@ -1332,6 +1433,65 @@ fn ocupado(node: &UiNode, context: &EvalCtx) -> Option<bool> {
 /// template tinha de escrever `@mensagem != ""`.
 fn is_truthy(s: &str) -> bool {
     crate::expr::texto_verdadeiro(s)
+}
+
+// ─────────────────────── os tipos do contexto ───────────────────────
+//
+// As tags vivem em `GlacierUI::context_types` (o `ctx_types`), e o avaliador só
+// chega a elas durante uma passada de avaliação do app: o `lib.rs` instala o
+// mapa no começo e solta no fim. Sem o mapa instalado — os testes unitários, um
+// `process_tpl` chamado fora de uma avaliação — toda chave é texto, como era.
+
+thread_local! {
+    static TIPOS: std::cell::RefCell<Option<crate::ctx_types::TagMap>> =
+        const { std::cell::RefCell::new(None) };
+    /// Passadas aninhadas (um `evaluate_into_cache` dentro de outro) só soltam as
+    /// tags na saída da mais externa.
+    static TIPOS_PROFUNDIDADE: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Instala as tags do contexto global para a passada de avaliação corrente.
+/// O valor devolvido é a guarda: solta as tags quando sai de escopo.
+#[must_use = "a guarda é o que solta as tags no fim da passada"]
+pub(crate) fn instalar_tipos(tags: &crate::ctx_types::TagMap) -> TiposGuarda {
+    TIPOS.with(|t| *t.borrow_mut() = Some(tags.clone()));
+    TIPOS_PROFUNDIDADE.with(|d| d.set(d.get() + 1));
+    TiposGuarda
+}
+
+/// A guarda de [`instalar_tipos`].
+pub(crate) struct TiposGuarda;
+
+impl Drop for TiposGuarda {
+    fn drop(&mut self) {
+        TIPOS_PROFUNDIDADE.with(|d| d.set(d.get().saturating_sub(1)));
+        if TIPOS_PROFUNDIDADE.with(|d| d.get()) == 0 {
+            TIPOS.with(|t| *t.borrow_mut() = None);
+        }
+    }
+}
+
+/// O texto que o `ctx` guarda volta ao tipo que o script gravou: `Bool` é
+/// booleano, `Number` é número, `Json` de lista é lista. Um objeto JSON continua
+/// texto (o motor não tem um tipo de objeto), e uma tag obsoleta nunca reanima.
+fn refazer_pelo_tipo(base: &ContextMap, key: &str, texto: String) -> crate::expr::Valor {
+    use crate::ctx_types::Tag;
+    use crate::expr::Valor;
+    let tag = TIPOS
+        .with(|t| t.borrow().as_ref().and_then(|m| crate::ctx_types::tag_valida(m, base, key)));
+    match tag {
+        Some(Tag::Bool) => Valor::Bool(texto.trim() == "true"),
+        Some(Tag::Number) => crate::ctx_types::texto_para_numero(&texto)
+            .map_or(Valor::Texto(texto), Valor::Num),
+        Some(Tag::Json) => match serde_json::from_str::<serde_json::Value>(texto.trim()) {
+            Ok(serde_json::Value::Array(a)) => {
+                Valor::Lista(a.into_iter().map(crate::expr::de_json).collect())
+            }
+            Ok(serde_json::Value::Null) => Valor::Nulo,
+            _ => Valor::Texto(texto),
+        },
+        None => Valor::Texto(texto),
+    }
 }
 
 /// Evaluate an `if` condition against the context.
@@ -2648,6 +2808,15 @@ fn eval_owned(
             // queda para o contexto de baixo quando quem chama omite a prop.
             for decl in declaradas {
                 if props.contains_key(&decl.name) {
+                    continue;
+                }
+                // Estado local (`state { … }`) NÃO entra na camada: quem escreve é
+                // o widget (a ligação é por nome) e o script, e os dois escrevem no
+                // contexto. Sombrear a chave aqui deixaria o `toggle(::checked =
+                // @aberto)` do componente gravando num lugar que ele mesmo não lê.
+                // O default do estado é semeado no contexto ao registrar o
+                // componente (`GlacierUI::semeia_estado`, em `lib.rs`).
+                if decl.estado {
                     continue;
                 }
                 // O spread entra ANTES do default, e depois do atributo escrito

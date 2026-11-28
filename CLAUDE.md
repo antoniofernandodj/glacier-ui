@@ -103,6 +103,27 @@ repetido em cinco regras.
 
 ## A linguagem: expressões, duas formas, cor (0.169+)
 
+### Desde a 0.170 (as frentes do `TODO.md`)
+- **O `:` decide o valor** (0.170): `:attr = expr` é uma via, `::attr = @chave` é
+  o vínculo nos dois sentidos (não escreva o trio `form_control` + `:value` +
+  `on_change = field:x`), `:class.ativa = expr` é a classe condicional,
+  `class = [a, b]` e `size = [1280, 820]` são listas, `@x ?? "padrão"` substitui
+  `{x|padrão}`. As formas antigas ainda rodam e são avisadas pelo `check`.
+- **Ação é sempre chamada**: `on_click = salvar()`, `window.minimize()`,
+  `field("nome")`. `salvar` sem parênteses é depreciado; o `check` confere nome,
+  aridade e tipo contra o `--!strict` do `.luau`.
+- **Tipos de verdade**: `ctx.x = true` é lido como bool pelo template (`if @x`,
+  `@n > 3`, `@lista is empty`) — não escreva `@x == "true"` nem `json.encode`
+  para falar com a view. `app(truthy = typed)` é a regra nova de verdade.
+- **`state { … }`** declara o estado local de um `component`; `@app.x` é o global
+  dito com todas as letras. Um componente usado num arquivo precisa de `link(rel =
+  import, …)` naquele arquivo.
+- **Botão ocupado**: `app(busy_buttons = true, busy_release = toast)` cobre submit,
+  reentrada e `busy.release()`; `spinner(if = @__busy.salvar)`.
+- **`glacier fmt` reindenta** (2 espaços, comentários e `"""` intactos,
+  idempotente) e `fmt --check` é porta de CI.
+
+
 A gramática inteira está em **`docs/LINGUAGEM.md`**; o porquê, em
 `docs/PLANO_LINGUAGEM_GV_GSS.md`. O que muda a escrita do dia a dia:
 

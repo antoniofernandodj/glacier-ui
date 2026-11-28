@@ -1,0 +1,180 @@
+/* O `.gss` do exemplo `linguagem_frentes` — na semântica do CSS (Frente 8):
+   `background` é o fundo, `color` é o conteúdo, também num `button`. Não existe
+   nenhum `text_color` aqui; quem ainda escreve `color` como fundo recebe o aviso
+   do `glacier check` e passa pelo `glacier fmt --migrate-color`. */
+
+.tela {
+  padding: 18px;
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+.cabecalho {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.titulo {
+  size: 22px;
+  color: #7dd3fc;
+}
+
+.nota {
+  size: 12px;
+  color: #8b949e;
+}
+
+.bloco {
+  gap: 8px;
+  padding: 14px;
+  margin-top: 12px;
+  background: #161b22;
+  border-width: 1px;
+  border-color: #30363d;
+  border-radius: 10px;
+}
+
+.subtitulo {
+  size: 15px;
+  color: #a5d6ff;
+}
+
+.linha,
+.grade {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.item {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #0b0f14;
+  border-radius: 8px;
+}
+
+.valor {
+  size: 13px;
+  color: #c9d1d9;
+}
+
+.codigo {
+  size: 12px;
+  font-family: mono;
+  color: #9cdcfe;
+}
+
+.ok {
+  color: #3fb950;
+}
+
+.alerta {
+  color: #f85149;
+}
+
+.largo {
+  width: 260px;
+}
+
+.campo_grande {
+  width: 240px;
+}
+
+.btn,
+.btn_suave {
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #1f6feb;
+  color: #f0f6fc;
+}
+
+.btn_suave {
+  background: #21262d;
+  color: #c9d1d9;
+}
+
+.btn:hover {
+  background: #388bfd;
+}
+
+.giro {
+  size: 18px;
+  color: #58a6ff;
+}
+
+.ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 6px;
+  background: #6e7681;
+}
+
+.ponto.ok {
+  background: #3fb950;
+}
+
+.ponto.ruim {
+  background: #f85149;
+}
+
+.cartao {
+  gap: 8px;
+  padding: 14px;
+  min-width: 280px;
+  background: #161b22;
+  border-width: 1px;
+  border-color: #30363d;
+  border-radius: 12px;
+}
+
+.cartao--aberto {
+  border-color: #58a6ff;
+}
+
+.cartao__cabecalho {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.cartao__titulo {
+  size: 15px;
+  color: #e6edf3;
+}
+
+.cartao__acao {
+  size: 12px;
+  color: #58a6ff;
+}
+
+.cartao__resumo,
+.cartao__vazio,
+.cartao__contagem,
+.cartao__global {
+  size: 12px;
+  color: #8b949e;
+}
+
+.cartao__pe {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.cartao__btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #238636;
+  color: #f0f6fc;
+}
+
+.rodape {
+  margin-top: 14px;
+  size: 12px;
+  color: #6e7681;
+}

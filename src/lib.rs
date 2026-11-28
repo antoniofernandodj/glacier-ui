@@ -91,6 +91,9 @@ pub mod grid;
 pub mod grip;
 pub mod i18n;
 pub mod gv;
+/// Handlers de script e ações de `.gv`, conferidos pelo `glacier check`
+/// (Frente 6 do `TODO.md`).
+pub mod handlers;
 pub mod keys;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod luau;
@@ -1403,11 +1406,14 @@ impl GlacierUI {
         stylesheet::set_estrito(manifest.app.gss_strict);
         eval::set_busy_buttons(manifest.app.busy_buttons);
         eval::set_cor_css(manifest.app.gss_color_css);
+        crate::expr::set_verdade_tipada(manifest.app.truthy_typed);
+        eval::set_busy_release_toast(manifest.app.busy_release_toast);
 
         // As declarações globais (links, estilos, componentes, diálogos): o
         // mesmo caminho de um template, com o arquivo do manifesto de âncora.
         let globais = parser::empty_node(NodeType::Fragment, manifest.decls.clone());
         self.load_defines(&globais);
+        self.semeia_estado(&globais);
         self.load_imports(&globais, Some(path))?;
         self.process_links_from(APP_SCOPE, &globais, Some(path.to_string()))?;
 
@@ -3744,6 +3750,48 @@ impl GlacierUI {
     }
 
     /// Parses and stores a component plus its imports, without re-evaluating.
+    /// Frente 2 do `TODO.md`: o default de um `state { … }` entra no contexto uma
+    /// vez, no registro do componente. É o que faz a chave **existir** (com o tipo
+    /// declarado), poder ser escrita pelo widget (`::checked = @x`) e pelo script do
+    /// componente, e continuar legível por todos eles — sem o trio de formulário.
+    ///
+    /// O que ainda não existe é a separação por **instância**: dois cartões do mesmo
+    /// nome compartilham a chave (o próximo passo está descrito no `TODO.md`).
+    fn semeia_estado(&mut self, ast: &parser::UiNode) {
+        use crate::ctx_types::{Tag, Tipado};
+        for filho in &ast.children {
+            let parser::NodeType::Props(decls) = &filho.kind else {
+                if !filho.children.is_empty() {
+                    self.semeia_estado(filho);
+                }
+                continue;
+            };
+            for d in decls.iter().filter(|d| d.estado) {
+                let Some(v) = &d.default else { continue };
+                if self.context_data.contains_key(&d.name) {
+                    continue;
+                }
+                let v = v.trim().to_string();
+                let tag = match d.tipo {
+                    Some(parser::TipoProp::Bool) => Some(Tag::Bool),
+                    Some(parser::TipoProp::Numero) => Some(Tag::Number),
+                    Some(parser::TipoProp::Lista) | Some(parser::TipoProp::Objeto) => {
+                        Some(Tag::Json)
+                    }
+                    _ => None,
+                };
+                let chave = d.name.clone();
+                self.context_data.insert(chave.clone(), v.clone());
+                if let Some(tag) = tag {
+                    self.context_types.insert(chave, Tipado { tag, snapshot: v });
+                }
+            }
+            if !filho.children.is_empty() {
+                self.semeia_estado(filho);
+            }
+        }
+    }
+
     fn register_component_inner(&mut self, name: &str, path: &str) -> Result<()> {
         let content = asset_source::read_markup(self.assets.as_ref(), path)
             .map_err(|e| GlacierError::io("template", path, e))?;
@@ -3759,6 +3807,7 @@ impl GlacierUI {
         self.file_mod_times.insert(name.to_string(), mod_time);
         // An explicit registration overrides any lib builtin of this name.
         self.builtin_component_names.remove(name);
+        self.semeia_estado(&ast);
 
         // Componentes declarados no próprio arquivo (`component(name = "…")`),
         // depois os trazidos de fora (`import`).
@@ -4730,6 +4779,9 @@ impl GlacierUI {
     /// demanda) passam os dois por aqui.
     fn evaluate_into_cache(&mut self, name: &str) -> Result<()> {
         self.sync_eval_cache();
+        // As tags do contexto valem por esta passada: é por elas que `@ativo` é um
+        // booleano e `@lista` uma lista dentro do template (Frente 1 do `TODO.md`).
+        let _tipos = eval::instalar_tipos(&self.context_types);
         let (evaluated, deps) = {
             let ast = self
                 .inputs

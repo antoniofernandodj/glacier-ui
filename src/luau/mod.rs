@@ -654,6 +654,14 @@ impl LuauComponent {
     /// se nenhuma foi encontrada (aí quem chama decide o fallback — ver
     /// [`Self::dispatch`]).
     fn run_inner(&self, func: &str, value: Option<&str>, ctx: &mut Context) -> mlua::Result<bool> {
+        // Guarda de reentrada (Frente 4 do `TODO.md`): com `busy_buttons` ligado,
+        // a ação cujo handler está suspenso não roda de novo — o segundo clique é
+        // **descartado**, não só desenhado como desabilitado. `busy = false` num
+        // nó libera a ação dele, e `nome:sufixo` (por linha, por campo) fica de
+        // fora: são ações diferentes sharing o mesmo nome de função.
+        if crate::eval::busy_buttons() && self.reentrada_proibida(func) {
+            return Ok(true);
+        }
         self.sync_to_luau(ctx)?;
         self.luau.globals().set("value", value)?;
 
@@ -712,6 +720,54 @@ impl LuauComponent {
         Ok(true)
     }
 
+    /// A guarda de reentrada do `run_inner`: a mesma ação clicada duas vezes, com
+    /// a corrotina da primeira ainda suspensa. A identidade é a corrotina — como
+    /// no `busy.luau` do rustploy, uma ação chamada de dentro de outra segura as
+    /// duas chaves, e o toast de uma não libera a outra.
+    fn reentrada_proibida(&self, func: &str) -> bool {
+        let a = func.rsplit_once("::").map_or(func, |(_, h)| h);
+        if a.contains(':') {
+            return false;
+        }
+        let nome = crate::eval::nome_do_handler(func);
+        if nome.is_empty() || crate::eval::acao_livre_para_reentrada(nome) {
+            return false;
+        }
+        self.ocupados
+            .borrow()
+            .iter()
+            .any(|(t, n)| n == nome && t.status() == ThreadStatus::Resumable)
+    }
+
+    /// O pedido `busy.release()` do script: libera o handler **desta** corrotina,
+    /// sem esperar ela terminar (o `toast` do rustploy era o sinal de "a resposta
+    /// chegou"; aqui o sinal é explícito).
+    fn solta_ocupado_de(&self, thread: &Thread, ctx: &mut Context) {
+        let id = thread.state();
+        let liberados: Vec<String> = {
+            let mut ocupados = self.ocupados.borrow_mut();
+            if !ocupados.iter().any(|(t, _)| t.state() == id) {
+                return;
+            }
+            let mut nomes = Vec::new();
+            ocupados.retain(|(t, nome)| {
+                if t.state() == id {
+                    nomes.push(nome.clone());
+                    false
+                } else {
+                    true
+                }
+            });
+            nomes
+        };
+        let ainda = self.ocupados.borrow();
+        for nome in liberados {
+            if !ainda.iter().any(|(_, n)| *n == nome) {
+                ctx.set_bool(&format!("{}{nome}", crate::eval::BUSY_PREFIX), false);
+            }
+        }
+    }
+
     /// Depois de rodar um handler: se a corrotina dele ficou suspensa (esperando
     /// um `fetch` ou a resposta de um diálogo), o handler está **ocupado** até
     /// ela terminar — `__busy.<handler> = true` no contexto.
@@ -720,7 +776,9 @@ impl LuauComponent {
             return;
         }
         self.ocupados.borrow_mut().push((thread.clone(), nome.to_string()));
-        ctx.set(&format!("{}{nome}", crate::eval::BUSY_PREFIX), "true");
+        // Bool tipado (Frente 1): o template lê `spinner(if = @__busy.salvar)`,
+        // sem `== "true"` e sem a regra textual de verdade.
+        ctx.set_bool(&format!("{}{nome}", crate::eval::BUSY_PREFIX), true);
     }
 
     /// A cada retomada: as corrotinas registradas que terminaram saem da lista,
@@ -740,7 +798,7 @@ impl LuauComponent {
         });
         for nome in terminados {
             if !ocupados.iter().any(|(_, n)| *n == nome) {
-                ctx.set(&format!("{}{nome}", crate::eval::BUSY_PREFIX), "false");
+                ctx.set_bool(&format!("{}{nome}", crate::eval::BUSY_PREFIX), false);
             }
         }
     }
@@ -970,8 +1028,22 @@ impl LuauComponent {
                 return Ok(()); // suspende até a escolha do usuário
             }
 
+            if req.get::<bool>("__glacier_busy_release").unwrap_or(false) {
+                // `busy.release()` do script: a resposta chegou, o botão volta antes
+                // de a corrotina terminar o que ela faz depois do toast.
+                self.solta_ocupado_de(&thread, ctx);
+                args = MultiValue::new();
+                continue;
+            }
+
             if req.get::<bool>("__glacier_toast").unwrap_or(false) {
                 ctx.show_toast(build_toast(&req)?);
+                // `app(busy_release = toast)`: o primeiro toast DESTA corrotina
+                // libera o handler dela — o comportamento do `busy.luau` do
+                // rustploy, levado ao motor (Frente 4 do `TODO.md`).
+                if crate::eval::busy_release_toast() {
+                    self.solta_ocupado_de(&thread, ctx);
+                }
                 args = MultiValue::new();
                 continue;
             }
@@ -3538,6 +3610,213 @@ mod tests {
             comp.resume_dialog(id, DialogOutcome::Confirmed(true), &mut ctx);
         }
         assert_eq!(data.get("r").map(String::as_str), Some("ok"));
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("false"));
+    }
+
+    // ── Frente 4 do `TODO.md`: o botão ocupado do motor ────────────────────
+    //
+    // Os casos espelham o `tests/lib/busy.test.luau` do rustploy (duplo clique,
+    // toast libera, erro libera, corrotinas independentes) para que o `busy.luau`
+    // do app possa ser apagado quando a versão for publicada.
+
+    /// A guarda do `app(busy_buttons = true)`: os flags do motor são globais, e os
+    /// testes rodam em paralelo — quem liga, desliga na saída.
+    struct BusyGuarda {
+        antes: bool,
+        release: bool,
+    }
+
+    impl BusyGuarda {
+        fn ligar(release_toast: bool) -> Self {
+            let g = BusyGuarda {
+                antes: crate::eval::busy_buttons(),
+                release: crate::eval::busy_release_toast(),
+            };
+            crate::eval::set_busy_buttons(true);
+            crate::eval::set_busy_release_toast(release_toast);
+            g
+        }
+    }
+
+    impl Drop for BusyGuarda {
+        fn drop(&mut self) {
+            crate::eval::set_busy_buttons(self.antes);
+            crate::eval::set_busy_release_toast(self.release);
+        }
+    }
+
+    #[test]
+    fn reentrada_do_mesmo_handler_e_descartada() {
+        let _b = BusyGuarda::ligar(false);
+        let mut comp = LuauComponent::from_source(
+            "function salvar()\n if confirm({ title='T', message='M' }) then ctx.r = 'ok' end\n end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("salvar", None, &mut ctx);
+            match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava suspender num diálogo resumível"),
+            }
+        };
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("true"));
+        // O segundo clique: descartado ANTES de rodar — nenhum diálogo novo é
+        // pedido, e a primeira corrotina continua sendo a dona da chave.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.run("salvar", None, &mut ctx);
+            assert!(ctx.dialog.is_none(), "a reentrada não pode despachar de novo");
+        }
+        // A primeira, sim, termina e libera.
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(id, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        assert_eq!(data.get("r").map(String::as_str), Some("ok"));
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("false"));
+    }
+
+    #[test]
+    fn busy_release_libera_antes_de_a_corrotina_terminar() {
+        let _b = BusyGuarda::ligar(false);
+        // `toast` → `busy.release()` → `after(ms)`: depois de liberado, a corrotina
+        // ainda está viva suspensa no timer — é exatamente o caso do rustploy, em
+        // que o handler continua trabalhando depois de mostrar a resposta.
+        let mut comp = LuauComponent::from_source(
+            "function salvar()\n\
+             local ok = confirm({ title='T', message='M' })\n\
+             toast('pronto')\n\
+             busy.release()\n\
+             after(50)\n\
+             ctx.r = if ok then 'ok' else 'não' end\n\
+             end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("salvar", None, &mut ctx);
+            match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava suspender no confirm"),
+            }
+        };
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("true"));
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(id, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        // Liberado pelo `busy.release()`, com o handler ainda suspenso no timer.
+        assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("false"));
+        assert_eq!(data.get("r"), None, "o timer ainda não voltou");
+    }
+
+    #[test]
+    fn toast_libera_so_a_corrotina_de_quem_mostrando_o_app_pede() {
+        let _b = BusyGuarda::ligar(true);
+        // Duas correntes suspensas: o toast de `a` não toca em `b` (identidade pela
+        // corrotina, como no `busy.luau` do app).
+        let mut comp = LuauComponent::from_source(
+            "function a()\n local ok = confirm({ title='A', message='M' })\n toast('a')\n ctx.a = 'fim'\n end\n\
+             function b()\n local ok = confirm({ title='B', message='M' })\n ctx.b = 'fim'\n end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let (ida, idb) = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("a", None, &mut ctx);
+            let ida = match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava o diálogo de a"),
+            };
+            comp.run("b", None, &mut ctx);
+            let idb = match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava o diálogo de b"),
+            };
+            (ida, idb)
+        };
+        assert_eq!(data.get("__busy.a").map(String::as_str), Some("true"));
+        assert_eq!(data.get("__busy.b").map(String::as_str), Some("true"));
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(ida, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        assert_eq!(data.get("__busy.a").map(String::as_str), Some("false"), "o toast de a liberou a");
+        assert_eq!(data.get("__busy.b").map(String::as_str), Some("true"), "b não viu o toast de a");
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(idb, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        assert_eq!(data.get("__busy.b").map(String::as_str), Some("false"));
+    }
+
+    #[test]
+    fn erro_no_handler_libera_o_ocupado() {
+        let _b = BusyGuarda::ligar(false);
+        let mut comp = LuauComponent::from_source(
+            "function quebrado()\n local ok = confirm({ title='T', message='M' })\n error('boom')\n end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let id = {
+            let mut ctx = Context::new(&mut data);
+            comp.run("quebrado", None, &mut ctx);
+            match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava suspender no confirm"),
+            }
+        };
+        assert_eq!(data.get("__busy.quebrado").map(String::as_str), Some("true"));
+        {
+            let mut ctx = Context::new(&mut data);
+            comp.resume_dialog(id, DialogOutcome::Confirmed(true), &mut ctx);
+        }
+        assert_eq!(data.get("__busy.quebrado").map(String::as_str), Some("false"));
+    }
+
+    #[test]
+    fn a_chave_de_ocupacao_e_um_bool_tipado() {
+        let _b = BusyGuarda::ligar(false);
+        let mut comp = LuauComponent::from_source(
+            "function salvar()\n if confirm({ title='T', message='M' }) then ctx.r = 'ok' end\n end",
+            "t.gv",
+            "c",
+        )
+        .unwrap();
+        let mut data = HashMap::default();
+        let mut tags = crate::ctx_types::TagMap::default();
+        let id = {
+            let mut ctx = Context::with_types(&mut data, &mut tags);
+            comp.run("salvar", None, &mut ctx);
+            match ctx.dialog {
+                Some(crate::component::DialogAction::ShowResumable(_, id, _)) => id,
+                _ => panic!("esperava suspender no confirm"),
+            }
+        };
+        // Frente 1: `spinner(if = @__busy.salvar)` testa o booleano, não o texto.
+        assert_eq!(
+            crate::ctx_types::tag_valida(&tags, &data, "__busy.salvar"),
+            Some(crate::ctx_types::Tag::Bool)
+        );
+        {
+            let mut ctx = Context::with_types(&mut data, &mut tags);
+            comp.resume_dialog(id, DialogOutcome::Cancelled, &mut ctx);
+        }
+        assert_eq!(
+            crate::ctx_types::tag_valida(&tags, &data, "__busy.salvar"),
+            Some(crate::ctx_types::Tag::Bool)
+        );
         assert_eq!(data.get("__busy.salvar").map(String::as_str), Some("false"));
     }
 

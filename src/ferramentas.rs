@@ -236,8 +236,421 @@ pub fn check(raiz: &Path, estrito: bool) -> std::io::Result<Vec<Achado>> {
             });
         }
     }
+    // ── o que as Frentes 1, 6, 8 e 11 do `TODO.md` acrescentam ──────────────
+    let pan = panorama(raiz)?;
+    achados.extend(verificar_handlers(&gvs, &pan));
+    achados.extend(verificar_verdade(&gvs, &pan));
+    achados.extend(verificar_imports(&gvs, &pan));
+    achados.extend(verificar_sombra(&gvs, &pan));
+    achados.extend(verificar_cor(&gvs, &gsss));
+
     crate::stylesheet::set_estrito(false);
     Ok(achados)
+}
+
+// ─────────────────────────── o panorama da árvore ───────────────────────────
+
+/// O que o `check` sabe sobre a árvore de views: os handlers de cada script, o
+/// tipo de cada chave do contexto e os componentes registrados.Montado uma vez
+/// por `check`, lido por todas as verificações.
+pub(crate) struct Panorama {
+    /// As funções globais declaradas por qualquer `.luau` da árvore.
+    pub funcoes: Vec<crate::handlers::Funcao>,
+    /// `chave → tipo` do que os scripts gravam no `ctx` e do que `props`/`state`
+    /// declaram.
+    pub chaves: crate::handlers::Chaves,
+    /// Os handlers referenciados por algum `.gv`.
+    pub chamados: std::collections::HashSet<String>,
+    /// As chaves que alguém grava como **texto** (de um `textinput`, de um
+    /// `ctx.x = "…"`): com `app(truthy = typed)` um teste nelas muda de valor.
+    pub textos: std::collections::HashSet<String>,
+    /// As chaves escritas no contexto global por script ou widget nenhum `.gv` de
+    /// componente — o que um `state`/`prop` de mesmo nome esconderia.
+    pub globais: std::collections::HashSet<String>,
+    /// Os nomes de componente registrados na árvore (por `component(name = …)` ou
+    /// por arquivo `.component.gv`).
+    pub componentes: std::collections::HashSet<String>,
+    /// `(arquivo, handler, linha)` dos scripts de um diretório de handler — onde
+    /// "definido e nunca chamado por `.gv` nenhum" é um aviso honesto.
+    pub nunca_chamados: Vec<(String, String, u32)>,
+}
+
+/// Lê a árvore inteira uma vez: scripts, `.gv`, imports.
+fn panorama(raiz: &Path) -> std::io::Result<Panorama> {
+    use std::collections::HashSet;
+    let mut p = Panorama {
+        funcoes: Vec::new(),
+        chaves: crate::handlers::Chaves::default(),
+        chamados: HashSet::new(),
+        textos: HashSet::new(),
+        globais: HashSet::new(),
+        componentes: HashSet::new(),
+        nunca_chamados: Vec::new(),
+    };
+    for f in arquivos(raiz, &["luau", "lua"]) {
+        let src = std::fs::read_to_string(&f)?;
+        let funcoes = crate::handlers::assinaturas(&src);
+        // Um script de módulo (`utils.luau`) é chamado de dentro de outro Luau; o
+        // aviso só vale onde a convenção do app põe handler de template.
+        let de_handler = f.display().to_string().replace('\\', "/").contains("handler");
+        for fu in &funcoes {
+            if de_handler {
+                p.nunca_chamados.push((
+                    f.display().to_string(),
+                    fu.nome.clone(),
+                    fu.linha,
+                ));
+            }
+        }
+        p.funcoes.extend(funcoes);
+        p.chaves.do_script(&src);
+    }
+    for f in arquivos(raiz, &["gv"]) {
+        let src = std::fs::read_to_string(&f)?;
+        p.chaves.do_gv(&src);
+        for a in crate::handlers::acoes(&src) {
+            p.chamados.insert(a.handler.clone());
+        }
+        // `component(name = X)` e o nome do arquivo `.component.gv`.
+        for c in Regex::new(r"(?m)^\s*component\s*\([^)]*name\s*=\s*([\w]+)")
+            .unwrap()
+            .captures_iter(&src)
+        {
+            p.componentes.insert(c[1].to_string());
+        }
+        if let Some(n) = f.file_name().and_then(|n| n.to_str()) {
+            if let Some(stem) = n.strip_suffix(".component.gv") {
+                p.componentes.insert(nome_de_arquivo(stem));
+            }
+        }
+        // Chaves que recebem TEXTO de um widget, e o que viaja no global.
+        for c in Regex::new(r"(?mi)(?:^|[(,\s])(?:textinput|input|textarea|texteditor|maskedinput|checkbox|toggle|toggler|comboedit|select|calendar|colorwheel|rating|spinbox|slider)\s*\([^)]*?::?[a-z_]+\s*=\s*@?([\w.]+)")
+            .unwrap()
+            .captures_iter(&src)
+        {
+            p.textos.insert(c[1].to_string());
+            p.globais.insert(c[1].to_string());
+        }
+        for c in Regex::new(r#"(?mi)\b(?:disabled|hidden|busy|if|else_if)\s*=\s*[@{(]*\s*!?\s*@([\w.]+)"#)
+            .unwrap()
+            .captures_iter(&src)
+        {
+            p.globais.insert(c[1].to_string());
+        }
+    }
+    for f in arquivos(raiz, &["md"]) {
+        let src = std::fs::read_to_string(&f)?;
+        p.chaves.do_gv(&src);
+    }
+    // As chaves que um script grava com tipo também são globais.
+    for (k, _) in &p.chaves.tipos {
+        p.globais.insert(k.clone());
+    }
+    p.componentes.remove("");
+    Ok(p)
+}
+
+/// `service_card` → `ServiceCard` (o nome com que um arquivo `.component.gv` é
+/// usado no markup, quando ninguém dá `as =`).
+fn nome_de_arquivo(stem: &str) -> String {
+    let mut out = String::new();
+    let mut maiuscula = true;
+    for c in stem.chars() {
+        if c == '_' || c == '-' {
+            maiuscula = true;
+            continue;
+        }
+        out.push(if maiuscula { c.to_ascii_uppercase() } else { c });
+        maiuscula = false;
+    }
+    out
+}
+
+// ─────────────────────── Frente 6: handler ↔ template ───────────────────────
+
+/// Confere cada ação de cada `.gv` contra os scripts da árvore: existe, aridade,
+/// tipo de argumento. É o que substitui o `tools/busy_actions.py --check` de um
+/// app na parte "o handler do template existe no script".
+fn verificar_handlers(gvs: &[PathBuf], pan: &Panorama) -> Vec<Achado> {
+    use crate::handlers as h;
+    let mut out = Vec::new();
+    for p in gvs {
+        let nome = p.display().to_string();
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        for a in h::acoes(&src) {
+            if h::EMBUTIDAS.contains(&a.handler.as_str()) {
+                continue;
+            }
+            let linha = a.linha;
+            if a.nua {
+                out.push(Achado {
+                    arquivo: nome.clone(),
+                    linha,
+                    msg: format!(
+                        "ação `{}` no `{}` está na forma nua — ação é sempre chamada: `{}()`",
+                        a.handler, a.attr, a.handler
+                    ),
+                });
+            }
+            let problemas = h::conferir(&a, &pan.funcoes, &pan.chaves);
+            match problemas {
+                Some(h::Problema::Ausente) => {
+                    let sug = h::sugerir(&a.handler, &pan.funcoes);
+                    let dica = sug.map_or_else(String::new, |s| format!("; o mais próximo é `{s}`"));
+                    out.push(Achado {
+                        arquivo: nome.clone(),
+                        linha,
+                        msg: format!(
+                            "o handler `{}` de `{}` não existe em nenhum script da árvore{}",
+                            a.handler, a.attr, dica
+                        ),
+                    });
+                }
+                Some(h::Problema::Aride { dada, esperada }) => out.push(Achado {
+                    arquivo: nome.clone(),
+                    linha,
+                    msg: format!(
+                        "`{}` recebe {dada} argumento(s); a assinatura espera {esperada}",
+                        a.handler
+                    ),
+                }),
+                Some(h::Problema::Tipo { pos, esperado, dado }) => out.push(Achado {
+                    arquivo: nome.clone(),
+                    linha,
+                    msg: format!(
+                        "o argumento {pos} de `{}` é {dado}; a assinatura anota `{esperado}`",
+                        a.handler
+                    ),
+                }),
+                None => {}
+            }
+        }
+    }
+    // Handler definido e nunca chamado por `.gv` nenhum — aviso, e só nos
+    // diretórios de handler do app (um módulo é chamado de dentro do Luau).
+    for (arquivo, nome, linha) in &pan.nunca_chamados {
+        if !pan.chamados.contains(nome) {
+            out.push(Achado {
+                arquivo: arquivo.clone(),
+                linha: *linha,
+                msg: format!(
+                    "o handler `{nome}` não é chamado por nenhum `.gv` (se só o Luau o chama, não tem conserto aqui)"
+                ),
+            });
+        }
+    }
+    out
+}
+
+// ────────────────── Frente 1: o que a regra tipada muda ──────────────────
+
+/// Os testes de verdade cuja chave pode receber **texto**: hoje `"não"`, `"no"` e
+/// `"off"` são falsos; com `app(truthy = typed)` passam a ser texto, e texto é
+/// verdadeiro. A marca só é ligada pela migração quando esta lista está vazia.
+fn verificar_verdade(gvs: &[PathBuf], pan: &Panorama) -> Vec<Achado> {
+    let mut out = Vec::new();
+    let re =
+        Regex::new(r"(?mi)\b(if|else_if|hidden|disabled|busy)\s*=\s*!?\s*@([\w.]+)\b").unwrap();
+    for p in gvs {
+        let nome = p.display().to_string();
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        let mut vistas = std::collections::HashSet::new();
+        for c in re.captures_iter(&src) {
+            let chave = c[2].to_string();
+            if !pan.textos.contains(&chave) || !vistas.insert(chave.clone()) {
+                continue;
+            }
+            out.push(Achado {
+                arquivo: nome.clone(),
+                linha: linha_do(&src, &c[0]),
+                msg: format!(
+                    "`{} = @{chave}` depende da regra de verdade: `{chave}` recebe texto, e com `app(truthy = typed)` um texto é sempre verdadeiro — teste `@{chave} != \"\"` ou dê o tipo à chave",
+                    &c[1]
+                ),
+            });
+        }
+    }
+    out
+}
+
+/// A linha (1-based) de um trecho dentro do arquivo.
+fn linha_do(src: &str, trecho: &str) -> u32 {
+    match src.find(trecho) {
+        Some(i) => src[..i].matches('\n').count() as u32 + 1,
+        None => 1,
+    }
+}
+
+// ───────────────── Frente 11: import e escopo local ─────────────────
+
+/// O nome usado sem `link(rel = import)` no arquivo. Hoje o registro é global e
+/// vence quem importou primeiro; com o escopo local por padrão, usar sem importar
+/// é erro com a linha e o `link` a acrescentar.
+fn verificar_imports(gvs: &[PathBuf], pan: &Panorama) -> Vec<Achado> {
+    let mut out = Vec::new();
+    if pan.componentes.is_empty() {
+        return out;
+    }
+    let globais = imports_globais(gvs);
+    let re_uso = Regex::new(r"(?m)^\s*([A-Z][A-Za-z0-9_]*)\s*[({]").unwrap();
+    for p in gvs {
+        let nome = p.display().to_string();
+        if nome.ends_with("app.gv") {
+            continue;
+        }
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        let importados = imports_do_arquivo(&src);
+        let declarados = declares_do_arquivo(&src);
+        let mut vistas = std::collections::HashSet::new();
+        for c in re_uso.captures_iter(&src) {
+            let t = &c[1];
+            if !pan.componentes.contains(t)
+                || importados.contains(t)
+                || declarados.contains(t)
+                || globais.contains(t)
+                || !vistas.insert(t.to_string())
+            {
+                continue;
+            }
+            out.push(Achado {
+                arquivo: nome.clone(),
+                linha: linha_do(&src, &c[0]),
+                msg: format!(
+                    "`{t}` é usado sem `link(rel = import, href = \"…\", as = {t})` neste arquivo — o import é local ao arquivo",
+                ),
+            });
+        }
+    }
+    out
+}
+
+/// Os nomes que um `.gv` importa (`link(rel = import, …, as = Nome)`), e os que o
+/// arquivo declara por si (`component(name = …)`).
+fn imports_do_arquivo(src: &str) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    let re = Regex::new(r#"(?mi)link\s*\([^)]*(?:rel\s*=\s*import|rel\s*=\s*\"import\")[^)]*\)"#).unwrap();
+    for c in re.captures_iter(src) {
+        let bloco = &c[0];
+        if let Some(n) = Regex::new(r#"as\s*=\s*\"?([\w]+)"#).unwrap().captures(bloco) {
+            out.insert(n[1].to_string());
+        } else if let Some(h) = Regex::new(r#"(?:href|src|from)\s*=\s*\"?([^\" ,)]+)"#).unwrap().captures(bloco) {
+            let stem = h[1].rsplit('/').next().unwrap_or("").strip_suffix(".gv").unwrap_or("");
+            let stem = stem.strip_suffix(".component").unwrap_or(stem);
+            if !stem.is_empty() {
+                out.insert(nome_de_arquivo(stem));
+            }
+        }
+    }
+    out
+}
+
+fn declares_do_arquivo(src: &str) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for c in Regex::new(r"(?m)^\s*component\s*\([^)]*name\s*=\s*([\w]+)").unwrap().captures_iter(src) {
+        out.insert(c[1].to_string());
+    }
+    out
+}
+
+/// Os `global = true` do `app.gv` — a única forma de um nome valer para o app.
+fn imports_globais(gvs: &[PathBuf]) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for p in gvs {
+        if !p.display().to_string().ends_with("app.gv") {
+            continue;
+        }
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        let re =
+            Regex::new(r"(?mi)link\s*\([^)]*global\s*=\s*(?:true|1)[^)]*\)").unwrap();
+        for c in re.captures_iter(&src) {
+            if let Some(n) = Regex::new(r#"as\s*=\s*\"?([\w]+)"#).unwrap().captures(&c[0]) {
+                out.insert(n[1].to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Frente 11: uma chave de `state`/`prop` com o mesmo nome de uma chave global que
+/// o app escreve esconde a global em silêncio.
+fn verificar_sombra(gvs: &[PathBuf], pan: &Panorama) -> Vec<Achado> {
+    let mut out = Vec::new();
+    let re = Regex::new(r"(?m)^\s*([\w\-]+)\s*=\s*").unwrap();
+    for p in gvs {
+        let nome = p.display().to_string();
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        for bloco in crate::handlers::blocos_state(&src) {
+            for c in re.captures_iter(&bloco) {
+                let chave = &c[1];
+                if pan.globais.contains(chave) {
+                    out.push(Achado {
+                        arquivo: nome.clone(),
+                        linha: linha_do(&src, chave),
+                        msg: format!(
+                            "o estado `{chave}` esconde a chave global `{chave}`, que o app também escreve — renomeie ou declare `prop(name = {chave}, shadow = true)`",
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+// ───────────────── Frente 8: cor do CSS como padrão ─────────────────
+
+/// `text_color` sobrando num app já migrado para `gss_color = css`, e o aviso de
+/// depreiação de quem ainda pede `legacy`.
+fn verificar_cor(gvs: &[PathBuf], gsss: &[PathBuf]) -> Vec<Achado> {
+    let mut out = Vec::new();
+    let mut css = false;
+    let mut legacy = None;
+    for p in gvs {
+        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        let n = p.display().to_string();
+        if src.contains("gss_color = css") {
+            css = true;
+        }
+        if src.contains("gss_color = legacy") {
+            legacy = Some(n);
+        }
+    }
+    if let Some(a) = legacy {
+        out.push(Achado {
+            arquivo: a,
+            linha: 1,
+            msg: "`app(gss_color = legacy)` está depreciado — `glacier fmt --migrate-color` passa o `.gss` para a semântica do CSS (`background` é o fundo, `color` é o conteúdo)".to_string(),
+        });
+    }
+    if css {
+        let re = Regex::new(r"(?m)^\s*text_color\s*:").unwrap();
+        for p in gsss {
+            let src = std::fs::read_to_string(p).unwrap_or_default();
+            for c in re.captures_iter(&src) {
+                out.push(Achado {
+                    arquivo: p.display().to_string(),
+                    linha: linha_do(&src, &c[0]),
+                    msg: "`text_color` é da semântica `legacy`; num app `gss_color = css` o conteúdo é o `color`".to_string(),
+                });
+                break;
+            }
+        }
+        for p in gvs {
+            let src = std::fs::read_to_string(p).unwrap_or_default();
+            if src.contains("text_color:") {
+                for (linha0, corpo) in styles_do_gv(&src) {
+                    if re.is_match(&corpo) {
+                        out.push(Achado {
+                            arquivo: p.display().to_string(),
+                            linha: linha0,
+                            msg: "`text_color` num `style` de um app `gss_color = css` sobra da migração".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 /// `GLACIER_CHECK=dir` (o `glacier check`): roda o [`check`] e devolve o código
@@ -459,6 +872,204 @@ pub fn migrar_gv(src: &str) -> (String, usize) {
     (s, n)
 }
 
+/// [`migrar_gv`] com o conjunto das chaves que a árvore grava como **bool**: só
+/// elas têm o `@x == "true"` trocado pela forma tipada (Frente 1). Sem o
+/// conjunto, a troca é só avisada pelo `check`.
+pub fn migrar_gv_com(src: &str, bools: Option<&std::collections::HashSet<String>>) -> (String, usize) {
+    let (mut s, mut n) = migrar_gv(src);
+
+    // 7. Frente 6: ação é sempre chamada. `on_x = nome` → `nome()`; os embutidos
+    //    vão à forma de chamada deles (`window:minimize` → `window.minimize()`,
+    //    `field:nome` → `field("nome")`).
+    let re_nua = Regex::new(r"(on_\w+\s*=\s*)([A-Za-z_][A-Za-z0-9_.]*)(\s*[,)\n])").unwrap();
+    s = re_nua
+        .replace_all(&s, |c: &regex::Captures| {
+            let nome = &c[2];
+            let nova = if nome.contains(':') {
+                acao_de_chamada(nome)
+            } else if ACOES_DO_MOTOR.contains(&nome.split(['.', ':']).next().unwrap_or(nome)) {
+                None
+            } else {
+                Some(format!("{nome}()"))
+            };
+            match nova {
+                Some(v) => {
+                    n += 1;
+                    format!("{}{}{}", &c[1], v, &c[3])
+                }
+                None => c[0].to_string(),
+            }
+        })
+        .into_owned();
+
+    // 8. Frente 1: `@x == "true"` é o bool como texto. Só troca quando a chave é
+    //    bool conhecida — senão é texto comparando com texto, e tem razão.
+    if let Some(bools) = bools {
+        for (de, para) in [
+            (r#"([@!]?[\w.]+)\s*==\s*"true""#, "um"),
+            (r#"([@!]?[\w.]+)\s*!=\s*"true""#, "nao_um"),
+            (r#"([@!]?[\w.]+)\s*==\s*"false""#, "nao_um"),
+            (r#"([@!]?[\w.]+)\s*!=\s*"false""#, "um"),
+        ] {
+            let re = Regex::new(de).unwrap();
+            s = re
+                .replace_all(&s, |c: &regex::Captures| {
+                    let a = &c[1];
+                    let Some(chave) = a.strip_prefix('@') else { return c[0].to_string() };
+                    if !bools.contains(chave) {
+                        return c[0].to_string();
+                    }
+                    n += 1;
+                    match para {
+                        "um" => a.to_string(),
+                        _ => format!("!{a}"),
+                    }
+                })
+                .into_owned();
+        }
+    }
+
+    // 9. Frente 10: `class:nome = expr` → `:class.nome = expr`.
+    let re = Regex::new(r"(?m)([\s(,])class:([\w\-]+)\s*=\s*([^,)\n]+)").unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            n += 1;
+            format!("{}:class.{} = {}", &c[1], &c[2], &c[3])
+        })
+        .into_owned();
+
+    // 10. Frente 10: a lista de classes. `"a b"` sem interpolação é uma lista.
+    let re = Regex::new(r#"(?m)([\s(,])class\s*=\s*"([\w\- ]+)""#).unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            let itens: Vec<&str> = c[2].split_whitespace().collect();
+            if itens.len() < 2 {
+                return c[0].to_string();
+            }
+            n += 1;
+            format!("{}class = [{}]", &c[1], itens.join(", "))
+        })
+        .into_owned();
+
+    // 11. Frente 10: `{chave|padrão}` → `{@chave ?? "padrão"}`.
+    let re = Regex::new(r#"\{([\w.\-]+)\|([^{}"'`]+)\}"#).unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            n += 1;
+            format!("{{@{} ?? \"{}\"}}", &c[1], &c[2].trim())
+        })
+        .into_owned();
+
+    // 12. Frente 2/10: o vínculo de duas vias. `:value = nome` era a ligação pelo
+    //     nome; a forma é `::value = @nome`.
+    let re = Regex::new(r"(?m)([\s(,]):(value|checked|items|selected|open|page|step)\s*=\s*([A-Za-z_][\w.\-]*)").unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            n += 1;
+            format!("{}::{} = @{}", &c[1], &c[2], &c[3])
+        })
+        .into_owned();
+
+    // 13. Frente 10: par numérico como lista.
+    let re = Regex::new(r#"(?m)([\s(,])(size|min_size|max_size|fixed_size)\s*=\s*"(\d+)\s+(\d+)""#)
+        .unwrap();
+    s = re
+        .replace_all(&s, |c: &regex::Captures| {
+            n += 1;
+            format!("{}{} = [{}, {}]", &c[1], &c[2], &c[3], &c[4])
+        })
+        .into_owned();
+
+    // 14. Frente 10: atributo com expressão sem `:` ganha o `:` de uma via.
+    let (novo, k) = colonar_expressoes(&s);
+    s = novo;
+    n += k;
+
+    (s, n)
+}
+
+/// A forma de chamada de um embutido escrito à moda antiga: `janela:resize:nw` →
+/// `janela.resize("nw")`, `field:nome` → `field("nome")`, `tray:open` →
+/// `tray.open()`. `None` quando não é um embutido conhecido (fica como está, e o
+/// `check` acusa o handler ausente).
+fn acao_de_chamada(nome: &str) -> Option<String> {
+    let partes: Vec<&str> = nome.split(':').collect();
+    if partes.len() < 2 || partes[0].is_empty() {
+        return None;
+    }
+    let metodo_de_args = matches!(
+        partes[0],
+        "field" | "textarea_end" | "textarea_top" | "clipboard" | "whatsthis" | "audio" | "open"
+    );
+    let sem_metodo = partes.len() == 2 && !metodo_de_args;
+    if !ACOES_DO_MOTOR.contains(&partes[0]) && !crate::gv::ACOES_EMBUTIDAS_COM_PREFIXO.contains(&partes[0])
+    {
+        return None;
+    }
+    Some(if sem_metodo {
+        format!("{}.{}()", partes[0], partes[1])
+    } else {
+        let args = [&partes[1..]].concat().join(":");
+        format!("{}({})", partes[0], if partes[0] == "field" || partes[0] == "open" || partes[0] == "whatsthis" || partes[0] == "clipboard" || partes[0] == "textarea_end" || partes[0] == "textarea_top" { format!("\"{args}\"") } else { args })
+    })
+}
+
+/// Os atributos que o `.gv` já trata como booleanos e que, com um `:`, dizem por
+/// escrito que são uma via (Frente 10).
+const ATRIBUITOS_DE_EXPRESSAO: &[&str] = &[
+    "disabled",
+    "hidden",
+    "busy",
+    "expanded",
+    "selected",
+    "visible",
+    "readonly",
+    "open",
+    "checked",
+    "ativo",
+];
+
+/// Troca `disabled = @a && @b` por `:disabled = @a && @b` — só quando o valor é
+/// mesmo uma expressão composta (nome nu e `@chave` sozinha não mudam de lado).
+fn colonar_expressoes(src: &str) -> (String, usize) {
+    let mut n = 0;
+    let mut out = String::with_capacity(src.len());
+    for linha in src.lines() {
+        let mut resto = linha.to_string();
+        for attr in ATRIBUITOS_DE_EXPRESSAO {
+            let marca = format!("{attr} = ");
+            let Some(i) = resto.find(&marca) else { continue };
+            let antes = &resto[..i];
+            if antes.contains('"') && !antes.matches('"').count().is_multiple_of(2) {
+                continue; // dentro de um texto
+            }
+            let ini = i + marca.len();
+            let cs: Vec<char> = resto[ini..].chars().collect();
+            let fim = crate::handlers::fim_do_valor(&cs);
+            let valor: String = cs[..fim].iter().collect();
+            let v = valor.trim();
+            let composto = (v.starts_with('@') || v.starts_with('!'))
+                && (v.contains("&&")
+                    || v.contains("||")
+                    || v.contains("??")
+                    || v.contains(" ? ")
+                    || v.contains(" in ")
+                    || v.contains(" is ")
+                    || v.contains("==")
+                    || v.contains("!="));
+            if !composto || antes.trim_end().ends_with(':') {
+                continue;
+            }
+            resto.replace_range(i..ini, &format!(":{attr} = "));
+            n += 1;
+            break;
+        }
+        out.push_str(&resto);
+        out.push('\n');
+    }
+    (out, n)
+}
+
 /// [`migrar_gv`] aplicado só aos blocos ` ```gv ` de um Markdown — a
 /// documentação de um app (um `AGENTS.md`, um README) anda junto com o código.
 /// A prosa fica como está: ela pode estar explicando justamente a forma antiga.
@@ -597,6 +1208,134 @@ fn classes_por_tipo(gvs: &[(PathBuf, String)]) -> (std::collections::HashSet<Str
     (botao, outro)
 }
 
+// ───────────────────────────── o fmt que reindenta ─────────────────────────────
+
+/// Largura-alvo de uma linha de `.gv`/`.gss` (a convenção do `CLAUDE.md`).
+pub const LARGURA: usize = 100;
+
+/// Reindentação de um `.gv` que **não toca em caractere nenhum além do espaço de
+/// fim de linha**: um tokenizador de texto, com as strings `"""…"""`, `l"""…"""`
+/// e os comentários `//` / `/* */` reconhecidos e atravessados intactos. É assim
+/// que o `fmt` reindenta sem perder comentário nenhum (Frente 7 do `TODO.md`):
+/// reimprimir a partir da árvore perderia, porque o parser os descarta.
+///
+/// A regra é a profundidade do aninhamento: `(` abre um nível de atributo, `{`
+/// abre um nível de bloco, `)`/`}` fecham. Uma linha dentro de um bloco de string
+/// sai byte a byte. Idempotente por construção (o recuo depende só da estrutura).
+pub fn reindentar_gv(src: &str) -> String {
+    let cs: Vec<char> = src.chars().collect();
+    let mut out = String::with_capacity(src.len());
+    let mut prof: i32 = 0;
+    let mut i = 0;
+    while i < cs.len() {
+        // ── uma linha física: `texto` é o cru, `estrutura` só o que aninha ──
+        let mut texto = String::new();
+        let mut estrutura = String::new();
+        while i < cs.len() && cs[i] != '\n' {
+            let c = cs[i];
+            if c == '"' && cs.get(i + 1) == Some(&'"') && cs.get(i + 2) == Some(&'"') {
+                let ini = i;
+                let fim = busca_troca(&cs, i + 3).map(|f| f + 3).unwrap_or(cs.len());
+                texto.extend(&cs[ini..fim]);
+                i = fim;
+                continue;
+            }
+            if c == '"' || c == '\'' {
+                let ini = i;
+                let q = c;
+                let mut j = i + 1;
+                while j < cs.len() && cs[j] != q && cs[j] != '\n' {
+                    if cs[j] == '\\' {
+                        j += 1;
+                    }
+                    j += 1;
+                }
+                let fim = (j + 1).min(cs.len());
+                texto.extend(&cs[ini..fim]);
+                i = fim;
+                continue;
+            }
+            if c == '/' && cs.get(i + 1) == Some(&'/') {
+                while i < cs.len() && cs[i] != '\n' {
+                    texto.push(cs[i]);
+                    i += 1;
+                }
+                break;
+            }
+            if c == '/' && cs.get(i + 1) == Some(&'*') {
+                let ini = i;
+                let fim = busca_bloco_comentario(&cs, i + 2)
+                    .map(|f| f + 2)
+                    .unwrap_or(cs.len());
+                texto.extend(&cs[ini..fim]);
+                // A estrutura vê o que havia antes e depois do comentário, e o
+                // que ele tinha dentro não conta.
+                i = fim;
+                continue;
+            }
+            texto.push(c);
+            estrutura.push(c);
+            i += 1;
+        }
+        if i < cs.len() {
+            i += 1; // o `\n`
+        }
+        // ── o recuo: profundidade corrente, menos o que a própria linha fecha ──
+        let nu = texto.trim();
+        if nu.is_empty() {
+            out.push('\n');
+            continue;
+        }
+        let fecha_na_frente = estrutura
+            .chars()
+            .take_while(|c| c.is_whitespace() || matches!(c, ')' | '}' | ','))
+            .filter(|c| matches!(c, ')' | '}'))
+            .count() as i32;
+        let recuo = (prof - fecha_na_frente).max(0) as usize * 2;
+        out.push_str(&" ".repeat(recuo));
+        out.push_str(nu);
+        out.push('\n');
+        let abre = estrutura.chars().filter(|c| matches!(c, '{' | '(')).count() as i32;
+        let fecha = estrutura.chars().filter(|c| matches!(c, '}' | ')')).count() as i32;
+        prof = (prof + abre - fecha).max(0);
+    }
+    out
+}
+
+fn busca_troca(cs: &[char], mut i: usize) -> Option<usize> {
+    while i + 2 < cs.len() {
+        if cs[i] == '"' && cs[i + 1] == '"' && cs[i + 2] == '"' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn busca_bloco_comentario(cs: &[char], mut i: usize) -> Option<usize> {
+    while i + 1 < cs.len() {
+        if cs[i] == '*' && cs[i + 1] == '/' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// [`fmt`] de um arquivo `.gv`: reindentação + as trocas de migração.
+fn formatar_gv(src: &str, migrar: bool, bools: Option<&std::collections::HashSet<String>>) -> (String, usize) {
+    let (s, mut n) = if migrar {
+        migrar_gv_com(src, bools)
+    } else {
+        (src.to_string(), 0)
+    };
+    let re = reindentar_gv(&s);
+    if re != s {
+        n += 1;
+    }
+    (re, n)
+}
+
 /// `GLACIER_FMT=dir` (o `glacier fmt`): migra e grava (ou, com `--check`, só lista).
 pub fn fmt_from_env() -> Option<i32> {
     let raiz = std::env::var(ENV_FMT).ok()?;
@@ -637,8 +1376,39 @@ pub fn fmt(raiz: &Path, migrar: bool, cor: bool, seco: bool) -> std::io::Result<
         o.push('\n');
         o
     };
+    // As chaves que a árvore grava como bool: só nelas o `== "true"` vira teste
+    // de verdade (Frente 1). O resto é texto comparando com texto.
+    let pan = panorama(raiz).ok();
+    let bools: std::collections::HashSet<String> = pan
+        .as_ref()
+        .map(|p| {
+            p.chaves
+                .tipos
+                .iter()
+                .filter(|(_, t)| **t == crate::handlers::Tipo::Bool)
+                .map(|(k, _)| k.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    // Riscos de verdade por arquivo: enquanto houver, a marca `truthy = typed` não
+    // é ligada — a migração só fecha quando a lista está vazia ou revista.
+    let riscos = pan
+        .as_ref()
+        .map(|p| verificar_verdade(&gvs.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>(), p))
+        .unwrap_or_default();
+    let tem_risco = |nome: &str| riscos.iter().any(|a| a.arquivo == nome);
     for (p, src) in &gvs {
-        let (mut novo, mut k) = if migrar { migrar_gv(src) } else { (src.clone(), 0) };
+        let nome = p.display().to_string();
+        let (mut novo, mut k) = formatar_gv(src, migrar, Some(&bools));
+        if migrar
+            && novo.trim_start().starts_with("app(")
+            && !novo.contains("truthy")
+            && !tem_risco(&nome)
+            && k > 0
+        {
+            novo = novo.replacen("app(", "app(\n  truthy = typed,", 1);
+            k += 1;
+        }
         if cor {
             // O `style """…"""` de um `.gv` também é `.gss`.
             let (c, kc) = migrar_cor_gss(&novo, &so_botao, &ambiguas);
@@ -833,5 +1603,148 @@ button("y", on_click = window:drag)"#);
         let d = classes_definidas(".a { x: 1; }\n/* .nao */\n.b > .c:hover { y: 2; }\n@media (max-width: 1) { .e { z: 1; } }");
         let nomes: Vec<&str> = d.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(nomes, ["a", "b", "c", "e"]);
+    }
+}
+
+// ─────────────────── testes das Frentes 6, 7, 10 e 11 ───────────────────
+//
+// Escrita junto com o código e **não executada nesta entrega**: rodar com
+// `make test` (ou `cargo test --lib ferramentas`) antes de publicar. Ver o
+// registro no `TODO.md`.
+#[cfg(test)]
+mod testes_frentes {
+    use super::*;
+
+    fn m(src: &str) -> (String, usize) {
+        migrar_gv_com(src, None)
+    }
+
+    #[test]
+    fn acao_nua_vira_chamada() {
+        let (s, n) = m(r#"button("S", on_click = salvar)
+button("E", on_click = exportar(@item.key, true))"#);
+        assert!(s.contains("on_click = salvar()"), "{s}");
+        assert!(s.contains("on_click = exportar(@item.key, true)"), "{s}");
+        assert!(n >= 1, "{n}");
+    }
+
+    #[test]
+    fn embutidos_vao_a_forma_de_chamada() {
+        let (s, _) = m(r#"button("_", on_click = window:minimize)
+button("↖", on_click = window:resize:nw)
+textinput(on_change = field:nome)
+item(on_click = tray:open)"#);
+        assert!(s.contains("on_click = window.minimize()"), "{s}");
+        assert!(s.contains(r#"on_click = window.resize("nw")"#), "{s}");
+        assert!(s.contains(r#"on_change = field("nome")"#), "{s}");
+        assert!(s.contains("on_click = tray.open()"), "{s}");
+    }
+
+    #[test]
+    fn a_vinculacao_de_campo_vira_dois_pontos() {
+        let (s, n) = m(r#"textinput(:value = nome, on_change = field:nome)"#);
+        assert!(s.contains("::value = @nome"), "{s}");
+        assert!(n >= 1, "{n}");
+    }
+
+    #[test]
+    fn classe_condicional_e_lista() {
+        let (s, _) = m(r#"row(class:ativa = @v == @a, class = "btn btn--lg")"#);
+        assert!(s.contains(":class.ativa = @v == @a"), "{s}");
+        assert!(s.contains("class = [btn, btn--lg]"), "{s}");
+    }
+
+    #[test]
+    fn padrao_de_barra_vira_coalescencia() {
+        let (s, _) = m(r#"text("total: {n|zero}")"#);
+        assert!(s.contains(r#"{@n ?? "zero"}"#), "{s}");
+    }
+
+    #[test]
+    fn expressao_de_uma_via_ganha_o_dois_pontos() {
+        let (s, n) = m(r#"button("S", disabled = @a && @b)"#);
+        assert!(s.contains(":disabled = @a && @b"), "{s}");
+        assert!(n >= 1, "{n}");
+        // Uma chave sozinha não é "expressão composta": fica como está.
+        let (t, k) = m(r#"button("S", disabled = @ocupado)"#);
+        assert!(t.contains("disabled = @ocupado"), "{t}");
+        assert_eq!(k, 0, "{t}");
+    }
+
+    #[test]
+    fn so_troca_bool_conhecido() {
+        let src = r#"text("a", if = @ativo == "true")
+text("b", if = @resposta == "true")"#;
+        // Sem o conjunto de bools da árvore, nada é reescrito (só o `check` avisa).
+        let (s, _) = migrar_gv(src);
+        assert!(s.contains(r#"@ativo == "true""#), "{s}");
+        let bools: std::collections::HashSet<String> = ["ativo".to_string()].into_iter().collect();
+        let (t, n) = migrar_gv_com(src, Some(&bools));
+        assert!(t.contains("if = @ativo"), "{t}");
+        assert!(t.contains(r#"@resposta == "true""#), "{t}");
+        assert!(n >= 1, "{n}");
+        // O contrário também.
+        let (u, _) = migrar_gv_com(r#"text(if = @ativo != "true")"#, Some(&bools));
+        assert!(u.contains("if = !@ativo"), "{u}");
+    }
+
+    #[test]
+    fn migracao_nova_e_idempotente() {
+        let src = r#"row(class:ativa = @v, class = "a b") {
+  textinput(:value = nome, on_change = field:nome, disabled = @x || @y)
+  button("S", on_click = salvar)
+}"#;
+        let (um, _) = m(src);
+        let (dois, k) = m(&um);
+        assert_eq!(um, dois, "segunda passada mudou o texto:\n{um}\n---\n{dois}");
+        assert_eq!(k, 0);
+    }
+
+    #[test]
+    fn reindentar_nao_perde_comentario_nem_string() {
+        let baguncado = "app(id = x) {\n\tscreen(s) {\n\t\t\ttext(\"oi\")  // ola\n\t\tscript \"\"\"\n  local  a   = 1\n\t\t\"\"\"\n}\n}\n";
+        let s = reindentar_gv(baguncado);
+        assert!(s.contains("// ola"), "{s}");
+        // O corpo do `script` sai byte a byte: `local  a   = 1` com os espaços dele.
+        assert!(s.contains("local  a   = 1"), "{s}");
+        assert!(s.contains("  screen(s) {"), "{s}");
+        assert!(s.contains("    text(\"oi\") // ola"), "{s}");
+        // Nem uma vírgula dentro de string muda o aninhamento.
+        let t = reindentar_gv("row {\ntext(\"a, b ) ( c\")\ntext(\"fim\")\n}\n");
+        assert!(t.contains("  text(\"a, b ) ( c\")"), "{t}");
+    }
+
+    #[test]
+    fn reindentar_e_idempotente_e_preserva_as_linhas() {
+        for arquivo in ["examples/linguagem_ocupado/app.gv", "examples/linguagem_props/app.gv"] {
+            let Ok(src) = std::fs::read_to_string(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(arquivo),
+            ) else {
+                continue;
+            };
+            let uma = reindentar_gv(&src);
+            let duas = reindentar_gv(&uma);
+            assert_eq!(uma, duas, "{arquivo}: fmt duas vezes != uma");
+            assert_eq!(
+                src.matches('\n').count(),
+                uma.matches('\n').count(),
+                "{arquivo}: mudou o número de linhas"
+            );
+            // Comentário nenhum se perde.
+            for (_, l) in src.lines().enumerate() {
+                let nu = l.trim();
+                if nu.starts_with("//") {
+                    assert!(uma.lines().any(|o| o.trim() == nu), "{arquivo}: perdeu `{nu}`");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn estado_declarado_e_lido_pelo_check() {
+        let src = "component(name = C) {\n  state {\n    aberto = false,\n    total = 0,\n  }\n  text(\"x\")\n}";
+        let blocos = crate::handlers::blocos_state(src);
+        assert_eq!(blocos.len(), 1, "{blocos:?}");
+        assert!(blocos[0].contains("aberto = false"), "{:?}", blocos);
     }
 }

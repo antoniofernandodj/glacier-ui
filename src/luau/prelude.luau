@@ -68,6 +68,17 @@ function toast(opts)
     })
 end
 
+-- O botão ocupado do handler corrente, solto ANTES de a corrotina terminar
+-- (Frente 4 do `TODO.md`). `app(busy_release = toast)` faz isto sozinha no
+-- primeiro toast; `busy.release()` é a forma explícita — para quando a resposta
+-- chega num passo que não mostra toast, ou para o trabalho de fundo que pode
+-- continuar depois que o usuário já viu o resultado. NÃO suspende: cede o pedido
+-- e retoma na hora. Libera só a corrotina que chamou (identidade pela corrotina).
+busy = busy or {}
+function busy.release()
+    return coroutine.yield({ __glacier_busy_release = true })
+end
+
 -- Copia `text` para a área de transferência do sistema. NÃO suspende e não
 -- informa sucesso (o iced não o reporta); para avisar o usuário, chame `toast`
 -- em seguida. Ao contrário do `clipboard:<chave>` da markup, aceita um valor

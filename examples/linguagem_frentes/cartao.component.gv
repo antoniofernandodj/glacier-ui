@@ -1,0 +1,61 @@
+// Um cartão fechado: props tipadas, `state` próprio, slot com `fallback` e uma
+// ação de saída. É o componente do exemplo `linguagem_frentes` (Frentes 2, 3 e 11
+// do `TODO.md`).
+//
+// Quem usa importa este arquivo no arquivo que usa:
+//
+//   link(rel = import, href = "examples/linguagem_frentes/cartao.component.gv", as = Cartao)
+//
+// e passa o que o cartão precisa — nada aqui lê o contexto global sem dizer
+// `@app.` na frente.
+component(name = Cartao) {
+  props {
+    prop(name = titulo, type = string)
+    prop(name = resumo, type = string, default = "")
+    // Frente 3: o componente EMITE, quem usa decide. A ação chega na forma de
+    // chamada; o `app:` na frente dela diz ao motor que o dono é da tela, não do
+    // cartão (sem ele, toda ação dentro de um componente é do componente).
+    prop(name = on_abrir, type = action, default = "")
+  }
+
+  // Frente 2: estado LOCAL. `aberto` é bool de nascimento (o default é semeado no
+  // contexto com o tipo), `toques` é número. Dentro do cartão, `@aberto` é isto
+  // aqui; fora, não é chave de ninguém — o prefixo que o rustploy põe à mão
+  // (`service_form_aberto`) deixa de existir.
+  state {
+    aberto = false,
+    toques = 0,
+  }
+
+  column(class = [cartao], :class.cartao--aberto = @aberto, on_click = bater()) {
+    row(class = cartao__cabecalho) {
+      text("{@titulo}", class = cartao__titulo)
+      text("{@aberto ? 'recolher' : 'abrir'}", class = cartao__acao)
+    }
+    // Uma via: o atributo recebe a expressão, sem o `@` dentro de aspas.
+    text("{@resumo}", class = cartao__resumo, if = @resumo != "")
+    // O slot nomeado, com reserva declarada pelo componente.
+    container(class = cartao__corpo, if = @aberto) {
+      slot(name = corpo) {
+        text("nenhum conteúdo foi passado no slot `corpo`", class = cartao__vazio)
+      }
+    }
+    row(class = cartao__pe) {
+      // Frente 3: dispara a ação que quem usa passou (`@on_abrir`).
+      button("Abrir no app", class = cartao__btn, on_click = @on_abrir)
+      text("toques: {@toques}", class = cartao__contagem)
+      // Frente 2: o global, dito com todas as letras.
+      text("app: {@app.contagem}", class = cartao__global)
+    }
+  }
+
+  script """
+    --!strict
+    -- O handler é DO CARTÃO: o motor prefixa a ação do componente com o nome
+    -- dele, e este `bater` só existe aqui dentro.
+    function bater()
+      ctx.aberto = not (ctx.aberto or false)
+      ctx.toques = (ctx.toques or 0) + 1
+    end
+  """
+}

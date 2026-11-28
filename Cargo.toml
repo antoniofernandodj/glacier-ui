@@ -46,6 +46,11 @@ path = "examples/linguagem_ocupado/main.rs"
 name = "linguagem_gss"
 path = "examples/linguagem_gss/main.rs"
 
+# As Frentes 1–11 do `TODO.md` numa tela só (ver o `main.rs` do exemplo).
+[[example]]
+name = "linguagem_frentes"
+path = "examples/linguagem_frentes/main.rs"
+
 # [[example]]
 # name = "ciclo_vida_luau"
 # path = "examples/ciclo_vida_luau/main.rs"

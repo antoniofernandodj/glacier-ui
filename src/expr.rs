@@ -34,8 +34,13 @@
 //!   em booleano por igualdade.
 //! - `<`, `<=`, `>`, `>=`: só número. Com um lado que não é número o resultado é
 //!   falso (e o motor avisa uma vez por expressão).
-//! - Verdade: falso é ausente, `""`, `false`, `0`, `no`, `off`, `null`, `[]` e
-//!   `{}`; todo o resto é verdadeiro.
+//! - Verdade (regra **textual**, o padrão de hoje): falso é ausente, `""`,
+//!   `false`, `0`, `no`, `off`, `null`, `[]` e `{}`; todo o resto é verdadeiro.
+//!   Com `app(truthy = typed)` ([`set_verdade_tipada`]) a regra passa a ser a dos
+//!   **tipos**: falso é só o bool `false`, o número `0`, `null`, `""`, `[]` e `{}`
+//!   — uma palavra digitada por alguém ("não", "no", "off") é texto, e texto é
+//!   verdadeiro. As formas canônicas `true`/`false`/`0` continuam valendo porque
+//!   são o texto em que um bool ou um número é gravado no contexto.
 //! - `is empty`: ausente, `""`, `null`, `[]` e `{}`. Um texto qualquer **não** é
 //!   vazio (o `empty` antigo achava que era: só entendia array).
 //! - `in`: a lista pode ser literal (`["a", "b"]`), um array JSON do contexto ou um
@@ -74,6 +79,9 @@ pub enum Expr {
     Vazio(Box<Expr>, bool),
     /// `c ? a : b` (sem `: b`, o falso dá `""`).
     Se(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
+    /// `a ?? b`: `b` só quando `a` está **ausente** (a chave não existe). É a
+    /// forma nova do `{chave|padrão}` (Frente 10 de `TODO.md`).
+    Senao(Box<Expr>, Box<Expr>),
     /// `{chave|padrão}`: a chave, ou o texto quando ela está ausente.
     Padrao(String, String),
     /// `nome(args, nomeado = expr)`.
@@ -256,8 +264,28 @@ impl Valor {
     }
 }
 
+static VERDADE_TIPADA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `app(truthy = typed)`: a regra de verdade dos tipos, em vez da textual.
+/// Ligada pela migração da tela, nunca por troca de padrão do motor (Frente 1).
+pub fn set_verdade_tipada(sim: bool) {
+    VERDADE_TIPADA.store(sim, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Qual regra de verdade está valendo agora.
+pub fn verdade_tipada() -> bool {
+    VERDADE_TIPADA.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// A verdade de um texto — é também a do `if @x` simples (`eval::is_truthy`).
+///
+/// Com a regra tipada ligada, só as formas canônicas de um valor não-textual são
+/// falsas: `""`, `false`, `0`, `null`, `[]`, `{}`. `no`, `não` e `off` passam a
+/// ser o que são — palavras.
 pub fn texto_verdadeiro(s: &str) -> bool {
+    if verdade_tipada() {
+        return texto_verdadeiro_tipado(s);
+    }
     let t = s.trim();
     !(t.is_empty()
         || t.eq_ignore_ascii_case("false")
@@ -271,7 +299,18 @@ pub fn texto_verdadeiro(s: &str) -> bool {
         || t.parse::<f64>().is_ok_and(|n| n == 0.0))
 }
 
-fn de_json(v: serde_json::Value) -> Valor {
+/// A regra tipada (ver [`texto_verdadeiro`]).
+fn texto_verdadeiro_tipado(s: &str) -> bool {
+    let t = s.trim();
+    !(t.is_empty()
+        || t.eq_ignore_ascii_case("false")
+        || t.eq_ignore_ascii_case("null")
+        || t == "[]"
+        || t == "{}"
+        || t.parse::<f64>().is_ok_and(|n| n == 0.0))
+}
+
+pub(crate) fn de_json(v: serde_json::Value) -> Valor {
     match v {
         serde_json::Value::Null => Valor::Nulo,
         serde_json::Value::Bool(b) => Valor::Bool(b),
@@ -304,21 +343,36 @@ fn iguais(a: &Valor, b: &Valor) -> bool {
 
 // ───────────────────────────── avaliação ─────────────────────────────
 
-/// Avalia `e`, lendo o contexto por `ler`. As chamadas `t`/`num`/`date` vão ao
-/// i18n com os argumentos já avaliados.
+/// Avalia `e` lendo o contexto como **texto** (o contexto do motor é
+/// `String → String`). Uma chave volta como `Valor::Texto`, e o tipo é inferido
+/// na operação — o comportamento de sempre.
 pub fn avalia(e: &Expr, ler: &mut dyn FnMut(&str) -> Option<String>) -> Valor {
+    let mut l = |k: &str| ler(k).map(Valor::Texto);
+    avalia_tipado(e, &mut l)
+}
+
+/// Avalia `e` com o **tipo** de cada chave à mão: `ler` devolve o `Valor` da
+/// chave, refeito da tag que o `ctx_types` guardou (`@ativo` é `Bool`, `@n` é
+/// `Num`, `@lista` é `Lista`). É o caminho do `eval` desde a Frente 1 do
+/// `TODO.md`: `if @ativo` testa o booleano, `@n > 3` testa o número, e uma lista
+/// é lista sem passar por `json.encode`.
+///
+/// A leitura continua passando por uma única closure, e é ela que registra a
+/// dependência — ver o doc do módulo.
+pub fn avalia_tipado(e: &Expr, ler: &mut dyn FnMut(&str) -> Option<Valor>) -> Valor {
     match e {
         Expr::Lit(v) => v.clone(),
-        Expr::Ref(k) => match ler(k) {
-            Some(s) => Valor::Texto(s),
-            None => Valor::Nulo,
-        },
-        Expr::Lista(itens) => Valor::Lista(itens.iter().map(|i| avalia(i, ler)).collect()),
-        Expr::Nao(x) => Valor::Bool(!avalia(x, ler).verdadeiro()),
-        Expr::E(a, b) => Valor::Bool(avalia(a, ler).verdadeiro() && avalia(b, ler).verdadeiro()),
-        Expr::Ou(a, b) => Valor::Bool(avalia(a, ler).verdadeiro() || avalia(b, ler).verdadeiro()),
+        Expr::Ref(k) => ler(k).unwrap_or(Valor::Nulo),
+        Expr::Lista(itens) => Valor::Lista(itens.iter().map(|i| avalia_tipado(i, ler)).collect()),
+        Expr::Nao(x) => Valor::Bool(!avalia_tipado(x, ler).verdadeiro()),
+        Expr::E(a, b) => {
+            Valor::Bool(avalia_tipado(a, ler).verdadeiro() && avalia_tipado(b, ler).verdadeiro())
+        }
+        Expr::Ou(a, b) => {
+            Valor::Bool(avalia_tipado(a, ler).verdadeiro() || avalia_tipado(b, ler).verdadeiro())
+        }
         Expr::Cmp(op, a, b) => {
-            let (a, b) = (avalia(a, ler), avalia(b, ler));
+            let (a, b) = (avalia_tipado(a, ler), avalia_tipado(b, ler));
             Valor::Bool(match op {
                 Op::Igual => iguais(&a, &b),
                 Op::Diferente => !iguais(&a, &b),
@@ -334,49 +388,64 @@ pub fn avalia(e: &Expr, ler: &mut dyn FnMut(&str) -> Option<String>) -> Valor {
             })
         }
         Expr::Em(item, lista) => {
-            let item = avalia(item, ler);
-            let lista = avalia(lista, ler);
+            let item = avalia_tipado(item, ler);
+            let lista = avalia_tipado(lista, ler);
             Valor::Bool(lista.itens().iter().any(|v| iguais(v, &item)))
         }
-        Expr::Vazio(x, negado) => Valor::Bool(avalia(x, ler).vazio() != *negado),
+        Expr::Vazio(x, negado) => Valor::Bool(avalia_tipado(x, ler).vazio() != *negado),
         Expr::Se(c, a, b) => {
-            if avalia(c, ler).verdadeiro() {
-                avalia(a, ler)
+            if avalia_tipado(c, ler).verdadeiro() {
+                avalia_tipado(a, ler)
             } else {
                 match b {
-                    Some(b) => avalia(b, ler),
+                    Some(b) => avalia_tipado(b, ler),
                     None => Valor::Texto(String::new()),
                 }
             }
         }
+        // `@a ?? @b`: o lado esquerdo só cede quando a chave **não existe**. Uma
+        // chave existente com texto vazio é o que o app gravou, não um ausente.
+        Expr::Senao(a, b) => match avalia_tipado(a, ler) {
+            Valor::Nulo => avalia_tipado(b, ler),
+            v => v,
+        },
         Expr::Interp(partes) => {
             let mut out = String::new();
             for p in partes {
                 match p {
                     Parte::Texto(t) => out.push_str(t),
-                    Parte::Chave(k) => out.push_str(&ler(k).unwrap_or_default()),
+                    Parte::Chave(k) => {
+                        if let Some(v) = ler(k) {
+                            out.push_str(&v.texto());
+                        }
+                    }
                 }
             }
             Valor::Texto(out)
         }
         Expr::Padrao(k, padrao) => match ler(k) {
-            Some(s) => Valor::Texto(s),
+            Some(v) => v,
             None => Valor::Texto(padrao.clone()),
         },
         // `json(a, b)`: os argumentos COM o tipo (literal `true` é booleano, `3` é
-        // número; uma chave do contexto chega como texto) num array JSON — é o
-        // que a ação `nome(a, b)` do `.gv` carrega até o handler Luau.
+        // número; uma chave tipada do contexto chega com o tipo dela desde a
+        // Frente 1) num array JSON — é o que a ação `nome(a, b)` do `.gv` carrega
+        // até o handler Luau.
         Expr::Chamada(nome, pos, _) if nome == "json" => {
-            let itens: Vec<serde_json::Value> = pos.iter().map(|p| avalia(p, ler).json()).collect();
+            let itens: Vec<serde_json::Value> =
+                pos.iter().map(|p| avalia_tipado(p, ler).json()).collect();
             Valor::Texto(serde_json::Value::Array(itens).to_string())
         }
         Expr::Chamada(nome, pos, nomeados) => {
-            let pos: Vec<String> = pos.iter().map(|p| avalia(p, ler).texto().into_owned()).collect();
+            let pos: Vec<String> = pos
+                .iter()
+                .map(|p| avalia_tipado(p, ler).texto().into_owned())
+                .collect();
             let nomeados: Vec<(String, String)> = nomeados
                 .iter()
-                .map(|(k, v)| (k.clone(), avalia(v, ler).texto().into_owned()))
+                .map(|(k, v)| (k.clone(), avalia_tipado(v, ler).texto().into_owned()))
                 .collect();
-            chama(nome, &pos, &nomeados, ler)
+            chama(nome, &pos, &nomeados, &mut |k| ler(k).map(|v| v.texto().into_owned()))
         }
     }
 }
@@ -531,21 +600,34 @@ impl<'s> Leitor<'s> {
     }
 
     fn ternario(&mut self) -> Result<Expr, ErroExpr> {
-        let c = self.ou()?;
+        let c = self.senao()?;
         self.espaco();
-        if !self.come("?") {
+        if !self.come("?") || self.peek() == Some('?') {
             return Ok(c);
         }
         self.espaco();
         let a = self.ternario()?;
         self.espaco();
-        let b = if self.come(":") {
+        let b = if self.peek() == Some(':') && self.peek_at(1) != Some('=') {
+            self.i += 1;
             self.espaco();
             Some(Box::new(self.ternario()?))
         } else {
             None
         };
         Ok(Expr::Se(Box::new(c), Box::new(a), b))
+    }
+
+    /// `a ?? b` — o padrão sem o `|` de texto livre (Frente 10). Mais fraco que
+    /// `||`, para `@a || @b ?? "x"` ser `(a || b) ?? "x"`.
+    fn senao(&mut self) -> Result<Expr, ErroExpr> {
+        let a = self.ou()?;
+        self.espaco();
+        if !self.come("??") {
+            return Ok(a);
+        }
+        self.espaco();
+        Ok(Expr::Senao(Box::new(a), Box::new(self.senao()?)))
     }
 
     fn ou(&mut self) -> Result<Expr, ErroExpr> {
@@ -959,5 +1041,85 @@ mod tests {
         assert!(!eh_caminho("a && b"));
         assert!(!eh_caminho("true"));
         assert!(!eh_caminho("t('x')"));
+    }
+
+    // ── Frente 1 (TODO.md): valor com tipo, não com texto ──────────────────
+
+    /// O contexto com tags: cada par `(chave, Valor)` existe de verdade.
+    fn ctx_tipado(pares: &[(&str, Valor)]) -> impl FnMut(&str) -> Option<Valor> {
+        let m: HashMap<String, Valor> =
+            pares.iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
+        move |k| m.get(k).cloned()
+    }
+
+    fn evt(src: &str, pares: &[(&str, Valor)]) -> Valor {
+        let e = parse(src).unwrap_or_else(|e| panic!("{src}: {e}"));
+        let mut l = ctx_tipado(pares);
+        avalia_tipado(&e, &mut l)
+    }
+
+    #[test]
+    fn chave_tipada_chega_com_o_tipo() {
+        // O `@x == "true"` do rustploy: com o tipo à mão, o teste é direto.
+        assert_eq!(evt("@ativo", &[("ativo", Valor::Bool(true))]), Valor::Bool(true));
+        assert!(!evt("@ativo", &[("ativo", Valor::Bool(false))]).verdadeiro());
+        assert!(evt("@nao_digitado", &[("nao_digitado", Valor::Texto("não".into()))])
+            .verdadeiro());
+        assert_eq!(evt("@n > 3", &[("n", Valor::Num(4.0))]), Valor::Bool(true));
+        assert_eq!(evt("@n > 3", &[("n", Valor::Num(3.0))]), Valor::Bool(false));
+    }
+
+    #[test]
+    fn lista_nao_precisa_de_json_encode() {
+        let l = Valor::Lista(vec![Valor::Num(1.0), Valor::Num(2.0)]);
+        assert_eq!(evt("@itens is not empty", &[("itens", l.clone())]), Valor::Bool(true));
+        assert_eq!(evt("@k in @itens", &[("k", Valor::Num(2.0)), ("itens", l.clone())]), Valor::Bool(true));
+        // `json(@itens)` leva a lista como lista, não como texto.
+        assert_eq!(evt("json(@itens)", &[("itens", l)]).texto(), "[[1,2]]");
+    }
+
+    #[test]
+    fn coalescencia_le_so_o_ausente() {
+        assert_eq!(evt("@a ?? \"padrão\"", &[("a", Valor::Texto("x".into()))]).texto(), "x");
+        assert_eq!(evt("@a ?? \"padrão\"", &[]).texto(), "padrão");
+        // Diferente do `|` antigo por texto: um valor existente vazioso é do app.
+        assert_eq!(evt("@a ?? \"padrão\"", &[("a", Valor::Texto(String::new()))]).texto(), "");
+        assert_eq!(evt("@a ?? @b ?? \"fim\"", &[("b", Valor::Num(2.0))]).texto(), "2");
+    }
+
+    #[test]
+    fn regra_de_verdade_tipada() {
+        let textual = |s: &str| {
+            set_verdade_tipada(false);
+            texto_verdadeiro(s)
+        };
+        let tipada = |s: &str| {
+            set_verdade_tipada(true);
+            let r = texto_verdadeiro(s);
+            set_verdade_tipada(false);
+            r
+        };
+        // A regra de hoje: palavra negativa é falsa.
+        assert!(!textual("não"));
+        assert!(!textual("off"));
+        assert!(!textual("false"));
+        assert!(!textual("0"));
+        // A regra nova: palavra é texto, e texto é verdadeiro. As formas
+        // canônicas de um bool/número continuam falsas.
+        assert!(tipada("não"));
+        assert!(tipada("no"));
+        assert!(tipada("off"));
+        assert!(tipada("falso"));
+        assert!(!tipada("false"));
+        assert!(!tipada("0"));
+        assert!(!tipada(""));
+        assert!(!tipada("[]"));
+        assert!(!tipada("{}"));
+        assert!(tipada("1"));
+        // `Valor::Bool` e `Valor::Num` não passam por texto nenhum.
+        assert!(!Valor::Bool(false).verdadeiro());
+        assert!(!Valor::Num(0.0).verdadeiro());
+        assert!(!Valor::Nulo.verdadeiro());
+        assert!(!Valor::Lista(vec![]).verdadeiro());
     }
 }

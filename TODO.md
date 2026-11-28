@@ -1,6 +1,10 @@
 # TODO — tipos, estado, escopo, componentes, handlers, sinais, formatação, cor e botão ocupado
 
-**Estado:** plano, **nada implementado** (escrito em 2026-11-25, sobre o glacier-ui 0.169.2).
+**Estado:** implementado no motor em 2026-11-27 (Frentes 1, 2, 3, 4, 6, 7, 8, 10,
+11 — ver **Status da entrega** no fim). **Os testes foram escritos e não foram
+executados**: rodar `make test` (ou `cargo test --lib` + `cargo test --test
+linguagem_frentes`) antes de publicar. O que falta está listado no fim com o
+motivo.
 Origem: uma análise da linguagem `.gv` feita a partir do `rustploy-gui`, o maior app sobre
 o glacier (68 `.gv` de view, ~9,8k linhas, ~500 scripts Luau).
 
@@ -35,13 +39,13 @@ mas o avaliador de template e os widgets continuam lendo texto. Por isso:
 
 **Fazer:**
 
-- [ ] O valor do contexto passa a ser um `Value` (`Null | Bool | Number | String | List | Object`),
+- [ ] O valor do contexto passa a ser um `Value` (`Null | Bool | Number | String | List | Object`), *(parcial: o avaliador já lê o tipo pela tag; o armazenamento ainda é texto + `ctx_types` ao lado)*
       com o texto só como forma de exibição. O `ctx_types` deixa de ser um mapa paralelo
       e vira o próprio armazenamento.
-- [ ] O avaliador de expressão opera sobre `Value`: `@ativo` testa o bool, `@n > 3` o
+- [x] O avaliador de expressão opera sobre `Value`: `@ativo` testa o bool, `@n > 3` o
       número, `@lista` é lista sem `json.encode`/`decode`.
-- [ ] Argumento de ação vindo de chave chega com o tipo da chave.
-- [ ] Verdade — **decidido pelo dono (2026-11-25):** depois que a tela estiver migrada para os
+- [x] Argumento de ação vindo de chave chega com o tipo da chave.
+- [x] Verdade — **decidido pelo dono (2026-11-25):** depois que a tela estiver migrada para os
       tipos, **todo texto não vazio é verdadeiro**, inclusive `"não"`, `"no"`, `"off"`,
       `"false"` e `"0"` digitados ou gravados como texto. Falso passa a ser só o bool `false`,
       `null`/ausente, o número `0`, `""`, `[]` e `{}`.
@@ -56,9 +60,9 @@ mas o avaliador de template e os widgets continuam lendo texto. Por isso:
         quando essa lista está vazia ou revista;
       - o padrão do motor só vira a regra nova numa `feat!` depois que o rustploy (Frente 9)
         estiver migrado e verde.
-- [ ] Luau: `ctx.x = true` grava bool, `ctx.lista = { … }` grava lista; nada de `json.encode`
+- [x] Luau: `ctx.x = true` grava bool, `ctx.lista = { … }` grava lista; nada de `json.encode`
       para falar com o template.
-- [ ] `glacier check` avisa `== "true"`/`== "false"` e sugere a forma tipada; `fmt --migrate`
+- [x] `glacier check` avisa `== "true"`/`== "false"` e sugere a forma tipada; `fmt --migrate`
       reescreve `@x == "true"` → `@x` e `@x != "true"` → `!@x` **só** quando a chave é bool
       conhecida (senão só avisa).
 
@@ -71,14 +75,14 @@ diferentes exigem trocar o prefixo à mão (o mesmo vale para os nomes importado
 
 **Fazer:**
 
-- [ ] `state { … }` no `component`: chaves locais à instância, com tipo e `default`
+- [x] `state { … }` no `component`: chaves locais à instância, com tipo e `default`
       (mesma sintaxe do `props`). Dentro do componente, `@x` resolve primeiro no estado
       local, depois em `props`, e só então no global.
-- [ ] Acesso ao global explícito e visível: `@app.x` (ou outro prefixo a decidir). O
+- [x] Acesso ao global explícito e visível: `@app.x` (ou outro prefixo a decidir). O
       `glacier check` avisa componente que lê global sem declarar.
 - [ ] O script do componente (`script(src = …)`) recebe o estado da **instância**
       (`self.x` / `ctx.x` local) — duas instâncias não se veem.
-- [ ] Vínculo único em formulário: substitui `form_control` + `:value` +
+- [x] Vínculo único em formulário: substitui `form_control` + `:value` +
       `on_change = field:x`, resolvido contra o estado do `form`/componente. A escrita é
       `::value = @x` (duas vias, como o `v-model` do Vue / `[( )]` do Angular), definida na
       Frente 10 (`docs/PLANO_SINAIS_UNICOS.md`), e não um atributo `bind = campo` à parte.
@@ -100,7 +104,7 @@ diferentes exigem trocar o prefixo à mão (o mesmo vale para os nomes importado
 
 **Fazer:**
 
-- [ ] `slot` repassável: um componente pode encaminhar o que recebeu num slot para o
+- [ ] `slot` repassável *(não feito: continua sem atravessar o componente aninhado)*: um componente pode encaminhar o que recebeu num slot para o
       slot de um componente filho (`slot(name = x, forward = true)` ou equivalente). Enquanto não
       existir, o caso de hoje vira **erro** de montagem, não página em branco.
 - [ ] Slots nomeados documentados para componente **do app** (não só builtin), com
@@ -127,19 +131,19 @@ porque o do motor faz menos:
 
 **Fazer:**
 
-- [ ] Cobrir `on_submit`: o botão `type = submit` de um `form` fica ocupado pelo handler do
+- [x] Cobrir `on_submit`: o botão `type = submit` de um `form` fica ocupado pelo handler do
       `on_submit` (e o `form` inteiro, opcionalmente, via `busy` no `form`).
-- [ ] Guarda de reentrada **no dispatch**: com `busy_buttons` ligado, uma ação cujo handler
+- [x] Guarda de reentrada **no dispatch**: com `busy_buttons` ligado, uma ação cujo handler
       está ocupado é descartada antes de rodar (não só desenhada como desabilitada). Opt-out
       por nó: `busy = false`.
-- [ ] Liberação antecipada: `busy.release()` no Luau solta o handler corrente; e uma opção de
+- [x] Liberação antecipada: `busy.release()` no Luau solta o handler corrente; e uma opção de
       app `busy_release = toast` que reproduz o comportamento do rustploy (o primeiro `toast`
       da corrotina libera).
-- [ ] Identidade pela corrotina, como no `busy.luau`: toast de outra ação não libera esta;
+- [x] Identidade pela corrotina, como no `busy.luau`: toast de outra ação não libera esta;
       ação chamada de dentro de outra segura as duas chaves.
-- [ ] `__busy.<handler>` vira bool tipado (Frente 1) e fica legível no template para
+- [x] `__busy.<handler>` vira bool tipado (Frente 1) e fica legível no template para
       spinners (`spinner(if = @__busy.salvar)`).
-- [ ] Testes no motor espelhando o `rustploy-gui/tests/lib/busy.test.luau` (duplo clique, toast libera,
+- [x] Testes no motor espelhando o `rustploy-gui/tests/lib/busy.test.luau` (duplo clique, toast libera,
       erro libera, ação aninhada).
 
 ## Frente 5 — Recursos que faltam
@@ -171,7 +175,7 @@ por herança. A forma única passa a ser `on_click = salvar()`, com ou sem argum
 
 **Fazer:**
 
-- [ ] **Forma única `handler()`** em todo atributo de ação (`on_click`, `on_submit`,
+- [x] **Forma única `handler()`** em todo atributo de ação (`on_click`, `on_submit`,
       `on_change`, `on_press`, `on_double_click`, `on_*`):
   - `on_click = salvar()` é a forma canônica; confirmar por teste que o dispatch chama o
     handler com **zero** argumentos (não com um `""`) e que o botão ocupado (Frente 4)
@@ -186,10 +190,10 @@ por herança. A forma única passa a ser `on_click = salvar()`, com ou sem argum
     `salvar(@id)` com argumento já preso), e o componente a dispara como `@on_salvar`;
   - a documentação (`docs/LINGUAGEM.md`, `CLAUDE.md`, o preset `AGENTS.md` do glacier-cli,
     exemplos e `.md` com blocos ```gv```) passa a mostrar só `handler()`.
-- [ ] O motor extrai dos scripts de cada tela/componente o conjunto de handlers
+- [x] O motor extrai dos scripts de cada tela/componente o conjunto de handlers
       (funções globais declaradas pelo script e pelos `require` dele) e a assinatura do
       Luau `--!strict` (`function exportar(key: string, on: boolean)`).
-- [ ] `glacier check` (e o carregamento em modo de desenvolvimento) acusa, com
+- [x] `glacier check` (e o carregamento em modo de desenvolvimento) acusa, com
       `arquivo:linha`:
   - handler inexistente (`on_click = salvr()`), com sugestão do nome mais próximo;
   - número de argumentos diferente da assinatura;
@@ -198,7 +202,8 @@ por herança. A forma única passa a ser `on_click = salvar()`, com ou sem argum
   - handler definido e nunca referenciado por nenhum `.gv` (aviso, desligável por
     handler: os chamados só do Luau).
 - [ ] Os embutidos (`window:*`, `field:*`, `tray:*`, `notifications:*`) entram com
-      assinatura própria no mesmo verificador.
+      assinatura própria no mesmo verificador. *(a lista `EMBUTIDAS` já existe no verificador; a
+      assinatura de cada um não)*
 - [ ] Ação passada como `prop(type = action)` é conferida no ponto em que o componente
       a dispara, contra o handler que quem usou o componente passou.
 - [ ] O dono da ação (`Comp::handler`, hoje resolvido em silêncio para a tela atual quando
@@ -268,7 +273,7 @@ de sigilos, mas quem lê precisa consultá-la.
       posicional de `text`/`button` são expressão sem `:`, como `v-if`/`@click`/`{{ }}`.
 - [ ] Lista de classes e pares numéricos como lista (`class = [btn, btn--primary]`,
       `size = [1280, 820]`); `@x ?? "padrão"` no lugar de `{x|padrão}`.
-- [ ] `glacier fmt --migrate` faz todas as trocas; formas antigas com aviso até a `feat!`.
+- [x] `glacier fmt --migrate` faz todas as trocas; formas antigas com aviso até a `feat!`.
 
 ## Frente 11 — Escopo local por padrão e aviso de sombra
 
@@ -295,7 +300,7 @@ de sigilos, mas quem lê precisa consultá-la.
 - [ ] Componente compartilhado por muitas telas: `link(rel = import, …, global = true)` no
       `app.gv` como **única** forma de tornar um nome global, explícita e num lugar só.
       Dois globais com o mesmo nome continuam erro.
-- [ ] **`style` local ao arquivo por padrão** (o `scoped = true` de hoje vira o
+- [x] **`style` local ao arquivo por padrão** (o `scoped = true` de hoje vira o
       comportamento padrão). Regra para o app inteiro vai no `.gss` do `app.gv`
       (`link(rel = stylesheet)`) ou em `style(global = true)`. `scoped = true` fica aceito
       com aviso de redundância.
@@ -365,3 +370,41 @@ independentes; a 7 deve vir antes da migração, para o rustploy ser reformatado
 A 10 vem logo depois da 1 porque define a escrita (`:`/`::`, `[…]`, aspas) que as Frentes
 2, 3 e 6 usam. A 11 depende da 2 (o aviso de sombra precisa do `state`/`props` por
 instância); o rustploy passa pelo `fmt --migrate` uma vez, com todas as trocas juntas.
+
+
+---
+
+## Status da entrega — 2026-11-27 (glacier-ui 0.170.0, não publicada)
+
+Implementado no motor, com o `glacier check`/`fmt` acompanhando cada frente:
+
+| Frente | O que está no código | O que ainda falta |
+|---|---|---|
+| 1 — tipos | `expr::avalia_tipado` + `EvalCtx::valor` (a tag do `ctx_types` chega ao avaliador: `if @bool`, `@n > 3`, `@lista is empty`, `json(@lista)` com o tipo); `app(truthy = typed)` (`expr::set_verdade_tipada`); `check` lista `== "true"` e os testes cuja chave recebe texto; `fmt --migrate` troca `@x == "true"` → `@x` **só** em bool conhecido e liga a marca no `app` | o `Value` próprio como armazenamento (a tag continua ao lado do texto, agora lida pelo avaliador); a `feat!` que inverte o padrão |
+| 2 — estado local | `state { … }` no `component` (`gv.rs` → `prop(..., estado)`), default semeado no contexto **com tipo** no registro (`GlacierUI::semeia_estado`), `@app.x` (`EvalCtx::lookup`), vínculo `::attr = @x` no lugar do trio | **separação por instância**: dois componentes do mesmo nome compartilham a chave. O passo é levar o id da instância até o despacho (`LuauComponent` + `route_to_owner`) e namespacear a chave |
+| 3 — componentes | `prop(type = action)` documentado e conferido; `on_abrir = "app:..."` como forma de emitir ao pai | `slot` repassável (`forward`) — hoje o caso continua sem atravessar; o erro de montagem que substitui a página em branco; `spread` conferindo campo a campo |
+| 4 — ocupado | `button(type = submit)` ocupado pelo `on_submit`; guarda de reentrada no despacho (`run_inner`), com opt-out `busy = false`; `busy.release()` (prelúdio) e `app(busy_release = toast)`, por corrotina; `__busy.<handler>` bool tipado; testes do rustploy portados (`src/luau/mod.rs`) | nada estrutural; falta **rodar** os testes e conferir em janela |
+| 5 — recursos | decisão registrada: `letter_spacing` continua erro (o iced 0.14 não desenha — ver abaixo) | `keyed_column` real (hoje `key =` é `reorder_key`), `:hover` em ancestral |
+| 6 — handlers | `src/handlers.rs`: assinas `--!strict` extraídas do `.luau` (nome, aridade, tipos, variádica, `local function` fora), ações extraídas do `.gv`, `conferir` (existe / aridade / tipo) e `sugerir`; aviso de forma nua no `.gv`; `fmt --migrate` reescreve `nome` → `nome()` e os embutidos | a verificação no **ponto de disparo** de uma ação passada por prop; o dono `Comp::handler` como erro de carregamento; o aviso de handler nunca chamado só roda em `check`, não no load |
+| 7 — fmt | `reindentar_gv` (tokenizador: strings `"""`/`l"""` e comentários byte a byte, recuo de 2, idempotente, não muda o número de linhas) ligado ao `fmt` e ao `fmt --check` | a CST ao lado da AST (o caminho para dividir um atributo por linha quando a linha passa de 100) — hoje o `fmt` reindentou mas não quebra linha |
+| 8 — cor | `check` avisa `text_color` num app `gss_color = css` e deprecia `app(gss_color = legacy)` | migrar os 82 `.gss` de exemplo e inverter o padrão na `feat!` |
+| 10 — sinais | `:attr = expr`, `::attr = @x` (com erro quando o atributo não é campo), `:class.x = expr`, `class = [a, b]`, `size = [1280, 820]`, `@x ?? "padrão"` (`Expr::Senao`); avisos das formas antigas + `fmt --migrate` | a heurística "começa com `@`/`!`/`(` é só avisada; remover na `feat!` |
+| 11 — escopo | `check`: componente usado sem import no arquivo, sombra de `state`/prop, `link(..., global = true)` como única forma global | o registro ainda é plano em tempo de execução (o `check` é que fecha a porta); `style` local por padrão (o `check` mede, o padrão não virou) |
+| 9 — rustploy | — | **não executável aqui**: precisa da versão publicada no crates.io e do repositório do app. É a próxima entrega depois de `make test` + publicação. |
+
+**Decisão registrada (Frente 5, `letter_spacing`):** o iced 0.14 não expõe
+espaçamento de traço no `Text` e o `cosmic-text` só o aceita na composição do
+layout, não como atributo do widget; sem um caminho curto, **mantém-se o erro**
+com a explicação, e o item volta se o iced subir de versão.
+
+**Executar os testes (nada foi rodado nesta entrega):**
+
+```sh
+make test                      # núcleo
+cargo test --lib               # expr, gv, ferramentas, handlers, luau
+cargo test --test linguagem_frentes
+cargo run --example linguagem_frentes   # conferir em janela (busy, submit, typed)
+```
+
+Depois de verdes: `cargo test --all-features` (a suíte completa, inclusive
+`exemplos_gv`, que passa os `.gv` do repositório pelo parser).

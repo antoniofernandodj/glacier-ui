@@ -8,6 +8,54 @@ incompatíveis. Toda quebra vem listada em **Quebras** com o que fazer para migr
 
 ---
 
+## glacier-ui 0.170.0 (em desenvolvimento) — as frentes do `TODO.md`
+
+Linguagem, não reforço de motor: as frentes 1, 2, 3, 4, 6, 7, 8, 10 e 11 do
+`TODO.md`, com `glacier check` e `glacier fmt --migrate` acompanhando. **Nada
+muda de comportamento por padrão** — cada troca é opt-in pelo markup, ligada pela
+migração da tela, e as formas antigas continuam valendo até a `feat!`.
+
+- **Frente 1 — contexto tipado.** A expressão lê o **tipo** que o script gravou
+  (`ctx.x = true` é bool, `ctx.n = 3` é número, `ctx.l = {}` é lista): `if @ativo`,
+  `@n > 3`, `@lista is empty` e `json(@lista)` funcionam sem `== "true"` nem
+  `json.encode`. Regra de verdade nova atrás de `app(truthy = typed)`: falso é só
+  `false`, `0`, `null`, `""`, `[]`, `{}` — `"não"`, `"no"`, `"off"` viram o que
+  são (texto). `glacier check` lista todo teste cuja chave pode receber texto; o
+  `fmt --migrate` só troca `@x == "true"` → `@x` quando a chave é bool conhecida,
+  e liga a marca no `app` no mesmo passo.
+- **Frente 2 — `state { … }`** no `component`: chaves locais tipadas, com default
+  semeado no contexto no registro (escritas pelo widget e pelo script do
+  componente) e `@app.x` para dizer o global. *A separação por **instância** ainda
+  não existe: o próximo passo é o id de instância no despacho Luau.*
+- **Frente 3 — `slot` e props**: `spread` confere contra `props`, e o padrão
+  "componente emite, quem usa decide" (`prop(type = action)` + `on_click =
+  @on_abrir`) está documentado e conferido pelo `check`.
+- **Frente 4 — botão ocupado no motor**: `button(type = submit)` é ocupado pelo
+  `on_submit` do `form`; com `busy_buttons = true` um segundo disparo da mesma
+  ação é **descartado** no despacho (`busy = false` no nó libera); `busy.release()`
+  no Luau e `app(busy_release = toast)` liberam antes de a corrotina terminar;
+  `__busy.<handler>` é bool tipado — `spinner(if = @__busy.salvar)`.
+- **Frente 6 — ação é sempre chamada.** `on_click = salvar()` é a forma canônica
+  (`salvar`, `window:minimize`, `field:nome` são depreciadas e o `fmt --migrate`
+  reescreve); o `check` extrai as assinaturas `--!strict` dos `.luau` e acusa
+  handler inexistente (com o nome mais próximo), aridade errada e argumento de
+  tipo errado, com `arquivo:linha`.
+- **Frente 7 — `glacier fmt` reindenta.** Recuo de dois, comments e strings
+  `"""`/`l"""` atravessados byte a byte, idempotente, sem mudar o número de
+  linhas (a regra de ouro do `.gv`); `fmt --check` falha no CI quando algo está
+  fora do formato.
+- **Frente 10 — sinais.** `:attr = expr` é uma via, `::attr = @x` é o vínculo nos
+  dois sentidos (mata o trio `form_control` + `:value` + `on_change = field:x`),
+  `:class.ativa = expr` é a classe condicional, `class = [a, b]` e `size =
+  [1280, 820]` são listas, `@x ?? "padrão"` substitui `{x|padrão}`.
+- **Frente 11 — escopo.** O `check` acusa componente usado sem `link(rel =
+  import)` no arquivo, `state`/prop sombreando chave global escrita em outro lugar
+  (silenciável com `shadow = true`) e `text_color` num app `gss_color = css`.
+
+**Quebras:** nenhuma nesta versão. `app(gss_color = css)`, `app(truthy = typed)`,
+o import local e a forma nua de ação viram padrão (e erro de parse) na `feat!`
+depois de migrado o `rustploy-gui` (Frente 9).
+
 ## glacier-ui 0.169.2 — 2026-11-25
 
 - **Texto entre aspas interpola `@chave` dentro de uma expressão**, como em todo texto do

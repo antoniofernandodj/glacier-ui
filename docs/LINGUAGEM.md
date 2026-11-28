@@ -103,6 +103,74 @@ tipo errado no uso é erro; valor do contexto do tipo errado avisa uma vez. Prop
 `on_click` está suspenso (num `fetch`, num diálogo). A chave é `__busy.<handler>`.
 `busy = false` desliga num nó; `busy = @x` usa outra condição.
 
+
+## A linguagem das frentes (`TODO.md`, 0.170)
+
+### O `:` decide o que o valor é
+
+```gv
+textinput(::value = @form.nome)      // vínculo nos dois sentidos: a CHAVE
+badge(:text = @ativo ? "on" : "off") // uma via: o atributo recebe a expressão
+text(:count = @{n} + 1)              //   (e só aqui o valor é expressão)
+text("oi", class = [btn, btn--lg, @extra])   // lista de classes
+row(size = [1280, 820])              // par numérico como lista
+row(:class.ativa = @view == @alvo)   // classe condicional
+text("{@total ?? "nenhum"}")       // `??` no lugar de `{total|nenhum}`
+```
+
+Sem `:` o valor é literal ou interpolação (`"texto com @{n}"`), como sempre. A
+forma antiga de ligação (`:value = nome`, com o nome nu) continua valendo e é
+avisada — `glacier fmt --migrate` escreve `::value = @nome`.
+
+### Ação é sempre chamada
+
+```gv
+button("Salvar", on_click = salvar())              // a forma canônica
+button("Exportar", on_click = exportar(@item.key, true))
+button("_", on_click = window.minimize())          // embutidos, mesma regra
+button("Ir", on_click = "app:ir(@destino)")        // escapa do dono do componente
+```
+
+`on_click = salvar` e `window:minimize` são depreciados (aviso com `arquivo:linha`,
+o `fmt --migrate` reescreve, a `feat!` torna erro). O `glacier check` lê as
+assinaturas `--!strict` dos `.luau` da árvore e acusa handler inexistente (com o
+nome mais próximo), aridade errada e argumento do tipo errado.
+
+### `state` e o global explícito
+
+```gv
+component(name = Cartao) {
+  props {
+    prop(name = titulo, type = string)
+    prop(name = on_abrir, type = action, default = "")
+  }
+  state {                       // local ao componente, tipado, com default
+    aberto = false,
+    toques = 0,
+  }
+  column(if = @aberto) { text("{@app.contagem}") }   // @app. é o global, dito
+}
+```
+
+`state` declara a chave, o tipo e o valor inicial; o widget (`::checked = @aberto`)
+e o script do componente escrevem nela. A separação por **instância** ainda não
+existe (dois `Cartao` compartilham a chave) — é o próximo passo do `TODO.md`.
+
+### Verdade com tipo
+
+`app(truthy = typed)`: falso é `false`, `0`, `null`, `""`, `[]` e `{}`; **todo
+texto é verdadeiro**, inclusive `"não"`, `"no"` e `"off"`. Sem a marca, vale a
+regra textual de sempre. O `glacier check` lista os testes que mudam de valor com
+a marca, e o `fmt --migrate` só a liga quando essa lista está vazia.
+
+### Botão ocupado
+
+`app(busy_buttons = true, busy_release = toast)`: o botão de um handler suspenso
+fica desabilitado, um segundo disparo da mesma ação é descartado, o `type = submit`
+é ocupado pelo `on_submit` do form, e o primeiro `toast` da corrotina (ou um
+`busy.release()` explícito) libera antes de ela terminar. `spinner(if =
+@__busy.salvar)` lê o bool tipado. `busy = false` num nó desliga a guarda dele.
+
 ## `.gss`
 
 ### Seletores

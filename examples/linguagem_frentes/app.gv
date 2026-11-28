@@ -1,0 +1,238 @@
+// As Frentes 1–11 do `TODO.md` numa tela só, com a lógica em Luau.
+//
+//   WGPU_BACKEND=gl cargo run --example linguagem_frentes
+//
+// Nada aqui escreve `disabled` à mão, `json.encode`, `== "true"`, `on_click =
+// nome` sem parênteses ou `"@x"` para ler uma chave: é a linguagem depois do
+// plano. Cada bloco diz no rodapé qual frente ele mostra.
+
+app(
+  id = linguagem_frentes,
+  title = "Frentes do TODO.md",
+  size = [940, 900],
+  // Frente 1: a regra de verdade é a dos tipos — texto é texto.
+  truthy = typed,
+  // Frente 4: o botão ocupado do motor, liberando no toast da própria ação.
+  busy_buttons = true,
+  busy_release = toast,
+  // Frente 8: `background` é o fundo, `color` é o conteúdo — em todo widget.
+  gss_color = css,
+) {
+  resources {
+    // Frente 11: o import é LOCAL a este arquivo. Sem esta linha, `Cartao` é erro
+    // do `glacier check` com a linha do uso e o link a acrescentar.
+    link(rel = import, href = "examples/linguagem_frentes/cartao.component.gv", as = Cartao)
+    link(rel = stylesheet, href = "examples/linguagem_frentes/app.gss")
+  }
+
+  screen(name = principal, initial = true, title = "Frentes do TODO.md") {
+    resources {
+      script """
+        --!strict
+        -- As anotações são o que o `glacier check` confere contra o `.gv`:
+        -- `abrir(@c.id)` passa; `abrir(3)` é erro de tipo, com arquivo:linha.
+
+        type Servico = { id: string, nome: string, ok: boolean, ms: number }
+
+        function init()
+          -- Frente 1: bool, número, texto e lista DE VERDADE. O template testa
+          -- `@ativo`, compara `@limite > 3` e itera `@servicos` — sem `== "true"`
+          -- e sem um `json.encode` no caminho.
+          ctx.ativo = true
+          ctx.limite = 4
+          ctx.resposta = ""
+          ctx.novo = ""
+          ctx.salvos = 0
+          ctx.ultimo = "—"
+          ctx.contagem = 0
+          ctx.veredito = "—"
+          ctx.servicos = {
+            { id = "web", nome = "proxy-web", ok = true, ms = 12 },
+            { id = "db", nome = "banco", ok = false, ms = 340 },
+          }
+        end
+
+        -- Frente 3: o componente EMITE, quem usa decide. `on_abrir` é uma prop de
+        -- ação; o `Cartao` dispara o que recebeu, e aqui chega o id do cartão.
+        function abrir(id: string)
+          ctx.ultimo = id
+          ctx.contagem = ctx.contagem + 1
+        end
+
+        function adicionar()
+          local texto = tostring(ctx.novo or "")
+          if texto == "" then
+            toast({ message = "escreva um nome antes", kind = "warning" })
+            return
+          end
+          local lista = ctx.servicos or {}
+          table.insert(lista, {
+            id = "s" .. tostring(#lista + 1),
+            nome = texto,
+            ok = true,
+            ms = 10 + (#lista * 7) % 90,
+          })
+          -- Frente 1: a lista vai como lista. `json.encode` só quando o destino é
+          -- a rede, nunca o contexto.
+          ctx.servicos = lista
+          ctx.novo = ""
+          toast({ message = "adicionado: " .. texto, kind = "success" })
+        end
+
+        function remover(id: string)
+          local lista = ctx.servicos or {}
+          local kept = {}
+          for _, s in ipairs(lista) do
+            if s.id ~= id then
+              table.insert(kept, s)
+            end
+          end
+          ctx.servicos = kept
+        end
+
+        function alternar(id: string)
+          local lista = ctx.servicos or {}
+          for _, s in ipairs(lista) do
+            if s.id == id then
+              s.ok = not s.ok
+              s.ms = s.ms + 5
+            end
+          end
+          ctx.servicos = lista
+        end
+
+        -- Frente 4: suspende duas vezes. O toast do meio é a resposta que chegou —
+        -- com `busy_release = toast` o botão volta ali, e o `after(700)` de
+        -- limpeza continua rodando atrás.
+        function salvar_lento()
+          local total = #(ctx.servicos or {})
+          if not confirm({ title = "Salvar", message = "Gravar os " .. total .. " itens?" }) then
+            toast({ message = "cancelado", kind = "info" })
+            return
+          end
+          ctx.salvos = ctx.salvos + 1
+          after(900)
+          toast({ message = "salvo em " .. tostring(ctx.ultimo), kind = "success" })
+          after(700)
+          ctx.contagem = ctx.contagem + 100
+        end
+
+        -- Sem toast nenhum: este libera só quando a corrotina termina.
+        function sincronizar()
+          after(1400)
+          ctx.ultimo = "sync"
+        end
+
+        -- Frente 1: a mesma chave, escrita como TEXTO por alguém. Com a regra
+        -- nova, "não" no campo é VERDADEIRO — texto é texto. Falso é só o bool
+        -- `false`, o número `0`, o vazio, `[]` e `{}`.
+        function testar_verdade()
+          local r = tostring(ctx.resposta or "")
+          if r == "" then
+            ctx.veredito = "vazio → falso"
+          elseif r == "não" or r == "no" or r == "off" then
+            ctx.veredito = "\"" .. r .. "\" é texto → verdadeiro (na regra antiga era falso)"
+          else
+            ctx.veredito = "texto não-vazio → verdadeiro"
+          end
+        end
+      """
+    }
+
+    column(class = [tela, tela--apertada]) {
+      row(class = cabecalho) {
+        text("Frentes do TODO.md", class = titulo)
+        // Frente 10: uma via — o atributo recebe o valor de uma expressão.
+        badge(:text = @ativo ? "tipado" : "textual", :class.ativa = @ativo)
+      }
+      text("Nenhum botão escreve disabled; nenhuma lista passa por json.encode.", class = nota)
+
+      // ── Frente 1: tipos ────────────────────────────────────────────────
+      column(class = bloco) {
+        text("1 · Contexto tipado de ponta a ponta", class = subtitulo)
+        row(class = linha) {
+          // Frente 10: `::checked = @ativo` é o vínculo nos dois sentidos — o
+          // trio `form_control` + `:value` + `on_change = field:x` morreu.
+          toggle(::checked = @ativo, class = campo)
+          text("@ativo é booleano de verdade", class = valor)
+          slider(::value = @limite, min = 0, max = 10, class = largo)
+        }
+        // Os três testes abaixo são de TIPO, não de texto.
+        text("liberado: @limite > 3", class = ok, if = @limite > 3)
+        text("travado: @limite <= 3", class = alerta, if = @limite <= 3)
+        text("ativo: o bool é true", class = ok, if = @ativo)
+        text("inativo: o bool é false", class = alerta, if = !@ativo)
+        row(class = linha) {
+          textinput(placeholder = "escreva nao no campo" , ::value = @resposta, class = campo_grande)
+          button("Testar verdade", class = btn, on_click = testar_verdade())
+        }
+        text("{@veredito}", class = codigo)
+        text("{len(@servicos)} serviço(s) na lista", class = valor, if = @servicos is not empty)
+        text("a lista está vazia", class = nota, if = @servicos is empty)
+      }
+
+      // ── Frente 4: botão ocupado ────────────────────────────────────────
+      column(class = bloco) {
+        text("4 · Botão ocupado no motor (sem busy.luau no app)", class = subtitulo)
+        row(class = linha) {
+          button("Salvar (lento)", class = btn, on_click = salvar_lento())
+          spinner(if = @__busy.salvar_lento, class = giro)
+          button("Sincronizar", class = btn, on_click = sincronizar())
+          spinner(if = @__busy.sincronizar, class = giro)
+          // Submit de formulário: o `type = submit` é ocupado pelo `on_submit` do
+          // form — o caso que o motor não cobria.
+          form(on_submit = salvar_lento(), class = linha) {
+            textinput(placeholder = "campo do form", ::value = @novo, class = campo)
+            button("Enviar", type = submit, class = btn)
+          }
+        }
+        // `busy = false`: o mesmo handler, sem a guarda de reentrada.
+        button("Sincronizar (busy = false)", class = btn_suave, on_click = sincronizar(), busy = false)
+        text("salvos: {@salvos} · último: {@ultimo}", class = valor)
+        // Frente 1: `@__busy.*` é bool tipado — o template testa, não compara texto.
+        text("ocupação: {@__busy.salvar_lento}", class = codigo)
+      }
+
+      // ── Frente 3 + 11: componente fechado, import local ────────────────
+      row(class = grade) {
+        Cartao(
+          id = "cartao-a",
+          titulo = "Cartão A",
+          resumo = "{@ultimo} · {@contagem} chamadas",
+          // O `app:` diz que o dono da ação é desta tela, não do componente.
+          on_abrir = "app:abrir(\"cartao-a\")",
+        ) {
+          // Slot nomeado preenchido por quem usa; o `fallback` é do componente.
+          text("conteúdo do slot `corpo` do cartão A", slot = corpo)
+        }
+        Cartao(
+          id = "cartao-b",
+          titulo = "Cartão B",
+          resumo = "{len(@servicos)} itens",
+          on_abrir = "app:abrir(\"cartao-b\")",
+        )
+      }
+      text("cada cartão tem `state { aberto = false }` próprio; o contador é do app (@app.contagem).", class = nota)
+
+      // ── Frente 5: keyed each ───────────────────────────────────────────
+      column(class = bloco) {
+        text("5 · each com chave por item", class = subtitulo)
+        row(class = linha) {
+          textinput(placeholder = "novo serviço", ::value = @novo, class = campo_grande)
+          button("Adicionar", class = btn, on_click = adicionar())
+        }
+        each @servicos as s(key = @s.id) {
+          row(class = item) {
+            container(class = ponto, :class.ok = @s.ok, :class.ruim = !@s.ok)
+            text("{@s.nome}", class = nome)
+            text("{@s.ms} ms", class = nota)
+            button("alternar", class = btn_suave, on_click = alternar(@s.id))
+            button("remover", class = btn_suave, on_click = remover(@s.id))
+          }
+        }
+      }
+
+      text("Frente 7: este arquivo passou por `glacier fmt` — reindentação que não perde comentário nem string.", class = rodape)
+    }
+  }
+}

@@ -106,6 +106,14 @@ pub struct AppMeta {
     /// todo widget. `legacy` (o padrão, por enquanto): o `color` de `button`,
     /// `select`, `comboedit` e `menu` é o fundo. Ver `crate::eval::set_cor_css`.
     pub gss_color_css: bool,
+    /// `truthy = typed`: a regra de verdade dos **tipos** — falso é só `false`,
+    /// `0`, `null`, `""`, `[]` e `{}`; uma palavra digitada por alguém ("não",
+    /// "off") é texto, e texto é verdadeiro. O padrão é `textual`, a regra de
+    /// sempre. Ligado pela migração da tela, nunca por troca de padrão (Frente 1).
+    pub truthy_typed: bool,
+    /// `busy_release = toast`: o primeiro `toast` de uma corrotina libera o botão
+    /// ocupado dela, em vez de esperar o handler terminar (Frente 4).
+    pub busy_release_toast: bool,
     /// `application_id = "meu-app"`: o `application_id` (Wayland/X11) das
     /// janelas, que o desktop usa para casar a janela com o `.desktop`. Só
     /// existe no Linux; nas outras plataformas é ignorado.
@@ -314,6 +322,10 @@ pub struct PropDecl {
     /// `prop(name = ativo, type = bool)` — o tipo do valor. `None` = qualquer um
     /// (o comportamento de antes). Ver [`TipoProp`].
     pub tipo: Option<TipoProp>,
+    /// Declarado num `state { … }` do componente, não num `props { … }`: o valor é
+    /// do componente, e quem usa não o passa. Chega ao parser como
+    /// `prop(nome, default = …, estado)` (ver a Frente 2 do `TODO.md`).
+    pub estado: bool,
 }
 
 /// O tipo de uma prop (`type =` no `prop`). Um valor **literal** do tipo errado no
@@ -416,6 +428,10 @@ const APP_MONO_FONT_ATTRS: &[&str] = &["mono_font"];
 const APP_GSS_STRICT_ATTRS: &[&str] = &["gss_strict"];
 const APP_BUSY_BUTTONS_ATTRS: &[&str] = &["busy_buttons"];
 const APP_GSS_COLOR_ATTRS: &[&str] = &["gss_color"];
+/// `truthy = typed | textual` — a regra de verdade (Frente 1 do `TODO.md`).
+const APP_TRUTHY_ATTRS: &[&str] = &["truthy", "verdade"];
+/// `busy_release = toast | fim` — quando o botão ocupado se libera (Frente 4).
+const APP_BUSY_RELEASE_ATTRS: &[&str] = &["busy_release", "libera_busy"];
 const APP_APPLICATION_ID_ATTRS: &[&str] = &["application_id"];
 const APP_ATTR_GROUPS: &[&[&str]] = &[
     APP_ID_ATTRS,
@@ -429,6 +445,8 @@ const APP_ATTR_GROUPS: &[&[&str]] = &[
     APP_GSS_STRICT_ATTRS,
     APP_BUSY_BUTTONS_ATTRS,
     APP_GSS_COLOR_ATTRS,
+    APP_TRUTHY_ATTRS,
+    APP_BUSY_RELEASE_ATTRS,
     APP_APPLICATION_ID_ATTRS,
 ];
 const FONT_SRC_ATTRS: &[&str] = &["src"];
@@ -542,8 +560,20 @@ const PROP_DEFAULT_ATTRS: &[&str] = &["default"];
 /// `component=""`, reescrito por `eval::normalize_bare_directives`.
 const PROP_COMPONENT_ATTRS: &[&str] = &["component"];
 const PROP_TYPE_ATTRS: &[&str] = &["type"];
-const PROP_ATTR_GROUPS: &[&[&str]] =
-    &[PROP_NAME_ATTRS, PROP_DEFAULT_ATTRS, PROP_COMPONENT_ATTRS, PROP_TYPE_ATTRS];
+/// O marcador sem valor de um estado local (`state { aberto = false }`, dessugarado
+/// como `prop(name = aberto, default = false, type = bool, estado)`).
+const PROP_ESTADO_ATTRS: &[&str] = &["estado", "state"];
+/// `prop(name = x, shadow = true)`: a sombra de uma chave global é intencional, e
+/// o `glacier check` deixa de avisar (Frente 11).
+const PROP_SHADOW_ATTRS: &[&str] = &["shadow", "sombra"];
+const PROP_ATTR_GROUPS: &[&[&str]] = &[
+    PROP_NAME_ATTRS,
+    PROP_DEFAULT_ATTRS,
+    PROP_COMPONENT_ATTRS,
+    PROP_TYPE_ATTRS,
+    PROP_ESTADO_ATTRS,
+    PROP_SHADOW_ATTRS,
+];
 
 /// O único atributo de um `component(name = "…")` declarado no `resources` —
 /// a tag pela qual o componente passa a ser usado. Ver [`NodeType::Define`].
@@ -7004,6 +7034,7 @@ impl UiNode {
                                 default: Self::get_attr(&p, PROP_DEFAULT_ATTRS),
                                 component: PROP_COMPONENT_ATTRS.iter().any(|a| p.has_attribute(*a))
                                     || tipo == Some(TipoProp::Componente),
+                                estado: PROP_ESTADO_ATTRS.iter().any(|a| p.has_attribute(*a)),
                                 tipo,
                             })
                         })
@@ -7278,6 +7309,10 @@ impl UiNode {
                 .as_deref()
                 .and_then(parse_bool_value)
                 .unwrap_or(false),
+            truthy_typed: Self::get_attr(node, APP_TRUTHY_ATTRS)
+                .is_some_and(|v| matches!(v.trim(), "typed" | "tipada" | "tipado" | "true" | "1")),
+            busy_release_toast: Self::get_attr(node, APP_BUSY_RELEASE_ATTRS)
+                .is_some_and(|v| v.trim() == "toast"),
             gss_strict: Self::get_attr(node, APP_GSS_STRICT_ATTRS)
                 .as_deref()
                 .and_then(parse_bool_value)

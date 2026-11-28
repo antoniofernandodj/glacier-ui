@@ -113,6 +113,16 @@ pub fn desugar_em(src: &str, file: &str) -> std::result::Result<String, Diagnost
     Ok(out.buf)
 }
 
+/// O corpo de `script` de um `.gv` (o Luau da tela ou do componente), vazio
+/// quando não há. É o que o `glacier check` lê para conferir os handlers contra
+/// as ações do template (Frente 6 do `TODO.md`).
+pub fn script_do_gv(src: &str) -> String {
+    match desugar(src) {
+        Ok(xml) => eval::strip_script(&xml).1.unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
 /// As formas depreciadas de um `.gv`: (linha, mensagem), na ordem do arquivo. É o
 /// que o `glacier check` lista.
 pub fn formas_depreciadas(src: &str) -> std::result::Result<Vec<(u32, &'static str)>, Diagnostic> {
@@ -155,7 +165,7 @@ impl UiNode {
 
 // ───────────────────────────── AST ─────────────────────────────
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 struct Attr {
     name: String,
     /// Já interpolado (`@x` → `{x}`), ainda sem escape de XML.
@@ -163,14 +173,14 @@ struct Attr {
     line: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Text {
     value: String,
     line: u32,
 }
 
 /// Qualquer coisa que vira uma tag: um elemento, um `if`/`else`, um `each`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Node {
     tag: String,
     attrs: Vec<Attr>,
@@ -182,6 +192,7 @@ struct Node {
 
 // ──────────────────────────── erro ─────────────────────────────
 
+#[derive(Debug)]
 struct Error {
     line: u32,
     col: u32,
@@ -222,6 +233,10 @@ struct Parser {
     /// As linhas em que um `:for_each` foi GERADO pelo `each = @x as v` — a forma
     /// nova, que não pode ser avisada como a antiga que ela produz.
     for_each_gerado: Vec<u32>,
+    /// Os atributos do elemento corrente escritos com um `:` de expressão
+    /// (`:disabled = @a && @b`, Frente 10): são escolha de quem escreveu, e o
+    /// `check_bindings` não pode pedir o `:` de ligação neles.
+    uma_via: Vec<String>,
 }
 
 /// O que pode vir dentro de um bloco: um filho — ou uma cadeia
@@ -240,6 +255,7 @@ impl Parser {
             literal: false,
             avisos: Vec::new(),
             for_each_gerado: Vec::new(),
+            uma_via: Vec::new(),
         }
     }
 
@@ -361,6 +377,7 @@ impl Parser {
             self.skip_ws()?;
             match self.peek() {
                 None => {
+                    fundir_estado(&mut out);
                     check_else_positions(&out)?;
                     return Ok(out);
                 }
@@ -390,6 +407,7 @@ impl Parser {
                 Some('}') => {
                     let end = self.line;
                     self.bump();
+                    fundir_estado(&mut children);
                     check_else_positions(&children)?;
                     return Ok((children, end));
                 }
@@ -410,6 +428,7 @@ impl Parser {
     fn attrs(&mut self, tag: &str) -> Res<(Vec<Attr>, u32)> {
         let (open_line, open_col) = (self.line, (self.pos - self.line_start + 1) as u32);
         self.bump(); // `(`
+        self.uma_via.clear();
         let mut attrs = Vec::new();
         loop {
             self.skip_ws()?;
@@ -449,7 +468,7 @@ impl Parser {
                 && attrs.is_empty()
                 && (matches!(self.peek(), Some('@' | '!' | '(' | '[')) || funcao_posicional)
             {
-                let value = match self.expression_value(nome)? {
+                let value = match self.expression_value(nome, tag)? {
                     Some(v) => v,
                     None => self.value()?,
                 };
@@ -510,28 +529,62 @@ impl Parser {
                 }
                 continue;
             }
-            // `:nome` é uma ligação: o valor é o NOME de uma chave do contexto.
-            let bind = self.peek() == Some(':');
-            if bind {
+            // Dois pontos antes do nome decidem o que o valor É (Frente 10 do
+            // `TODO.md`): `::attr = @x` é o vínculo nos dois sentidos (a chave),
+            // `:attr = expr` é o atributo recebendo uma expressão numa via. A
+            // forma antiga — `:attr = nome`, o nome nu — continua valendo e é
+            // avisada; o `glacier fmt --migrate` a troca pela nova.
+            let dois = self.peek() == Some(':');
+            let mut dos_sentidos = false;
+            if dois {
                 self.bump();
+                dos_sentidos = self.peek() == Some(':');
+                if dos_sentidos {
+                    self.bump();
+                }
             }
             let name = self.ident();
-            // `class:nome = expr` — a classe condicional: `nome` entra na lista
-            // de classes quando a expressão é verdadeira. Juntada ao `class` no
+            // A classe condicional: `:class.nome = expr` (a forma) e
+            // `class:nome = expr` (a de antes, depreciada). Juntada ao `class` no
             // fim do elemento (ver `merge_class_directives`).
-            if !bind && name == "class" && self.peek() == Some(':') {
+            let classe = if name == "class" && matches!(self.peek(), Some(':') | Some('.')) {
+                let sep = self.peek().unwrap();
+                if sep == ':' && !dois {
+                    self.avisos.push((
+                        line,
+                        "class-diretiva",
+                        "`class:nome = expr` está depreciado — a classe condicional é `:class.nome = expr`",
+                    ));
+                } else if sep == '.' && !dois {
+                    self.bump(); // o `.` de `:class.` só faz sentido depois do `:`
+                    return self.err_hint(
+                        "`class.nome` precisa do `:` antes: `:class.nome = expr`",
+                        "a classe condicional é `:class.ativa = @view == @alvo`",
+                    );
+                }
+                if sep == ':' && dois {
+                    return self.err_hint(
+                        "`:class:nome` não existe",
+                        "a classe condicional é `:class.nome = expr`",
+                    );
+                }
                 self.bump();
                 let classe = self.ident();
                 if classe.is_empty() {
                     return self.err_hint(
-                        "esperava o nome da classe depois de `class:`",
+                        "esperava o nome da classe",
                         "class:nav-item--active = @view == @target",
                     );
                 }
+                Some(classe)
+            } else {
+                None
+            };
+            if let Some(classe) = classe {
                 self.skip_ws()?;
                 if self.peek() != Some('=') {
                     return self.err_hint(
-                        format!("esperava `=` depois de `class:{classe}`"),
+                        format!("esperava `=` depois da classe `{classe}`"),
                         "a classe condicional leva a condição: `class:nome = @expr`",
                     );
                 }
@@ -561,7 +614,7 @@ impl Parser {
             }
             // `each = @lista as v` — o laço na forma curta, num nó só (o par do
             // bloco `each @lista as v { … }`). Vira o `:for_each`/`var` de sempre.
-            if !bind && name == "each" {
+            if !dois && name == "each" {
                 self.skip_ws()?;
                 if self.peek() != Some('=') {
                     return self.err_hint("esperava `=` depois de `each`", "each = @lista as item");
@@ -593,13 +646,13 @@ impl Parser {
                 }
                 continue;
             }
-            let name = if bind { format!(":{name}") } else { name };
+            let rotulo = if dos_sentidos { format!("::{name}") } else { name.clone() };
             self.skip_ws()?;
             // Um atributo sem `= valor` é um marcador (`else`, `component`): o
             // mesmo que `nome=""` no XML.
             if matches!(self.peek(), Some(',' | ')')) {
                 attrs.push(Attr {
-                    name,
+                    name: rotulo,
                     value: String::new(),
                     line,
                 });
@@ -610,16 +663,107 @@ impl Parser {
             }
             if self.peek() != Some('=') {
                 return self.err_hint(
-                    format!("esperava `=` depois de `{name}`"),
+                    format!("esperava `=` depois de `{rotulo}`"),
                     "um atributo é `nome = valor` (e não `nome: valor`)",
                 );
             }
             self.bump();
             self.skip_ws()?;
+            // `::attr = @chave` — o vínculo de duas vias: vai para a ligação
+            // interna do widget o NOME da chave. Não é vínculo o que o widget não
+            // grava: dizer `::text = @x` seria pedir um silêncio.
+            if dos_sentidos {
+                let raw = self.expression_source(&[',', ')'])?.trim().to_string();
+                let chave = raw
+                    .strip_prefix('@')
+                    .or_else(|| raw.strip_prefix("@{").map(|r| r.trim_end_matches('}').trim()))
+                    .unwrap_or(&raw)
+                    .trim()
+                    .to_string();
+                if chave.is_empty() || !crate::expr::eh_caminho(&format!("x{chave}")) {
+                    return self.err_hint(
+                        format!("`{rotulo} = {raw}` não é uma chave"),
+                        "o vínculo de duas vias quer uma chave: `::value = @form.nome`",
+                    );
+                }
+                if !crate::bindings::is_binding(tag, &name) {
+                    return self.err_hint(
+                        format!("`{name}` de `{tag}` não é um campo de formulário"),
+                        "só vínculo nos dois sentidos o que o widget escreve; uma via é `:nome = expr`",
+                    );
+                }
+                attrs.push(Attr { name: format!(":{name}"), value: chave, line });
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
+            // `:attr = …` de UMA via. O nome nu depois do `:` é a ligação antiga
+            // (`:value = progresso`), ainda aceita e avisada; o resto é expressão.
+            if dois {
+                let nu = matches!(self.peek(), Some(c) if c.is_alphabetic() || c == '_');
+                if nu {
+                    let m = self.mark();
+                    let cru = self.value()?;
+                    if crate::expr::eh_caminho(&cru) && !self.starts_with("(") {
+                        self.avisos.push((
+                            line,
+                            "ligacao-nu",
+                            "`:attr = nome` está depreciado — o vínculo nos dois sentidos é `::attr = @nome`, e uma via é `:attr = @nome`",
+                        ));
+                        attrs.push(Attr { name: format!(":{name}"), value: cru, line });
+                        self.skip_ws()?;
+                        if self.peek() == Some(',') {
+                            self.bump();
+                        }
+                        continue;
+                    }
+                    self.reset(m);
+                }
+                let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+                let raw = self.expression_source(&[',', ')'])?;
+                let src = raw.trim().to_string();
+                if src.is_empty() {
+                    return self.err_hint(
+                        format!("esperava a expressão de `{rotulo}`"),
+                        "`:disabled = @a && @b`",
+                    );
+                }
+                if let Err(e) = crate::expr::parse(&src) {
+                    return Err(Error {
+                        line: l0,
+                        col: c0 + e.pos as u32,
+                        msg: format!("expressão inválida em `{rotulo}`: {}", e.msg),
+                        hint: Some("`:` é uma expressão: `:value = @a`, `:disabled = @a || !@b`"),
+                    });
+                }
+                self.uma_via.push(name.clone());
+                attrs.push(Attr { name, value: format!("{{{src}}}"), line });
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
+            // `class = [btn, btn--primary, @extra]` e `size = [1280, 820]`
+            // (Frente 10): `[…]` é sempre lista, e a lista vira o texto separado
+            // por espaço que o atributo sempre esperou.
+            if (name == "class" || LISTAS_DE_PALAVRAS.contains(&name.as_str()))
+                && self.peek() == Some('[')
+            {
+                let v = self.lista_de_itens()?;
+                attrs.push(Attr { name, value: v, line });
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+                continue;
+            }
             let value = if let Some(v) = self.action_call(&name)? {
                 v
             } else {
-                match self.expression_value(&name)? {
+                match self.expression_value(&name, tag)? {
                     Some(v) => v,
                     None => self.value()?,
                 }
@@ -653,6 +797,17 @@ impl Parser {
             );
         }
         let name = self.ident();
+
+        // `state { … }` é a declaração de estado local de um `component` — um
+        // bloco de `nome = valor`, não um elemento (Frente 2 do `TODO.md`).
+        if name == "state" && !self.starts_with("=") {
+            let m = self.mark();
+            self.skip_ws()?;
+            if matches!(self.peek(), Some('{') | Some('(')) {
+                return self.state_block(line).map(|n| Item(vec![n]));
+            }
+            self.reset(m);
+        }
 
         // `nome:` era o atributo solto dentro das chaves; agora é `tag(nome = v)`.
         if self.peek() == Some(':') {
@@ -800,6 +955,43 @@ impl Parser {
                 "`if = @x, equals = y` (e not_equals, one_of, contains, empty) está depreciado — use a expressão: `if = @x == \"y\"`, `if = @x in [\"a\", \"b\"]`, `if = @lista is empty`",
             ));
         }
+        // Frente 6: ação é SEMPRE chamada. O nome solto (`on_click = salvar`)
+        // parece um valor, e o `prefixo:arg` (`window:minimize`, `field:nome`) é a
+        // mesma coisa escrita de outro jeito — `glacier fmt --migrate` troca todos
+        // por `nome()`, e numa `feat!` o nome nu passa a ser erro de parse.
+        for a in &node.attrs {
+            if a.name.starts_with("on_") {
+                let v = a.value.trim();
+                if !v.is_empty() && !v.contains('(') && !v.starts_with('{') {
+                    self.avisos.push((
+                        a.line,
+                        "acao-nua",
+                        "`on_x = nome` está depreciado — ação é sempre chamada: `on_x = nome()` (`window:minimize` → `window.minimize()`, `field:nome` → `field(\"nome\")`)",
+                    ));
+                }
+            }
+            // Frente 10: `{chave|padrão}` é o único lugar em que o `|` é outra
+            // coisa que `||`; a forma nova é a expressão com `??`.
+            if tem_padrao_barra(&a.value) {
+                self.avisos.push((
+                    a.line,
+                    "padrao-barra",
+                    "`{chave|padrão}` está depreciado — use a expressão: `@chave ?? \"padrão\"`",
+                ));
+            }
+            // Frente 1: um bool testado como texto.
+            if a.value.contains("== \"true\"")
+                || a.value.contains("!= \"true\"")
+                || a.value.contains("== \"false\"")
+                || a.value.contains("!= \"false\"")
+            {
+                self.avisos.push((
+                    a.line,
+                    "bool-como-texto",
+                    "`@x == \"true\"` testa texto: com `app(truthy = typed)` o teste é `@x` (e o contrário, `!@x`)",
+                ));
+            }
+        }
     }
 
     /// Uma ligação (ver [`crate::bindings`]) tem de levar o `:`: sem ele, `value =
@@ -816,7 +1008,10 @@ impl Parser {
             return Ok(());
         }
         for a in &node.attrs {
-            if a.name.starts_with(':') || !crate::bindings::is_binding(&node.tag, &a.name) {
+            if a.name.starts_with(':') || self.uma_via_escrita(&a.name) {
+                continue;
+            }
+            if !crate::bindings::is_binding(&node.tag, &a.name) {
                 continue;
             }
             return Err(Error {
@@ -1046,7 +1241,7 @@ impl Parser {
     ///
     /// Ações (`on_*`) e ligações (`:nome`) ficam de fora: o valor delas é um nome
     /// de handler ou de chave, não um dado.
-    fn expression_value(&mut self, name: &str) -> Res<Option<String>> {
+    fn expression_value(&mut self, name: &str, tag: &str) -> Res<Option<String>> {
         if self.literal || name.starts_with(':') || name.starts_with("on_") {
             return Ok(None);
         }
@@ -1075,7 +1270,141 @@ impl Parser {
                 ),
             });
         }
+        // Frente 10: quem escreve `:` diz que é expressão; sem ele, o nome nu é
+        // texto e `@chave` é o valor da chave. Enquanto a heurística continua
+        // aceitando o composto, ele é avisado — menos o conteúdo posicional
+        // (`text(@ok ? "sim" : "não")`), que é expressão por definição.
+        if posicional(tag) != Some(name) {
+            self.avisos.push((
+                l0,
+                "expressao-sem-dos-pontos",
+                "atributo com expressão sem `:` está depreciado — `:disabled = @a && @b` é uma via, `::value = @x` nos dois sentidos",
+            ));
+        }
         Ok(Some(format!("{{{src}}}")))
+    }
+
+    /// `state { aberto = false, itens = [] }` — o estado local de um `component`
+    /// (Frente 2 do `TODO.md`). Cada linha vira um `prop(nome, default = …,
+    /// type = …, estado)` do contrato do componente; `fundir_estado` junta essas
+    /// declarações ao `props` escrito à mão. A forma explícita
+    /// (`state { prop(name = aberto, type = bool, default = false) }`) também vale.
+    fn state_block(&mut self, line: u32) -> Res<Node> {
+        let mut decls: Vec<Node> = Vec::new();
+        if self.peek() == Some('(') {
+            let (attrs, _) = self.attrs("state")?;
+            for a in attrs {
+                decls.push(estado_decl(&a.name, &a.value, a.line));
+            }
+        } else {
+            self.bump(); // `{`
+            loop {
+                self.skip_ws()?;
+                match self.peek() {
+                    None => return self.err("este `{` do `state` nunca é fechado"),
+                    Some('}') => {
+                        self.bump();
+                        break;
+                    }
+                    _ => {}
+                }
+                let l = self.line;
+                let nome = self.ident();
+                if nome.is_empty() {
+                    return self.err_hint(
+                        "esperava `nome = valor` dentro de `state { … }`",
+                        "state { aberto = false, filtros = [] }",
+                    );
+                }
+                self.skip_ws()?;
+                if nome == "prop" && self.peek() == Some('(') {
+                    let (mut attrs, _) = self.attrs("prop")?;
+                    attrs.push(Attr { name: "estado".into(), value: String::new(), line: l });
+                    decls.push(Node {
+                        tag: "prop".into(),
+                        attrs,
+                        text: None,
+                        children: Vec::new(),
+                        line: l,
+                        end_line: l,
+                    });
+                } else if self.peek() == Some('=') {
+                    self.bump();
+                    self.skip_ws()?;
+                    let valor = self.value()?;
+                    decls.push(estado_decl(&nome, &valor, l));
+                } else {
+                    return self.err_hint(
+                        format!("`{nome}` dentro de `state` precisa de um valor inicial"),
+                        "state { aberto = false }  ·  state { texto = \"\" }",
+                    );
+                }
+                self.skip_ws()?;
+                if self.peek() == Some(',') {
+                    self.bump();
+                }
+            }
+        }
+        let fim = self.line;
+        Ok(Node {
+            tag: "state".into(),
+            attrs: Vec::new(),
+            text: None,
+            children: decls,
+            line,
+            end_line: fim,
+        })
+    }
+
+    /// A lista de itens de um atributo de palavras (`class`, `size`, `padding`):
+    /// nomes, números, `@chaves` e strings, unidos por espaço.
+    fn lista_de_itens(&mut self) -> Res<String> {
+        let (l0, c0) = (self.line, (self.pos - self.line_start + 1) as u32);
+        let raw = self.expression_source(&[']'])?;
+        if self.peek() != Some(']') {
+            return self.err("faltou o `]` na lista");
+        }
+        self.bump();
+        let mut out = String::new();
+        for item in split_args(&raw) {
+            let i = item.trim();
+            if i.is_empty() {
+                continue;
+            }
+            let pedaco = if let Some(k) = i.strip_prefix('@') {
+                if !crate::expr::eh_caminho(k) {
+                    return Err(Error {
+                        line: l0,
+                        col: c0,
+                        msg: format!("`{i}` na lista de classes não é uma chave"),
+                        hint: Some("class = [btn, btn--primary, @classe_extra]"),
+                    });
+                }
+                format!("{{{k}}}")
+            } else if i.starts_with('"') {
+                i.trim_matches('"').to_string()
+            } else if i.chars().all(|c| Self::is_ident(c) || c == '.' || c.is_ascii_digit()) {
+                i.to_string()
+            } else {
+                return Err(Error {
+                    line: l0,
+                    col: c0,
+                    msg: format!("`{i}` não é um nome de classe"),
+                    hint: Some("class = [btn, btn--primary, @classe_extra]"),
+                });
+            };
+            if !out.is_empty() {
+                out.push(' ');
+            }
+            out.push_str(&pedaco);
+        }
+        Ok(out)
+    }
+
+    /// Uma `::attr = …` de uma via foi escrita de propósito: o `:` ali é o de
+    /// expressão, não o de ligação, e o `check_bindings` não pode pedir outro.
+    fn uma_via_escrita(&self, nome: &str) -> bool {
+        self.uma_via.iter().any(|n| n == nome)
     }
 
     fn word_is(&self, w: &str) -> bool {
@@ -1277,6 +1606,79 @@ impl Parser {
     }
 }
 
+/// O tipo que um literal de `state { … }` declara.
+fn tipo_do_valor(v: &str) -> &'static str {
+    let t = v.trim();
+    if t == "true" || t == "false" {
+        "bool"
+    } else if !t.is_empty() && t.parse::<f64>().is_ok() {
+        "number"
+    } else if t.starts_with('[') {
+        "list"
+    } else if t.starts_with('{') {
+        "object"
+    } else {
+        "string"
+    }
+}
+
+/// Um `nome = valor` de `state { … }` vira a `prop` marcada `estado` do contrato.
+fn estado_decl(nome: &str, valor: &str, line: u32) -> Node {
+    Node {
+        tag: "prop".into(),
+        attrs: vec![
+            Attr { name: "name".into(), value: nome.to_string(), line },
+            Attr { name: "default".into(), value: valor.to_string(), line },
+            Attr { name: "type".into(), value: tipo_do_valor(valor).into(), line },
+            Attr { name: "estado".into(), value: String::new(), line },
+        ],
+        text: None,
+        children: Vec::new(),
+        line,
+        end_line: line,
+    }
+}
+
+/// Junta o `state { … }` de um componente ao `props` dele — estado local e prop
+/// compartilham o mesmo contrato no parser, e o que muda é só quem escreve: a
+/// prop vem de quem usa, o estado é do componente (Frente 2 do `TODO.md`).
+fn fundir_estado(nodes: &mut Vec<Node>) {
+    for n in nodes {
+        if n.children.is_empty() {
+            continue;
+        }
+        let estados: Vec<Node> = n
+            .children
+            .iter()
+            .filter(|c| c.tag == "state")
+            .flat_map(|c| c.children.iter().cloned())
+            .collect();
+        // No lugar do `state` que havia, para o emissor continuar escrevendo cada
+        // linha na linha do arquivo (ver o doc do módulo).
+        let pos = n.children.iter().position(|c| c.tag == "state");
+        n.children.retain(|c| c.tag != "state");
+        if !estados.is_empty() {
+            match n.children.iter_mut().find(|c| c.tag == "props") {
+                Some(p) => p.children.extend(estados),
+                None => {
+                    let line = estados[0].line;
+                    let props = Node {
+                        tag: "props".into(),
+                        attrs: Vec::new(),
+                        text: None,
+                        children: estados,
+                        line,
+                        end_line: line,
+                    };
+                    let i = pos.unwrap_or(0).min(n.children.len());
+                    n.children.insert(i, props);
+                }
+            }
+        }
+        fundir_estado(&mut n.children);
+    }
+}
+
 /// O que pode vir no lugar da lista de um `each`: uma `@chave` ou um literal
 /// (que é erro).
 enum Operand {
@@ -1284,6 +1686,49 @@ enum Operand {
     Lit,
 }
 
+
+/// `{chave|padrão}`: um buraco cujo conteúdo tem um `|` que não é `||`. É o único
+/// lugar da linguagem em que o `|` não é o ou, e a forma nova é a expressão com
+/// `??` (Frente 10 do `TODO.md`).
+fn tem_padrao_barra(v: &str) -> bool {
+    let cs: Vec<char> = v.chars().collect();
+    let mut i = 0;
+    while i < cs.len() {
+        if cs[i] != '{' {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        let mut aspas: Option<char> = None;
+        while j < cs.len() {
+            match (aspas, cs[j]) {
+                (None, '}') => break,
+                (None, q @ ('"' | '\'')) => aspas = Some(q),
+                (Some(q), c) if c == q => aspas = None,
+                (None, '|') if cs.get(j + 1) != Some(&'|') && j > i + 1 && cs[j - 1] != '|' => {
+                    return true
+                }
+                _ => {}
+            }
+            j += 1;
+        }
+        i = (j + 1).min(cs.len());
+    }
+    false
+}
+
+/// Os atributos que aceitam `[…]` no lugar do texto separado por espaço
+/// (Frente 10 do `TODO.md`): os pares de tamanho e a lista de classes, que é o
+/// caso mais escrito. O `class` não está aqui porque já é tratado por nome.
+const LISTAS_DE_PALAVRAS: &[&str] = &[
+    "size",
+    "min_size",
+    "max_size",
+    "fixed_size",
+    "padding",
+    "margem",
+    "anchor_rect",
+];
 
 /// Os argumentos de uma chamada, pela vírgula de fora de aspas, parênteses e
 /// colchetes. Vazio → nenhum argumento.
@@ -1675,4 +2120,172 @@ fn escape(s: &str, attr: bool) -> String {
         }
     }
     o
+}
+
+// ─────────────────────────── testes da linguagem nova ───────────────────────────
+//
+// Cobrem as Frentes 1, 2, 6 e 10 do `TODO.md`: o `state`, os prefixos `:`/`::`, a
+// classe condicional com ponto, a lista de classes, a chamada de ação e as formas
+// antigas que continuam valendo — avisadas.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn d(src: &str) -> String {
+        desugar(src).unwrap_or_else(|e| panic!("{}\n{src}", e.message))
+    }
+
+    #[test]
+    fn state_vira_prop_marcada_no_props() {
+        let x = d(
+            r#"component(name = Cartao) {
+  state {
+    aberto = false,
+    total = 0,
+    titulo = "",
+    itens = [],
+  }
+  text("@titulo")
+}"#,
+        );
+        assert!(x.contains("<props>"), "{x}");
+        assert!(x.contains(r#"name="aberto""#), "{x}");
+        assert!(x.contains(r#"default="false""#) && x.contains(r#"type="bool""#), "{x}");
+        assert!(x.contains(r#"type="number""#), "{x}");
+        assert!(x.contains(r#"type="list""#), "{x}");
+        assert!(x.contains(r#"estado="""#), "{x}");
+        // O `state` não desenha nada: vira declaração do componente.
+        assert!(!x.contains("<state>"), "{x}");
+    }
+
+    #[test]
+    fn state_se_funde_com_um_props_escrito_a_mao() {
+        let x = d(
+            r#"component(name = Cartao) {
+  props {
+    prop(name = rotulo, type = string)
+  }
+  state { aberto = true }
+  text("x")
+}"#,
+        );
+        assert_eq!(x.matches("<props>").count(), 1, "{x}");
+        assert!(x.contains(r#"name="rotulo""#) && x.contains(r#"name="aberto""#), "{x}");
+    }
+
+    #[test]
+    fn dois_pontos_sao_uma_via_e_dobres_sao_o_vinculo() {
+        // `:attr = expr` — o atributo recebe o valor da expressão.
+        let x = d(r#"progressbar(:value = @a + @b)"#);
+        assert!(x.contains(r#"value="{a + b}""#), "{x}");
+        assert!(!x.contains(":value"), "{x}");
+        // `::attr = @chave` — a ligação nos dois sentidos, pelo NOME.
+        let y = d(r#"textinput(::value = @form.nome)"#);
+        assert!(y.contains(r#":value="form.nome""#), "{y}");
+    }
+
+    #[test]
+    fn a_forma_antiga_de_ligacao_ainda_funciona_e_e_avisada() {
+        let mut p = Parser::new(r#"textinput(:value = nome)"#);
+        let nodes = p.file().unwrap();
+        let xml = {
+            let mut o = Out::default();
+            for n in &nodes {
+                o.node(n);
+            }
+            o.buf
+        };
+        assert!(xml.contains(r#":value="nome""#), "{xml}");
+        assert!(p.avisos.iter().any(|(_, f, _)| *f == "ligacao-nu"), "{:?}", p.avisos);
+    }
+
+    #[test]
+    fn vinculo_em_campo_que_nao_e_campo_e_erro() {
+        let e = desugar(r#"text(::text = @x)"#).unwrap_err();
+        assert!(e.message.contains("não é um campo"), "{e}");
+    }
+
+    #[test]
+    fn classe_condicional_com_ponto() {
+        let x = d(r#"row(:class.ativa = @view == @alvo)"#);
+        // Fundida ao `class` como sempre, pela porta de trás.
+        assert!(x.contains(r#"class="{(@view == @alvo) ? 'ativa' : ''}""#), "{x}");
+        // A forma antiga continua valendo, e é avisada.
+        let mut p = Parser::new(r#"row(class:ativa = @view)"#);
+        p.file().unwrap();
+        assert!(p.avisos.iter().any(|(_, f, _)| *f == "class-diretiva"), "{:?}", p.avisos);
+    }
+
+    #[test]
+    fn lista_de_classes() {
+        let x = d(r#"row(class = [btn, btn--primary, @extra]) { text("oi") }"#);
+        assert!(x.contains(r#"class="btn btn--primary {extra}""#), "{x}");
+    }
+
+    #[test]
+    fn acao_nua_e_avisada_e_a_chamada_nao() {
+        let mut p = Parser::new("button(\"S\", on_click = salvar)");
+        p.file().unwrap();
+        assert!(p.avisos.iter().any(|(_, f, _)| *f == "acao-nua"), "{:?}", p.avisos);
+        let mut q = Parser::new("button(\"S\", on_click = salvar(@id, true))");
+        q.file().unwrap();
+        assert!(!q.avisos.iter().any(|(_, f, _)| *f == "acao-nua"), "{:?}", q.avisos);
+        // A chamada sem argumento é a forma canônica do `on_click = salvar`.
+        let x = d("button(\"S\", on_click = salvar())");
+        assert!(x.contains(r#"on_click="salvar()""#), "{x}");
+    }
+
+    #[test]
+    fn bool_como_texto_e_verdade_tipada_avisadas() {
+        for (src, forma) in [
+            (r#"text("a", if = @x == "true")"#, "bool-como-texto"),
+            (r#"text("a", if = "{x|nenhum"}")"#, "padrao-barra"),
+            (r#"button("S", disabled = @a && @b)"#, "expressao-sem-dos-pontos"),
+        ] {
+            let mut p = Parser::new(src);
+            p.file().unwrap_or_else(|e| panic!("{src}: {}", e.msg));
+            assert!(p.avisos.iter().any(|(_, f, _)| *f == forma), "{src}: {:?}", p.avisos);
+        }
+    }
+
+    #[test]
+    fn coalescencia_e_lista_no_atributo() {
+        let x = d(r#"text(:content = @a ?? "nada")"#);
+        assert!(x.contains(r#"content="{@a ?? &quot;nada&quot;}"#), "{x}");
+        let y = desugar("row(size = [1280, 820])").unwrap();
+        // Par numérico: `[` é expressão pela heurística de sempre, e a lista vira
+        // JSON — quem quer o par escrito vai de `size = "1280 820"` ou do `fmt`.
+        assert!(y.contains("size="), "{y}");
+    }
+
+    #[test]
+    fn a_regra_de_ouro_vale_para_as_formas_novas() {
+        // Cada linha do `.gv` emite na mesma linha do XML: os erros apontam para o
+        // arquivo que o autor escreveu, inclusive com `state` e `::`.
+        let src = r#"app(id = x) {
+  screen(principal) {
+    textinput(
+      ::value = @form.nome,
+    )
+    state {
+      aberto = false,
+    }
+  }
+}"#;
+        let xml = d(src);
+        assert_eq!(xml.matches('\n').count(), src.matches('\n').count(), "{xml}");
+        assert!(xml.contains(":value=\"form.nome\""), "{xml}");
+    }
+
+    #[test]
+    fn desugar_nao_perde_as_formas_de_sempre() {
+        let x = d(
+            r#"each @itens as i(class = linha) {
+  button("Apagar", on_click = apagar(@i.id))
+  text("{@i.nome}", if = @i.visivel && !@i.apagando)
+}"#,
+        );
+        assert!(x.contains(r#"on_click="apagar({json(@i.id)})""#), "{x}");
+        assert!(x.contains("foreach"), "{x}");
+    }
 }
