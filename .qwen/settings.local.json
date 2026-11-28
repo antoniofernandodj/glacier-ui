@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la && echo '--- src ---' && ls -la src 2>/dev/null && echo '--- crates ---' && ls crates 2>/dev/null && echo '--- docs ---' && ls docs 2>/dev/null && echo '--- wc ---' && wc -l src/*.rs src/**/*.rs 2>/dev/null | tail -50)",
+      "Bash(cat Cargo.toml && echo '=== VERSION ===' && grep -m1 '^version' Cargo.toml crates/*/Cargo.toml 2>/dev/null)"
+    ]
+  }
+}
