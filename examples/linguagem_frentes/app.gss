@@ -1,65 +1,117 @@
-/* O `.gss` do exemplo `linguagem_frentes` — na semântica do CSS (Frente 8):
-   `background` é o fundo, `color` é o conteúdo, também num `button`. Não existe
-   nenhum `text_color` aqui; quem ainda escreve `color` como fundo recebe o aviso
-   do `glacier check` e passa pelo `glacier fmt --migrate-color`. */
+/* O `.gss` do exemplo `linguagem_frentes`, na semântica do CSS (Frente 8):
+   `background` é o fundo, `color` é o conteúdo — também num `button`. Nenhum
+   `text_color` aqui; a paleta sai dos tokens e o estado mora dentro do bloco. */
+
+:root {
+  --fundo: #17181C;
+  --caixa: #23252B;
+  --caixa-alta: #2C2F36;
+  --borda: #3F4147;
+  --texto: #DEE1E6;
+  --fraco: #98A0AB;
+  --azul: #5B6BFF;
+  --azul-claro: #7A87FF;
+  --verde: #3BA55D;
+  --vermelho: #C4302F;
+  --ambar: #C99A2E;
+}
+
+@theme {
+  background: var(--fundo);
+  text: var(--texto);
+  primary: var(--azul);
+  success: var(--verde);
+  danger: var(--vermelho);
+}
 
 .tela {
-  padding: 18;
-  background: #0d1117;
-  color: #e6edf3;
+  width: fill;
+  padding: 26;
+  spacing: 14;
+  background: var(--fundo);
 }
 
 .cabecalho {
+  spacing: 12;
+  align_y: center;
 }
 
 .titulo {
   size: 22;
-  color: #7dd3fc;
+  bold: true;
+  color: var(--texto);
 }
 
-.nota {
+.nota,
+.rodape {
   size: 12;
-  color: #8b949e;
+  color: var(--fraco);
 }
 
 .bloco {
-  padding: 14;
-  background: #161b22;
+  width: fill;
+  padding: 18;
+  spacing: 10;
+  background: var(--caixa);
+  border_radius: 12;
   border_width: 1;
-  border_radius: 10;
+  border_color: var(--borda);
 }
 
 .subtitulo {
-  size: 15;
-  color: #a5d6ff;
+  size: 14;
+  bold: true;
+  color: var(--texto);
 }
 
 .linha,
 .grade {
+  spacing: 10;
+  align_y: center;
 }
 
 .item {
-  padding: 4 8px;
-  background: #0b0f14;
+  width: fill;
+  padding: 8 12;
+  spacing: 10;
+  align_y: center;
+  background: var(--caixa-alta);
   border_radius: 8;
 }
 
+.nome,
 .valor {
   size: 13;
-  color: #c9d1d9;
+  color: var(--texto);
 }
 
 .codigo {
   size: 12;
-  color: #9cdcfe;
+  font_family: mono;
+  color: var(--fraco);
 }
 
 .ok {
-  color: #3fb950;
+  color: var(--verde);
 }
 
 .alerta {
-  color: #f85149;
+  color: var(--ambar);
+}
+
+.campo,
+.campo_grande,
+.largo {
+  padding: 8 10;
+  background: var(--caixa-alta);
+  border_width: 1;
+  border_color: var(--borda);
+  border_radius: 8;
+  color: var(--texto);
+
+  &:is(:hover, :focus) {
+    border_color: var(--azul);
+  }
 }
 
 .largo {
@@ -67,68 +119,89 @@
 }
 
 .campo_grande {
-  width: 240;
+  width: 220;
+}
+
+.campo {
+  width: 140;
 }
 
 .btn,
 .btn_suave {
-  padding: 7 14px;
+  padding: 8 16;
   border_radius: 8;
-  background: #1a5fb4;
-  color: #f0f6fc;
+  background: var(--azul);
+  color: #FFFFFF;
+  transition: all 150ms ease-out;
+
+  &:hover {
+    background: var(--azul-claro);
+  }
+
+  &:disabled {
+    background: var(--caixa-alta);
+    color: var(--fraco);
+  }
 }
 
 .btn_suave {
-  background: #21262d;
-  color: #c9d1d9;
-}
+  background: var(--caixa-alta);
+  color: var(--texto);
 
-.btn:hover {
-  background: #388bfd;
+  &:hover {
+    background: var(--borda);
+  }
 }
 
 .giro {
-  size: 18;
-  color: #58a6ff;
+  size: 16;
+  color: var(--azul);
 }
 
 .ponto {
   width: 10;
   height: 10;
   border_radius: 6;
-  background: #6e7681;
+  background: var(--fraco);
 }
 
 .ponto.ok {
-  background: #3fb950;
+  background: var(--verde);
 }
 
 .ponto.ruim {
-  background: #f85149;
+  background: var(--vermelho);
 }
 
 .cartao {
-  padding: 14;
-  width: 300;
-  background: #161b22;
-  border_width: 1;
+  width: fill;
+  padding: 18;
+  spacing: 8;
+  background: var(--caixa);
   border_radius: 12;
+  border_width: 1;
+  border_color: var(--borda);
+
+  &--aberto {
+    border_color: var(--azul);
+  }
 }
 
-.cartao--aberto {
-}
-
-.cartao__cabecalho {
+.cartao__cabecalho,
+.cartao__pe {
+  spacing: 10;
+  align_y: center;
 }
 
 .cartao__titulo {
   size: 15;
-  color: #e6edf3;
+  bold: true;
+  color: var(--texto);
 }
 
 .cartao__acao {
   size: 12;
-  color: #58a6ff;
+  color: var(--azul);
 }
 
 .cartao__resumo,
@@ -136,20 +209,23 @@
 .cartao__contagem,
 .cartao__global {
   size: 12;
-  color: #8b949e;
+  color: var(--fraco);
 }
 
-.cartao__pe {
+.cartao__corpo {
+  width: fill;
+  padding: 10;
+  background: var(--caixa-alta);
+  border_radius: 8;
 }
 
 .cartao__btn {
-  padding: 6 12px;
+  padding: 6 12;
   border_radius: 8;
-  background: #1a6b2c;
-  color: #f0f6fc;
-}
+  background: var(--verde);
+  color: #FFFFFF;
 
-.rodape {
-  size: 12;
-  color: #6e7681;
+  &:hover {
+    background: #4CBF73;
+  }
 }

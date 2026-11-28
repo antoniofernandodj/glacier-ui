@@ -210,7 +210,10 @@ app(
         )
       }
       text(
-        "cada cartão declara o próprio estado em `state`; o contador é do app, lido como @{@app.contagem}.",
+        """
+        cada cartão declara o próprio estado em `state`;
+        o contador é do app, lido como @{@app.contagem}.
+        """,
         class = nota
       )
 
@@ -232,7 +235,13 @@ app(
         }
       }
 
-      text("Frente 7: este arquivo passou por `glacier fmt` — reindentação que não perde comentário nem string.", class = rodape)
+      text(
+        """
+        Frente 7: este arquivo passou por `glacier fmt` — reindentação que
+        não perde comentário nem string.
+        """,
+        class = rodape
+      )
     }
   }
 }
