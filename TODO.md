@@ -420,9 +420,10 @@ e nada nele confere nome nem tipo de chave.
 
 **Vai quebrar, e é preciso adaptar o `../rustploy` quando isto for usado lá:**
 
-- [ ] **Remover o `declare ctx` do `crates/glacier-cli/templates/_comum/views/scripts/glacier.d.luau`
-      do app** (o `check --tipos` avisa quando os dois existem): dois `declare ctx`
-      na mesma árvore de sources é erro do luau-lsp.
+- [ ] **Remover o `declare ctx` do `views/scripts/glacier.d.luau` do app** (o
+      preset hoje declara `ctx: { [string]: any }` lá; o `check --tipos` avisa quando
+      os dois existem): dois `declare ctx` na mesma árvore de sources é erro do
+      luau-lsp.
 - [ ] **Rodar `glacier check --tipos` uma vez e revisar o arquivo**: os ~500 scripts
       do rustploy gravam chaves que o scanner vê com um tipo e escrevem com outro
       (`ctx.x = "0"` numa chave que nasceu `ctx.x = 0` vira `number` contra
