@@ -209,7 +209,10 @@ app(
           on_abrir = "app:abrir(\"cartao-b\")",
         )
       }
-      text("cada cartão declara o próprio estado em `state`; o contador é do app, lido como @{@app.contagem}.", class = nota)
+      text(
+        "cada cartão declara o próprio estado em `state`; o contador é do app, lido como @{@app.contagem}.",
+        class = nota
+      )
 
       // ── Frente 5: keyed each ───────────────────────────────────────────
       column(class = bloco) {
