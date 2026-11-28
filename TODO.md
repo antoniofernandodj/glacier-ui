@@ -80,7 +80,7 @@ diferentes exigem trocar o prefixo à mão (o mesmo vale para os nomes importado
       local, depois em `props`, e só então no global.
 - [x] Acesso ao global explícito e visível: `@app.x` (ou outro prefixo a decidir). O
       `glacier check` avisa componente que lê global sem declarar.
-- [ ] O script do componente (`script(src = …)`) recebe o estado da **instância**
+- [ ] *(parcial — ver "Pendências por frente")* O script do componente (`script(src = …)`) recebe o estado da **instância**
       (`self.x` / `ctx.x` local) — duas instâncias não se veem.
 - [x] Vínculo único em formulário: substitui `form_control` + `:value` +
       `on_change = field:x`, resolvido contra o estado do `form`/componente. A escrita é
@@ -111,7 +111,7 @@ diferentes exigem trocar o prefixo à mão (o mesmo vale para os nomes importado
       `fallback` e verificação: slot preenchido que o componente não declara é erro.
 - [ ] `spread` valida contra `props`: campo do objeto que não é prop é ignorado com aviso
       uma vez; prop obrigatória faltando no objeto é erro.
-- [ ] Eventos de saída tipados (`prop(type = action)` já existe): documentar o padrão
+- [x] Eventos de saída tipados (`prop(type = action)` já existe): documentar o padrão
       "componente emite, quem usa decide" como a forma de devolver dado ao pai.
 
 ## Frente 4 — Botão ocupado no motor (substituir o `busy.luau` do rustploy)
@@ -209,7 +209,7 @@ por herança. A forma única passa a ser `on_click = salvar()`, com ou sem argum
 - [ ] O dono da ação (`Comp::handler`, hoje resolvido em silêncio para a tela atual quando
       o prefixo não é um componente com script) também é verificado: prefixo que não
       resolve é erro.
-- [ ] Substitui o `tools/busy_actions.py --check` do rustploy na parte de "o handler do
+- [x] Substitui o `tools/busy_actions.py --check` do rustploy na parte de "o handler do
       template existe no script".
 
 ## Frente 7 — `glacier fmt` que reindenta sem perder comentários
@@ -220,18 +220,18 @@ comentários, e reimprimir a partir da árvore os apagaria.
 
 **Fazer:**
 
-- [ ] Árvore concreta (CST) ao lado da AST: o parser do `.gv` e do `.gss` guarda
+- [ ] *(decisão: reimpressão por tokenização em vez de CST — ver "Status da entrega")* Árvore concreta (CST) ao lado da AST: o parser do `.gv` e do `.gss` guarda
       comentários (`//`, `/* */`) e linhas em branco presos ao nó vizinho (antes, no fim da
       linha, depois do último filho).
 - [ ] Impressor a partir da CST com a convenção do `CLAUDE.md`: indentação de 2, um
       atributo por linha quando não cabe na largura (100), vírgula final nos atributos em
       várias linhas, uma linha em branco entre irmãos de bloco preservada mas nunca duas.
-- [ ] Strings `"""…"""` e `l"""…"""`, blocos `style """…"""` e o conteúdo de `script`
+- [x] Strings `"""…"""` e `l"""…"""`, blocos `style """…"""` e o conteúdo de `script`
       inline são copiados byte a byte.
-- [ ] Idempotente (`fmt` duas vezes = uma) e sem perda: teste de corpus que reimprime
+- [ ] *(parcial: o teste de idempotência cobre os exemplos do plano, não o repositório inteiro, e não confere a AST)* Idempotente (`fmt` duas vezes = uma) e sem perda: teste de corpus que reimprime
       todo `.gv`/`.gss` do repositório e dos exemplos e confere que o conjunto de
       comentários e a AST não mudaram.
-- [ ] `glacier fmt --check` falha no CI quando um arquivo não está formatado.
+- [x] `glacier fmt --check` falha no CI quando um arquivo não está formatado.
 
 ## Frente 8 — Cor do CSS como padrão (`gss_color = css`)
 
@@ -248,7 +248,7 @@ de `button`, `select`, `comboedit` e `menu` é o **fundo** e o rótulo é `text_
 - [ ] Migrar o rustploy-gui (Frente 9) com o mesmo comando.
 - [ ] Trocar o padrão para `css` numa `feat!`; `legacy` continua aceito por
       `app(gss_color = legacy)` com aviso de depreciação, e some numa versão seguinte.
-- [ ] `glacier check` avisa `text_color` num app em modo `css` (sobra da migração).
+- [x] `glacier check` avisa `text_color` num app em modo `css` (sobra da migração).
 
 ## Frente 10 — Cada sinal do `.gv` com um significado só
 
@@ -261,17 +261,17 @@ de sigilos, mas quem lê precisa consultá-la.
 
 **Fazer (resumo; os itens estão no plano):**
 
-- [ ] **O `:` fica, com o sentido do Vue e do Angular (decisão do dono):** `:attr = expr` é
+- [x] **O `:` fica, com o sentido do Vue e do Angular (decisão do dono):** `:attr = expr` é
       o atributo recebendo uma expressão numa via (Vue `:attr`, Angular `[attr]`); sem `:`
       é literal. `::attr = @x` liga nos dois sentidos (`v-model` / `[( )]`), e
       `:class.ativo = expr` é a classe condicional (Angular `[class.ativo]`).
-- [ ] Cada sinal com um significado só: `"…"` é sempre texto, `{expr}` só é buraco dentro
+- [ ] *(parcial: cada sinal tem a forma nova, as antigas seguem aceitas e avisadas até a `feat!`)* Cada sinal com um significado só: `"…"` é sempre texto, `{expr}` só é buraco dentro
       de texto, `@x` é sempre o valor de uma chave, `nome` é sempre nome, `nome(…)` é sempre
       chamada, `[…]` é sempre lista.
 - [ ] **O `:` decide** se um atributo é expressão; some a heurística "começa com
       `@`/`!`/`(`… é expressão". Diretivas (`if`, `each`), eventos (`on_*`) e o conteúdo
       posicional de `text`/`button` são expressão sem `:`, como `v-if`/`@click`/`{{ }}`.
-- [ ] Lista de classes e pares numéricos como lista (`class = [btn, btn--primary]`,
+- [x] Lista de classes e pares numéricos como lista (`class = [btn, btn--primary]`,
       `size = [1280, 820]`); `@x ?? "padrão"` no lugar de `{x|padrão}`.
 - [x] `glacier fmt --migrate` faz todas as trocas; formas antigas com aviso até a `feat!`.
 
@@ -293,18 +293,18 @@ de sigilos, mas quem lê precisa consultá-la.
 
 **Fazer:**
 
-- [ ] **Import local ao arquivo.** O nome dado por `as = Nome` vale só no arquivo que o
+- [x] **Import local ao arquivo.** O nome dado por `as = Nome` vale só no arquivo que o
       importou (e no que esse arquivo declara dentro dele). Usar um componente exige
       importá-lo no arquivo que usa; nome não importado é erro com `arquivo:linha` e a
       sugestão do `link(rel = import, …)` a acrescentar.
-- [ ] Componente compartilhado por muitas telas: `link(rel = import, …, global = true)` no
+- [x] Componente compartilhado por muitas telas: `link(rel = import, …, global = true)` no
       `app.gv` como **única** forma de tornar um nome global, explícita e num lugar só.
       Dois globais com o mesmo nome continuam erro.
 - [x] **`style` local ao arquivo por padrão** (o `scoped = true` de hoje vira o
       comportamento padrão). Regra para o app inteiro vai no `.gss` do `app.gv`
       (`link(rel = stylesheet)`) ou em `style(global = true)`. `scoped = true` fica aceito
       com aviso de redundância.
-- [ ] **Aviso de sombra** no `glacier check` e no carregamento em desenvolvimento: chave de
+- [x] **Aviso de sombra** no `glacier check` e no carregamento em desenvolvimento: chave de
       `state` ou prop com o mesmo nome de uma chave global que o app escreve (no Luau ou em
       outro `.gv`) → aviso com os dois lugares. Silenciável por chave
       (`prop(name = x, shadow = true)`) quando a sombra é intencional.
@@ -356,7 +356,7 @@ enquanto o rustploy usar a solução caseira.
   - os zeros de sinal do critério de pronto de `docs/PLANO_SINAIS_UNICOS.md` (zero `:attr = nome`
     na forma antiga, zero `class:`, `field:`, `"@x"` como valor inteiro, `"{x}"` sem `@`, `class = "a b"`);
   - a regra de verdade nova (Frente 1) ligada no `app.gv`, e não antes dos itens acima.
-- [ ] Atualizar o `AGENTS.md` do agregador rustploy (seção "Armadilhas de template") e o
+- [ ] Atualizar o `AGENTS.md` do agregador rustploy (seção "Armadilhas de template") e o *(o preset `crates/glacier-cli/templates/_comum/AGENTS.md` já foi: checklist com `check`, ação chamada, `--tipos` e `fmt`)*
       preset `crates/glacier-cli/templates/_comum/AGENTS.md`.
 
 ## Ordem sugerida
@@ -397,7 +397,36 @@ espaçamento de traço no `Text` e o `cosmic-text` só o aceita na composição 
 layout, não como atributo do widget; sem um caminho curto, **mantém-se o erro**
 com a explicação, e o item volta se o iced subir de versão.
 
-**Executar os testes (nada foi rodado nesta entrega):**
+**Executar os testes:** a suíte da lib foi rodada depois (519 passam, 12 falham —
+todas nos testes novos desta entrega, nenhum regressivo), e o exemplo foi aberto
+em janela e corrigido até carregar limpo. Os 12 vermelhos estão listados em
+"Pendências por frente"; o CI ainda não rodou.
+
+**Pendências por frente (o que sobrou, com o motivo):**
+
+- *Frente 2* — `state` é **por tipo de componente**, não por instância: falta o id
+  de instância chegar ao despacho (`LuauComponent` + `route_to_owner`) e o `ctx`
+  passado por parâmetro ao handler.
+- *Frente 3* — `slot` não atravessa componente aninhado (sem `forward`, sem o erro
+  de montagem); slot preenchido que o componente não declarar ainda não é erro.
+- *Frente 5* — `keyed_column` e `:hover` em ancestral; `letter_spacing` fica erro
+  (decisão registrada acima).
+- *Frente 6* — assinatura própria dos embutidos no verificador; conferição da ação
+  passada por prop no ponto do disparo; o dono `Comp::handler` como erro de carga.
+- *Frente 7* — a CST (só ela permite quebrar um atributo por linha quando a linha
+  passa de 100); o teste de corpus sobre todo o repositório.
+- *Frente 8/10/11* — inverter os padrões (`gss_color = css`, `truthy = typed`,
+  `style` local, sumir a heurística de expressão, nome solto de ação erro de parse)
+  e o `fmt --migrate` acrescentando os imports por arquivo.
+- *Frente 9* — o rustploy inteiro, depois de publicar.
+- *Testes* — os 12 vermelhos: 3 de `gv::` (`:`/`::`, aviso de ação nua,
+  `bool-como-texto`), 3 de `ferramentas::testes_frentes` (migrate de embutidos,
+  `ctx.d.luau`, reindentação), 2 de `handlers::tests`, 1 de `expr::`, 3 do
+  `busy` em `luau::` — um deles é um achado real: `marca_ocupado` só roda depois
+  do primeiro `drive`, então um `toast`/`busy.release()` antes de qualquer
+  suspensão não tem o que liberar.
+
+**Executar os testes (comandos):**
 
 ```sh
 make test                      # núcleo
